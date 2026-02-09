@@ -10,7 +10,8 @@ from telegram.ext import ContextTypes
 
 from src.bot.security import is_allowed
 from src.bot.session import get_session
-from src.llm.client import stream_response
+from src.llm.client import generate_response
+from src.memory.automatic import extract_and_save
 
 logger = logging.getLogger(__name__)
 
@@ -71,33 +72,45 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # Send a placeholder that we'll edit as the stream arrives
     reply = await update.message.reply_text("...")
-
-    full_text = ""
     last_edit = 0.0
+    streamed_text = ""
+
+    async def on_text_delta(delta: str) -> None:
+        """Called for each text chunk from Claude."""
+        nonlocal streamed_text, last_edit
+        streamed_text += delta
+        now = time.monotonic()
+        if now - last_edit >= STREAM_UPDATE_INTERVAL:
+            with contextlib.suppress(Exception):
+                await reply.edit_text(streamed_text)
+            last_edit = now
 
     try:
-        async for chunk in stream_response(session.to_api_messages()):
-            full_text += chunk
-            now = time.monotonic()
+        result_text = await generate_response(
+            session.to_api_messages(),
+            on_text_delta=on_text_delta,
+        )
 
-            if now - last_edit >= STREAM_UPDATE_INTERVAL:
-                try:
-                    await reply.edit_text(full_text)
-                    last_edit = now
-                except Exception:
-                    # Telegram might reject edits if text hasn't changed
-                    pass
-
-        # Final edit with the complete response
-        if full_text:
+        if result_text:
             with contextlib.suppress(Exception):
-                await reply.edit_text(full_text)
-            session.add("assistant", full_text)
+                await reply.edit_text(result_text)
+            session.add("assistant", result_text)
+
+            # Background memory extraction (don't block the response)
+            recent = session.to_api_messages()[-6:]  # last 3 exchanges
+            asyncio.create_task(
+                extract_and_save(
+                    user_message=user_message,
+                    assistant_response=result_text,
+                    recent_history=recent,
+                    conversation_id=str(chat_id),
+                )
+            )
         else:
             await reply.edit_text("I got an empty response. Try again?")
 
     except Exception:
-        logger.exception("Error streaming response")
+        logger.exception("Error generating response")
         with contextlib.suppress(Exception):
             await reply.edit_text("Something went wrong. Check the logs.")
 

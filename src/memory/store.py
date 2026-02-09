@@ -1,78 +1,194 @@
-"""Conversation storage using SQLite."""
+"""Shared memory store backed by Mem0.
+
+Supports two modes controlled by environment variables:
+- Hosted (default): Set MEM0_API_KEY. Uses Mem0's cloud platform.
+- Disabled: No MEM0_API_KEY. Memory operations become no-ops and
+  search returns empty results. The bot still works, just without
+  long-term memory.
+"""
 
 import logging
 from datetime import UTC, datetime
-
-import aiosqlite
+from typing import Any
 
 from src.config import settings
-from src.memory.models import Message
+from src.memory.models import MemoryEntry
 
 logger = logging.getLogger(__name__)
 
-_DB_INITIALIZED = False
 
+class MemoryStore:
+    """Singleton memory store.
 
-async def _get_db() -> aiosqlite.Connection:
-    """Get a database connection, initializing the schema if needed."""
-    global _DB_INITIALIZED  # noqa: PLW0603
+    Get the shared instance via ``MemoryStore.get()``.
+    """
 
-    db_path = settings.database_path
-    db_path.parent.mkdir(parents=True, exist_ok=True)
+    _instance: "MemoryStore | None" = None
 
-    db = await aiosqlite.connect(str(db_path))
-    db.row_factory = aiosqlite.Row
+    def __init__(self) -> None:
+        self._client: Any = None
+        self._enabled = False
+        self._user_id = "owner"
+        self._init_backend()
 
-    if not _DB_INITIALIZED:
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                chat_id TEXT NOT NULL,
-                role TEXT NOT NULL,
-                content TEXT NOT NULL,
-                created_at TEXT NOT NULL
+    def _init_backend(self) -> None:
+        if settings.mem0_api_key:
+            try:
+                from mem0 import AsyncMemoryClient
+
+                self._client = AsyncMemoryClient(api_key=settings.mem0_api_key)
+                self._enabled = True
+                logger.info("Memory store: hosted mode (Mem0 cloud)")
+            except Exception:
+                logger.exception("Failed to init Mem0 client")
+        else:
+            logger.warning(
+                "Memory store disabled — set MEM0_API_KEY to enable. "
+                "Get a free key at https://app.mem0.ai"
             )
-        """)
-        await db.execute("""
-            CREATE INDEX IF NOT EXISTS idx_messages_chat_id
-            ON messages (chat_id, created_at)
-        """)
-        await db.commit()
-        _DB_INITIALIZED = True
 
-    return db
+    @classmethod
+    def get(cls) -> "MemoryStore":
+        """Return the shared MemoryStore instance."""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
 
+    @classmethod
+    def _reset(cls) -> None:
+        """Reset the singleton (for testing)."""
+        cls._instance = None
 
-async def save_message(chat_id: str, role: str, content: str) -> None:
-    """Persist a message to the database."""
-    db = await _get_db()
-    try:
-        await db.execute(
-            "INSERT INTO messages (chat_id, role, content, created_at) VALUES (?, ?, ?, ?)",
-            (chat_id, role, content, datetime.now(UTC).isoformat()),
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
 
+    # -- Write ---------------------------------------------------------------
 
-async def get_recent_messages(chat_id: str, limit: int = 50) -> list[Message]:
-    """Retrieve the most recent messages for a chat."""
-    db = await _get_db()
-    try:
-        cursor = await db.execute(
-            """
-            SELECT role, content, created_at FROM messages
-            WHERE chat_id = ?
-            ORDER BY created_at DESC
-            LIMIT ?
-            """,
-            (chat_id, limit),
-        )
-        rows = await cursor.fetchall()
-        return [
-            Message(role=row["role"], content=row["content"], created_at=row["created_at"])
-            for row in reversed(rows)
-        ]
-    finally:
-        await db.close()
+    async def add(
+        self,
+        content: str,
+        source: str,
+        category: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict | None:
+        """Store a memory.
+
+        Args:
+            content: The text to remember.
+            source: "automatic" or "explicit".
+            category: One of fact, preference, action_item, workstream,
+                      reference, contact, decision, general.
+            metadata: Extra key-value pairs to attach.
+
+        Returns:
+            The Mem0 result dict, or None if disabled.
+        """
+        if not self._enabled:
+            return None
+
+        full_metadata = {
+            "source": source,
+            "category": category,
+            "created_at": datetime.now(UTC).isoformat(),
+            **(metadata or {}),
+        }
+
+        try:
+            result = await self._client.add(
+                content,
+                user_id=self._user_id,
+                metadata=full_metadata,
+            )
+            logger.debug("Stored memory [%s/%s]: %s", source, category, content[:80])
+            return result
+        except Exception:
+            logger.exception("Failed to store memory")
+            return None
+
+    # -- Read ----------------------------------------------------------------
+
+    async def search(
+        self,
+        query: str,
+        limit: int = 10,
+    ) -> list[MemoryEntry]:
+        """Search for relevant memories.
+
+        Args:
+            query: Natural-language search query.
+            limit: Max results to return.
+
+        Returns:
+            List of MemoryEntry sorted by relevance.
+        """
+        if not self._enabled:
+            return []
+
+        try:
+            raw = await self._client.search(
+                query,
+                user_id=self._user_id,
+                limit=limit,
+            )
+            return self._normalize(raw)
+        except Exception:
+            logger.exception("Memory search failed")
+            return []
+
+    async def get_all(self) -> list[MemoryEntry]:
+        """Retrieve all memories (for debugging/admin)."""
+        if not self._enabled:
+            return []
+
+        try:
+            raw = await self._client.get_all(user_id=self._user_id)
+            return self._normalize(raw)
+        except Exception:
+            logger.exception("Failed to fetch all memories")
+            return []
+
+    # -- Delete --------------------------------------------------------------
+
+    async def delete(self, memory_id: str) -> bool:
+        """Delete a memory by ID.
+
+        Returns True if successful.
+        """
+        if not self._enabled:
+            return False
+
+        try:
+            await self._client.delete(memory_id)
+            logger.info("Deleted memory: %s", memory_id)
+            return True
+        except Exception:
+            logger.exception("Failed to delete memory %s", memory_id)
+            return False
+
+    # -- Helpers -------------------------------------------------------------
+
+    @staticmethod
+    def _normalize(raw: Any) -> list[MemoryEntry]:
+        """Normalize Mem0 results (hosted or local) into MemoryEntry list."""
+        if isinstance(raw, dict):
+            items = raw.get("results", [])
+        elif isinstance(raw, list):
+            items = raw
+        else:
+            items = []
+
+        entries = []
+        for item in items:
+            meta = item.get("metadata", {}) or {}
+            entries.append(
+                MemoryEntry(
+                    id=item.get("id", ""),
+                    content=item.get("memory", ""),
+                    source=meta.get("source", "unknown"),
+                    category=meta.get("category", "general"),
+                    score=item.get("score", 0.0),
+                    created_at=meta.get("created_at", ""),
+                )
+            )
+        return entries

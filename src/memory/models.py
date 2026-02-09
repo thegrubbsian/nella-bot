@@ -12,8 +12,11 @@ class Message(BaseModel):
 
 
 class MemoryEntry(BaseModel):
-    """A stored memory from Mem0."""
+    """A memory retrieved from the store."""
 
     id: str
     content: str
-    metadata: dict[str, str] = {}
+    source: str = "unknown"  # "automatic" or "explicit"
+    category: str = "general"
+    score: float = 0.0
+    created_at: str = ""
