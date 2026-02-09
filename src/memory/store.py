@@ -102,8 +102,9 @@ class MemoryStore:
             )
             logger.debug("Stored memory [%s/%s]: %s", source, category, content[:80])
             return result
-        except Exception:
-            logger.exception("Failed to store memory")
+        except Exception as exc:
+            body = getattr(getattr(exc, "response", None), "text", "")
+            logger.exception("Failed to store memory: %s", body)
             return None
 
     # -- Read ----------------------------------------------------------------
@@ -128,12 +129,12 @@ class MemoryStore:
         try:
             raw = await self._client.search(
                 query,
-                user_id=self._user_id,
-                limit=limit,
+                filters={"user_id": self._user_id},
             )
             return self._normalize(raw)
-        except Exception:
-            logger.exception("Memory search failed")
+        except Exception as exc:
+            body = getattr(getattr(exc, "response", None), "text", "")
+            logger.exception("Memory search failed: %s", body)
             return []
 
     async def get_all(self) -> list[MemoryEntry]:
@@ -142,10 +143,11 @@ class MemoryStore:
             return []
 
         try:
-            raw = await self._client.get_all(user_id=self._user_id)
+            raw = await self._client.get_all(filters={"user_id": self._user_id})
             return self._normalize(raw)
-        except Exception:
-            logger.exception("Failed to fetch all memories")
+        except Exception as exc:
+            body = getattr(getattr(exc, "response", None), "text", "")
+            logger.exception("Failed to fetch all memories: %s", body)
             return []
 
     # -- Delete --------------------------------------------------------------
