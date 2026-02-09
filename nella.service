@@ -1,0 +1,26 @@
+[Unit]
+Description=Nella AI Assistant
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nella
+Group=nella
+WorkingDirectory=/home/nella/app
+EnvironmentFile=/home/nella/app/.env
+ExecStart=/home/nella/.local/bin/uv run python -m src.bot.main
+Restart=always
+RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/nella/app /home/nella/.cache
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
