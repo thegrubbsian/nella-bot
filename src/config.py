@@ -14,11 +14,11 @@ class Settings(BaseSettings):
 
     # Telegram
     telegram_bot_token: str = Field(default="")
-    telegram_owner_chat_id: str = Field(default="")
+    allowed_user_ids: str = Field(default="")
 
     # Anthropic
     anthropic_api_key: str = Field(default="")
-    claude_model: str = Field(default="claude-sonnet-4-20250514")
+    claude_model: str = Field(default="claude-sonnet-4-5-20250929")
 
     # Google
     google_credentials_path: str = Field(default="credentials.json")
@@ -30,10 +30,19 @@ class Settings(BaseSettings):
     # Database
     database_path: Path = Field(default=Path("data/nella.db"))
 
+    # Conversation
+    conversation_window_size: int = Field(default=50)
+
     # Logging
     log_level: str = Field(default="INFO")
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+    def get_allowed_user_ids(self) -> set[int]:
+        """Parse ALLOWED_USER_IDS into a set of ints."""
+        if not self.allowed_user_ids.strip():
+            return set()
+        return {int(uid.strip()) for uid in self.allowed_user_ids.split(",") if uid.strip()}
 
 
 settings = Settings()

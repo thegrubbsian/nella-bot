@@ -1,45 +1,45 @@
-"""Claude API client for generating responses."""
+"""Async Claude API client with streaming."""
 
 import logging
+from collections.abc import AsyncGenerator
 
 import anthropic
 
 from src.config import settings
 from src.llm.prompt import build_system_prompt
-from src.memory.store import get_recent_messages
 
 logger = logging.getLogger(__name__)
 
-_client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+_client: anthropic.AsyncAnthropic | None = None
 
 
-async def generate_response(user_message: str, chat_id: str) -> str:
-    """Generate a response using Claude.
+def _get_client() -> anthropic.AsyncAnthropic:
+    """Lazily initialize the Anthropic client."""
+    global _client  # noqa: PLW0603
+    if _client is None:
+        _client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    return _client
+
+
+async def stream_response(
+    messages: list[dict[str, str]],
+) -> AsyncGenerator[str, None]:
+    """Stream a response from Claude, yielding text chunks.
 
     Args:
-        user_message: The user's message text.
-        chat_id: The Telegram chat ID for conversation context.
+        messages: Conversation history in Claude API format.
 
-    Returns:
-        The assistant's response text.
+    Yields:
+        Text delta strings as they arrive.
     """
-    system_prompt = await build_system_prompt()
-    history = await get_recent_messages(chat_id=chat_id, limit=50)
+    client = _get_client()
+    system_prompt = build_system_prompt()
 
-    messages = [
-        {"role": msg.role, "content": msg.content}
-        for msg in history
-    ]
-    messages.append({"role": "user", "content": user_message})
-
-    try:
-        response = await _client.messages.create(
-            model=settings.claude_model,
-            max_tokens=4096,
-            system=system_prompt,
-            messages=messages,
-        )
-        return response.content[0].text
-    except anthropic.APIError:
-        logger.exception("Claude API error")
-        return "I hit an issue talking to my brain. Try again in a moment."
+    async with client.messages.stream(
+        model=settings.claude_model,
+        max_tokens=4096,
+        system=system_prompt,
+        messages=messages,
+    ) as stream:
+        async for text in stream.text_stream:
+            yield text

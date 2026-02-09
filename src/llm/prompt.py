@@ -1,4 +1,4 @@
-"""System prompt assembly from config files."""
+"""System prompt assembly from config files with prompt caching."""
 
 from pathlib import Path
 
@@ -13,26 +13,30 @@ def _read_config(filename: str) -> str:
     return ""
 
 
-async def build_system_prompt() -> str:
-    """Assemble the full system prompt from config files.
+def build_system_prompt() -> list[dict]:
+    """Assemble the system prompt as content blocks for the Claude API.
 
-    Combines SOUL.md (personality), USER.md (owner profile),
-    TOOLS.md (available tools), and MEMORY.md (persistent notes).
+    Combines SOUL.md and USER.md. The final block gets cache_control
+    so the prompt is cached across requests.
+
+    Returns:
+        List of text content blocks suitable for the `system` parameter.
     """
     soul = _read_config("SOUL.md")
     user = _read_config("USER.md")
-    tools = _read_config("TOOLS.md")
-    memory = _read_config("MEMORY.md")
 
     sections = []
-
     if soul:
         sections.append(soul)
     if user:
         sections.append(f"# Owner Profile\n\n{user}")
-    if memory:
-        sections.append(f"# Persistent Memory\n\n{memory}")
-    if tools:
-        sections.append(f"# Available Tools\n\n{tools}")
 
-    return "\n\n---\n\n".join(sections)
+    combined = "\n\n---\n\n".join(sections)
+
+    return [
+        {
+            "type": "text",
+            "text": combined,
+            "cache_control": {"type": "ephemeral"},
+        }
+    ]
