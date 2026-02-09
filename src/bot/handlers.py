@@ -11,6 +11,7 @@ from telegram.ext import ContextTypes
 from src.bot.security import is_allowed
 from src.bot.session import get_session
 from src.llm.client import generate_response
+from src.llm.models import MODEL_MAP, ModelManager, friendly
 from src.memory.automatic import extract_and_save
 
 logger = logging.getLogger(__name__)
@@ -47,12 +48,47 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     session = get_session(update.effective_chat.id)
     msg_count = len(session.messages)
     window = session.window_size
+    mm = ModelManager.get()
 
     lines = [
         "**Nella Status**",
+        f"Chat model: {friendly(mm.get_chat_model())}",
+        f"Memory model: {friendly(mm.get_memory_model())}",
         f"Messages in context: {msg_count}/{window}",
         f"User: {update.effective_user.id}",
         "Status: online",
+    ]
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
+async def handle_model(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /model — view or switch the chat model."""
+    if not is_allowed(update):
+        return
+
+    mm = ModelManager.get()
+    args = context.args
+
+    if not args:
+        lines = [
+            f"Chat model: **{friendly(mm.get_chat_model())}**",
+            f"Memory model: **{friendly(mm.get_memory_model())}**",
+            f"Options: {', '.join(MODEL_MAP)}",
+        ]
+        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        return
+
+    name = args[0].lower()
+    result = mm.set_chat_model(name)
+    if not result:
+        await update.message.reply_text(
+            f"Unknown model '{name}'. Valid options: {', '.join(MODEL_MAP)}"
+        )
+        return
+
+    lines = [
+        f"Chat model → **{friendly(mm.get_chat_model())}**",
+        f"Memory model: **{friendly(mm.get_memory_model())}**",
     ]
     await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 

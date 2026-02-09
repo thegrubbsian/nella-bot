@@ -9,6 +9,7 @@ from typing import Any
 import anthropic
 
 from src.config import settings
+from src.llm.models import ModelManager
 from src.llm.prompt import build_system_prompt
 from src.tools import registry
 
@@ -92,7 +93,7 @@ async def generate_response(
 
     for round_num in range(MAX_TOOL_ROUNDS):
         kwargs: dict[str, Any] = {
-            "model": settings.claude_model,
+            "model": ModelManager.get().get_chat_model(),
             "max_tokens": 4096,
             "system": system_prompt,
             "messages": loop_messages,

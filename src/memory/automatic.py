@@ -12,6 +12,7 @@ from pathlib import Path
 import anthropic
 
 from src.config import settings
+from src.llm.models import ModelManager
 from src.memory.store import MemoryStore
 
 logger = logging.getLogger(__name__)
@@ -161,7 +162,7 @@ async def extract_and_save(
         prompt = build_extraction_prompt(user_message, assistant_response, recent_history)
 
         response = await client.messages.create(
-            model=settings.memory_extraction_model,
+            model=ModelManager.get().get_memory_model(),
             max_tokens=1024,
             system=rules,
             messages=[{"role": "user", "content": prompt}],

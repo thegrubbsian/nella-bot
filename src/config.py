@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     # Anthropic
     anthropic_api_key: str = Field(default="")
     claude_model: str = Field(default="claude-sonnet-4-5-20250929")
+    default_chat_model: str = Field(default="sonnet")
+    default_memory_model: str = Field(default="haiku")
 
     # Google
     google_credentials_path: str = Field(default="credentials.json")
