@@ -93,6 +93,7 @@ def create_app() -> Application:
     app = (
         Application.builder()
         .token(settings.telegram_bot_token)
+        .concurrent_updates(True)
         .build()
     )
 
