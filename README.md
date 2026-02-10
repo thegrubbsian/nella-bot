@@ -323,6 +323,9 @@ sudo systemctl daemon-reload
 # Enable (start on boot) and start
 sudo systemctl enable nella
 sudo systemctl start nella
+
+# Pre-create Mem0 config (required — the SDK can't write under ProtectHome)
+sudo -u nella MEM0_DIR=/home/nella/app/data/.mem0 /home/nella/.local/bin/uv run python scripts/init_mem0_dir.py
 ```
 
 ### Deploying changes
@@ -512,6 +515,21 @@ sudo chown nella:nella /home/nella/.cache
 ### Memory features not working
 
 If `MEM0_API_KEY` is empty or not set, memory features degrade gracefully — search returns empty, add is a no-op. Nella still works, she just won't remember between conversations. Check the logs for "Memory retrieval failed" if something else is wrong.
+
+### Mem0 "Read-only file system" error on VPS
+
+The Mem0 SDK tries to create a `~/.mem0/config.json` file when it first imports. Under systemd's `ProtectHome=read-only`, this write is blocked. The service file sets `MEM0_DIR=/home/nella/app/data/.mem0` to redirect it, but you need to pre-create the directory and config **before the first run**:
+
+```bash
+sudo -u nella MEM0_DIR=/home/nella/app/data/.mem0 /home/nella/.local/bin/uv run python scripts/init_mem0_dir.py
+sudo systemctl restart nella
+```
+
+You can verify Mem0 independently with the diagnostic script:
+
+```bash
+sudo -u nella MEM0_DIR=/home/nella/app/data/.mem0 /home/nella/.local/bin/uv run python scripts/test_mem0.py
+```
 
 ### systemd service file location
 
