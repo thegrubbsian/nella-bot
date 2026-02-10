@@ -19,7 +19,7 @@ StartLimitIntervalSec=60
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/nella/app /home/nella/.cache
+ReadWritePaths=/home/nella/app /home/nella/.cache /home/nella/.mem0
 PrivateTmp=yes
 
 [Install]
