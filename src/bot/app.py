@@ -21,11 +21,13 @@ from src.notifications.telegram_channel import TelegramChannel
 
 if TYPE_CHECKING:
     from src.scheduler.engine import SchedulerEngine
+    from src.webhooks.server import WebhookServer
 
 logger = logging.getLogger(__name__)
 
-# Module-level reference so post_shutdown can access the engine.
+# Module-level references so post_shutdown can access them.
 _scheduler_engine: SchedulerEngine | None = None
+_webhook_server: WebhookServer | None = None
 
 
 def _init_notifications(app: Application) -> None:
@@ -77,13 +79,20 @@ def _init_scheduler() -> SchedulerEngine:
 
 async def _post_init(app: Application) -> None:
     """Called after the Application is fully initialized (event loop running)."""
-    global _scheduler_engine  # noqa: PLW0603
+    global _scheduler_engine, _webhook_server  # noqa: PLW0603
     _scheduler_engine = _init_scheduler()
     await _scheduler_engine.start()
+
+    from src.webhooks.server import WebhookServer
+
+    _webhook_server = WebhookServer()
+    await _webhook_server.start()
 
 
 async def _post_shutdown(app: Application) -> None:
     """Called during graceful shutdown."""
+    if _webhook_server is not None:
+        await _webhook_server.stop()
     if _scheduler_engine is not None:
         await _scheduler_engine.stop()
 

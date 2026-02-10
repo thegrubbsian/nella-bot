@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     # Scheduler
     scheduler_timezone: str = Field(default="America/Chicago")
 
+    # Webhooks
+    webhook_port: int = Field(default=8443)
+    webhook_secret: str = Field(default="")
+
     # Logging
     log_level: str = Field(default="INFO")
 

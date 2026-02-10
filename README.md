@@ -37,8 +37,16 @@ Nella is an always-on personal AI assistant that lives in Telegram. She uses Cla
                     ┌─────────────────┐    │  (future: SMS, etc.)│
                     │    Scheduler    │    └─────────────────────┘
                     │                 │
-                    │  APScheduler    │
-                    │  SQLite (tasks) │
+                    │  APScheduler    │    ┌─────────────────────┐
+                    │  SQLite (tasks) │    │  Webhook Server     │
+                    └─────────────────┘    │                     │
+                                           │  aiohttp on :8443   │
+                                           │  /webhooks/{source} │
+                    ┌─────────────────┐    └─────────────────────┘
+                    │  External       │               │
+                    │  Services       ├───────────────┘
+                    │                 │    POST + X-Webhook-Secret
+                    │  Zapier, Plaud  │
                     └─────────────────┘
 ```
 
@@ -53,6 +61,7 @@ Nella is an always-on personal AI assistant that lives in Telegram. She uses Cla
 | `src/integrations/` | Google OAuth manager | You want to add a new Google API or fix auth issues |
 | `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
 | `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
+| `src/webhooks/` | Inbound HTTP server, handler registry, per-integration handlers | You want to receive webhooks from external services (Zapier, Plaud, etc.) |
 | `config/` | Markdown files that define personality, user profile, memory rules | You want to change how Nella behaves or what she knows about you |
 
 ### How a Message Flows
@@ -123,6 +132,38 @@ Nella can schedule tasks to run at a specific time or on a recurring schedule. C
 
 Tasks are persisted in the `scheduled_tasks` table in the same SQLite database used for notes. The scheduler engine uses APScheduler's `AsyncIOScheduler` with the timezone from `SCHEDULER_TIMEZONE` (default: `America/Chicago`). Notifications are routed through the same `NotificationRouter` used by the rest of the system, so tasks can target any registered channel.
 
+### How Webhooks Work
+
+Nella runs a lightweight HTTP server (aiohttp) alongside the Telegram polling bot, sharing the same asyncio event loop. This lets external services like Zapier, Plaud, or GitHub push data to Nella in real time.
+
+**Request flow:**
+1. An external service sends `POST /webhooks/{source}` with a JSON body and an `X-Webhook-Secret` header.
+2. The server validates the secret against `WEBHOOK_SECRET` in `.env`. Invalid or missing secrets get a 401.
+3. The source name (e.g., `plaud`, `github`) is looked up in the `WebhookRegistry`. If no handler is registered for that source, the server returns 404.
+4. The server returns 200 immediately — the handler runs in the background via `asyncio.create_task` so the caller (Zapier, etc.) isn't kept waiting.
+5. The handler processes the payload asynchronously. Any errors are logged but don't affect the HTTP response.
+
+**Key details:**
+- **Port**: configurable via `WEBHOOK_PORT` (default 8443). The VPS firewall must allow inbound traffic on this port (`sudo ufw allow 8443/tcp`).
+- **Disabled by default**: if `WEBHOOK_SECRET` is empty, the server doesn't start. No open ports, no attack surface.
+- **Health check**: `GET /health` returns `{"status": "ok"}` — useful for uptime monitoring.
+- **Lifecycle**: starts in `_post_init` (after the Telegram app is ready), stops in `_post_shutdown` (graceful cleanup).
+
+**Adding a new webhook handler:**
+
+Create a file in `src/webhooks/handlers/` (e.g., `plaud.py`):
+
+```python
+from src.webhooks.registry import webhook_registry
+
+@webhook_registry.handler("plaud")
+async def handle_plaud(payload: dict) -> None:
+    # Process the incoming data
+    ...
+```
+
+Then import it in `src/webhooks/handlers/__init__.py` so it registers on startup. The handler will receive any POST to `/webhooks/plaud` that passes secret validation.
+
 ### How Tool Calling Works
 
 Claude has access to 24 tools organized into categories. When Claude decides it needs to call a tool:
@@ -160,6 +201,7 @@ nellabot/
 │   │   ├── main.py                  # Entry point — starts the bot
 │   │   ├── app.py                   # Telegram Application factory, handler registration
 │   │   ├── handlers.py              # /start, /clear, /status, /model, message handler
+│   │   ├── confirmations.py         # Inline keyboard tool confirmation (Approve/Deny)
 │   │   ├── session.py               # In-memory conversation history (sliding window)
 │   │   └── security.py              # User allowlist check
 │   ├── llm/
@@ -195,6 +237,12 @@ nellabot/
 │   │   ├── store.py                 # TaskStore — aiosqlite CRUD for scheduled_tasks
 │   │   ├── executor.py              # TaskExecutor — dispatches simple_message and ai_task
 │   │   └── engine.py                # SchedulerEngine — APScheduler lifecycle and job management
+│   ├── webhooks/
+│   │   ├── __init__.py              # Package exports
+│   │   ├── server.py                # aiohttp server — lifecycle, routing, secret validation
+│   │   ├── registry.py              # WebhookRegistry — @handler decorator for named sources
+│   │   └── handlers/                # One file per integration (e.g., plaud.py, github.py)
+│   │       └── __init__.py          # Imports handler modules so they auto-register
 │   └── config.py                    # Settings class (pydantic-settings, loads .env)
 │
 ├── config/
@@ -204,11 +252,15 @@ nellabot/
 │   ├── MEMORY.md                    # Explicit long-term facts
 │   └── MEMORY_RULES.md              # Auto-extraction rules
 │
-├── tests/                           # 219 tests across 24 modules
+├── tests/                           # 260 tests across 28 modules
 │   ├── test_notification_*.py       # Notification system (3 files)
 │   ├── test_google_*.py             # Google integrations (4 files)
 │   ├── test_memory_*.py             # Memory system (2 files)
 │   ├── test_scheduler_*.py          # Scheduler system (6 files)
+│   ├── test_confirmations.py        # Tool confirmation flow
+│   ├── test_callback_query.py       # Inline keyboard callbacks
+│   ├── test_webhook_registry.py     # Webhook handler registry
+│   ├── test_webhook_server.py       # Webhook HTTP server
 │   ├── test_registry.py             # Tool registry
 │   ├── test_automatic.py            # Memory extraction
 │   ├── test_prompt.py               # System prompt
@@ -280,6 +332,8 @@ Then edit `.env` with your actual values:
 | `MEMORY_EXTRACTION_MODEL` | No | Model for extraction. Default: `claude-haiku-4-5-20251001` |
 | `DEFAULT_NOTIFICATION_CHANNEL` | No | Default channel for outbound messages. Default: `telegram` |
 | `SCHEDULER_TIMEZONE` | No | IANA timezone for scheduled tasks. Default: `America/Chicago` |
+| `WEBHOOK_PORT` | No | Port for the inbound webhook HTTP server. Default: `8443` |
+| `WEBHOOK_SECRET` | No | Shared secret for webhook authentication (checked via `X-Webhook-Secret` header). Server is disabled when empty. |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, or `ERROR`. Default: `INFO` |
 
 ### 3. Set up Google OAuth (optional)

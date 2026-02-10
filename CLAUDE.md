@@ -21,7 +21,8 @@ src/
 ├── llm/          # Claude API client, prompt assembly, tool dispatch
 ├── memory/       # Mem0 integration, SQLite conversation store, file-based memory
 ├── integrations/ # Google Calendar, Gmail, Tasks API clients
-└── tools/        # Tool definitions for Claude function calling
+├── tools/        # Tool definitions for Claude function calling
+└── webhooks/     # Inbound webhook HTTP server + handler registry
 
 config/
 ├── SOUL.md       # Nella's personality, tone, behavioral rules
@@ -51,6 +52,10 @@ tests/            # pytest + pytest-asyncio
 - Tools that perform destructive or externally-visible actions should set
   `requires_confirmation=True`. This triggers an inline keyboard confirmation
   prompt in Telegram before execution. See `src/bot/confirmations.py`.
+- Webhook handlers go in `src/webhooks/handlers/`, one file per integration.
+  Register them with `@webhook_registry.handler("source_name")`. The HTTP
+  server runs alongside Telegram on `WEBHOOK_PORT` (default 8443), validates
+  `X-Webhook-Secret`, and is disabled when `WEBHOOK_SECRET` is empty.
 
 ## Running
 
