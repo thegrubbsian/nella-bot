@@ -26,15 +26,20 @@ Nella is an always-on personal AI assistant that lives in Telegram. She uses Cla
                     │  + Mem0 recall  │    │  Google Drive (4)   │
                     └─────────────────┘    │  Google Docs (4)    │
                                            │  Memory (4)         │
-                    ┌─────────────────┐    │  Utility (3)        │
-                    │  Memory System  │    └─────────────────────┘
+                    ┌─────────────────┐    │  Scheduler (3)      │
+                    │  Memory System  │    │  Utility (3)        │
+                    │                 │    └─────────────────────┘
+                    │  Mem0 (semantic) │
+                    │  SQLite (notes) │    ┌─────────────────────┐
+                    │  Auto-extract   │    │ Notification Router  │
+                    └─────────────────┘    │                     │
+                                           │  TelegramChannel    │
+                    ┌─────────────────┐    │  (future: SMS, etc.)│
+                    │    Scheduler    │    └─────────────────────┘
                     │                 │
-                    │  Mem0 (semantic) │    ┌─────────────────────┐
-                    │  SQLite (notes) │    │ Notification Router  │
-                    │  Auto-extract   │    │                     │
-                    └─────────────────┘    │  TelegramChannel    │
-                                           │  (future: SMS, etc.)│
-                                           └─────────────────────┘
+                    │  APScheduler    │
+                    │  SQLite (tasks) │
+                    └─────────────────┘
 ```
 
 ### Modules
@@ -44,9 +49,10 @@ Nella is an always-on personal AI assistant that lives in Telegram. She uses Cla
 | `src/bot/` | Telegram bot setup, message handlers, session management, user security | You want to change how messages are received or how the bot responds |
 | `src/llm/` | Claude API client, system prompt assembly, model switching | You want to change how Claude is called, what it sees, or the tool-calling loop |
 | `src/memory/` | Mem0 integration, automatic memory extraction, data models | You want to change how Nella remembers things |
-| `src/tools/` | Tool registry, all 21 tool implementations, base classes | You want to add a new tool or modify an existing one |
+| `src/tools/` | Tool registry, all 24 tool implementations, base classes | You want to add a new tool or modify an existing one |
 | `src/integrations/` | Google OAuth manager | You want to add a new Google API or fix auth issues |
 | `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
+| `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
 | `config/` | Markdown files that define personality, user profile, memory rules | You want to change how Nella behaves or what she knows about you |
 
 ### How a Message Flows
@@ -67,7 +73,7 @@ Here's what happens when you send "What's on my calendar today?" in Telegram:
 
 7. **`generate_response()` is called** in `src/llm/client.py`. This is where the real work happens:
    - **System prompt assembly** (`src/llm/prompt.py`): reads `SOUL.md` and `USER.md`, then searches Mem0 for memories related to your message. These are combined into a system prompt with caching so the static parts aren't re-processed on every tool-calling round.
-   - **Claude API call**: sends your conversation history + system prompt + all 21 tool schemas to Claude via streaming.
+   - **Claude API call**: sends your conversation history + system prompt + all 24 tool schemas to Claude via streaming.
    - **Streaming**: as text chunks arrive, the `on_text_delta` callback edits the placeholder message in Telegram (throttled to every 0.5 seconds to stay under rate limits).
 
 8. **If Claude calls a tool** (in this case, probably `get_todays_schedule`):
@@ -97,9 +103,29 @@ Nella has two memory pathways:
 
 Both pathways store to Mem0 (a hosted semantic memory service). When building the system prompt, Nella searches Mem0 for memories relevant to your current message and includes them in the context Claude sees.
 
+### How Task Scheduling Works
+
+Nella can schedule tasks to run at a specific time or on a recurring schedule. Claude has three scheduling tools: `schedule_task`, `list_scheduled_tasks`, and `cancel_scheduled_task`.
+
+**Task types:**
+- **One-off** — runs once at a specific datetime, then auto-deactivates. Schedule is `{"run_at": "ISO 8601"}`.
+- **Recurring** — runs on a cron schedule. Schedule is `{"cron": "0 8 * * *"}` (crontab string) or individual fields like `{"hour": 9, "minute": 0}`.
+
+**Action types:**
+- **`simple_message`** — sends a plain text message to the owner via the notification router. Good for reminders.
+- **`ai_task`** — runs a prompt through the full LLM pipeline (with tool access) and sends the result. Good for tasks like "check my email and summarize anything important."
+
+**Lifecycle:**
+1. On bot startup, `SchedulerEngine.start()` loads all active tasks from SQLite and creates APScheduler jobs for each.
+2. When a task fires, the executor looks it up, dispatches to the correct handler, and updates `last_run_at`.
+3. One-off tasks are automatically deactivated after execution. Recurring tasks update their `next_run_at`.
+4. On bot shutdown, `SchedulerEngine.stop()` shuts down APScheduler gracefully.
+
+Tasks are persisted in the `scheduled_tasks` table in the same SQLite database used for notes. The scheduler engine uses APScheduler's `AsyncIOScheduler` with the timezone from `SCHEDULER_TIMEZONE` (default: `America/Chicago`). Notifications are routed through the same `NotificationRouter` used by the rest of the system, so tasks can target any registered channel.
+
 ### How Tool Calling Works
 
-Claude has access to 21 tools organized into categories. When Claude decides it needs to call a tool:
+Claude has access to 24 tools organized into categories. When Claude decides it needs to call a tool:
 
 1. Claude returns a `tool_use` content block with the tool name and arguments.
 2. The registry validates the arguments against a Pydantic model (if one is defined).
@@ -153,6 +179,7 @@ nellabot/
 │   │   ├── google_drive.py          # 4 tools: search, list recent, read, delete
 │   │   ├── google_docs.py           # 4 tools: read, create, update, append
 │   │   ├── memory_tools.py          # 4 tools: remember, forget, recall, save_reference
+│   │   ├── scheduler_tools.py       # 3 tools: schedule, list, cancel scheduled tasks
 │   │   └── utility.py               # 3 tools: datetime, save_note, search_notes
 │   ├── notifications/
 │   │   ├── __init__.py              # Package exports
@@ -160,6 +187,12 @@ nellabot/
 │   │   ├── context.py               # MessageContext dataclass
 │   │   ├── router.py                # NotificationRouter singleton
 │   │   └── telegram_channel.py      # Telegram implementation
+│   ├── scheduler/
+│   │   ├── __init__.py              # Package exports
+│   │   ├── models.py                # ScheduledTask dataclass, make_task_id()
+│   │   ├── store.py                 # TaskStore — aiosqlite CRUD for scheduled_tasks
+│   │   ├── executor.py              # TaskExecutor — dispatches simple_message and ai_task
+│   │   └── engine.py                # SchedulerEngine — APScheduler lifecycle and job management
 │   └── config.py                    # Settings class (pydantic-settings, loads .env)
 │
 ├── config/
@@ -169,10 +202,11 @@ nellabot/
 │   ├── MEMORY.md                    # Explicit long-term facts
 │   └── MEMORY_RULES.md              # Auto-extraction rules
 │
-├── tests/                           # 147 tests across 18 modules
+├── tests/                           # 219 tests across 24 modules
 │   ├── test_notification_*.py       # Notification system (3 files)
 │   ├── test_google_*.py             # Google integrations (4 files)
 │   ├── test_memory_*.py             # Memory system (2 files)
+│   ├── test_scheduler_*.py          # Scheduler system (6 files)
 │   ├── test_registry.py             # Tool registry
 │   ├── test_automatic.py            # Memory extraction
 │   ├── test_prompt.py               # System prompt
@@ -189,7 +223,7 @@ nellabot/
 ├── CLAUDE.md                        # Instructions for Claude Code
 ├── .env.example                     # Template for environment variables
 └── data/
-    └── nella.db                     # SQLite database (notes, created at runtime)
+    └── nella.db                     # SQLite database (notes + scheduled_tasks, created at runtime)
 ```
 
 ## Prerequisites
@@ -243,6 +277,7 @@ Then edit `.env` with your actual values:
 | `MEMORY_EXTRACTION_ENABLED` | No | Enable background memory extraction. Default: `true` |
 | `MEMORY_EXTRACTION_MODEL` | No | Model for extraction. Default: `claude-haiku-4-5-20251001` |
 | `DEFAULT_NOTIFICATION_CHANNEL` | No | Default channel for outbound messages. Default: `telegram` |
+| `SCHEDULER_TIMEZONE` | No | IANA timezone for scheduled tasks. Default: `America/Chicago` |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, or `ERROR`. Default: `INFO` |
 
 ### 3. Set up Google OAuth (optional)
