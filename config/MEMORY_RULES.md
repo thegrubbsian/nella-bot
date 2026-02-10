@@ -97,7 +97,7 @@ Only memories with importance "medium" or "high" will be saved.
 
 ## Guidelines
 
-- Be concise. Each memory should be one clear statement, not a paragraph.
+- Be concise. Each memory should be one clear statement, no more than a few sentences at most. It should be dense so as to retain as much fidelity as possible while also being token-conservative.
 - Prefer specifics over vague summaries. "Prefers Python over JavaScript"
   beats "Has programming language preferences."
 - For action items, note WHO committed to WHAT and any DEADLINE.
