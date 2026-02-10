@@ -135,6 +135,8 @@ Claude has access to 24 tools organized into categories. When Claude decides it 
 
 Tools opt into receiving `MessageContext` by adding it to their function signature — the registry uses introspection to detect this. Existing tools don't need any changes.
 
+**Tool confirmation.** Tools that perform destructive or externally-visible actions (sending email, deleting files, creating calendar events, etc.) set `requires_confirmation=True`. When Claude calls one of these tools, the bot sends a separate Telegram message with an inline keyboard showing **Approve** and **Deny** buttons. The user has 120 seconds to tap; if they don't, the action is automatically denied. This prevents accidental side effects while keeping the conversational flow intact — Claude's streamed text stays visible, and the confirmation prompt appears as a new message below it.
+
 ### Configuration Files
 
 The `config/` directory contains markdown files that shape Nella's behavior:
@@ -444,6 +446,8 @@ from src.tools import memory_tools, utility, my_tool  # noqa: F401
 ```
 
 That's it. The `@registry.tool()` decorator runs when the module is imported, which registers the tool. Claude will see it on the next message.
+
+If the tool performs a destructive or externally-visible action (sends messages, creates/deletes resources, etc.), add `requires_confirmation=True` to the decorator. This makes the bot prompt the user with inline Approve/Deny buttons before executing.
 
 ### Accessing MessageContext (optional)
 

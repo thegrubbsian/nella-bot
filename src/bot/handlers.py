@@ -8,6 +8,7 @@ import time
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from src.bot.confirmations import get_pending, request_confirmation, resolve_confirmation
 from src.bot.security import is_allowed
 from src.bot.session import get_session
 from src.llm.client import generate_response
@@ -128,10 +129,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         conversation_id=str(chat_id),
     )
 
+    async def on_confirm(pending_tool):
+        return await request_confirmation(
+            bot=context.bot, chat_id=chat_id, pending_tool=pending_tool,
+        )
+
     try:
         result_text = await generate_response(
             session.to_api_messages(),
             on_text_delta=on_text_delta,
+            on_confirm=on_confirm,
             msg_context=msg_context,
         )
 
@@ -160,3 +167,45 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # Small delay to avoid Telegram rate limits between conversations
     await asyncio.sleep(0.1)
+
+
+async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle inline-keyboard callbacks for tool confirmations."""
+    query = update.callback_query
+    data = query.data or ""
+
+    if not data.startswith("cfm:"):
+        await query.answer()
+        return
+
+    parts = data.split(":")
+    if len(parts) != 3:
+        await query.answer("Invalid callback data.")
+        return
+
+    _, conf_id, choice = parts
+    pc = get_pending(conf_id)
+
+    if pc is None:
+        await query.answer("This confirmation has expired.")
+        with contextlib.suppress(Exception):
+            await query.edit_message_text(
+                text=query.message.text + "\n\n(expired)",
+                parse_mode="Markdown",
+            )
+        return
+
+    if pc.future.done():
+        await query.answer("Already handled.")
+        return
+
+    approved = choice == "y"
+    resolve_confirmation(conf_id, approved=approved)
+
+    status = "Approved" if approved else "Denied"
+    with contextlib.suppress(Exception):
+        await query.edit_message_text(
+            text=query.message.text + f"\n\n→ {status}",
+            parse_mode="Markdown",
+        )
+    await query.answer(status)

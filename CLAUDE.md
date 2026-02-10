@@ -48,6 +48,9 @@ tests/            # pytest + pytest-asyncio
 - Environment variables in `.env`, never committed.
 - All database access through `aiosqlite`.
 - Pydantic models for all structured data crossing boundaries.
+- Tools that perform destructive or externally-visible actions should set
+  `requires_confirmation=True`. This triggers an inline keyboard confirmation
+  prompt in Telegram before execution. See `src/bot/confirmations.py`.
 
 ## Running
 
