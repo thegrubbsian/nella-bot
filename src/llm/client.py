@@ -1,10 +1,11 @@
 """Async Claude API client with streaming and tool-calling loop."""
 
+from __future__ import annotations
+
 import json
 import logging
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import anthropic
 
@@ -12,6 +13,11 @@ from src.config import settings
 from src.llm.models import ModelManager
 from src.llm.prompt import build_system_prompt
 from src.tools import registry
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from src.notifications.context import MessageContext
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +65,7 @@ async def generate_response(
     messages: list[dict[str, Any]],
     on_text_delta: Callable[[str], Awaitable[None]] | None = None,
     on_confirm: Callable[[PendingToolCall], Awaitable[bool]] | None = None,
+    msg_context: MessageContext | None = None,
 ) -> str:
     """Generate a response with full tool-calling loop.
 
@@ -153,7 +160,9 @@ async def generate_response(
                     })
                     continue
 
-            result = await registry.execute(block.name, block.input)
+            result = await registry.execute(
+                block.name, block.input, msg_context=msg_context
+            )
 
             tool_results.append({
                 "type": "tool_result",

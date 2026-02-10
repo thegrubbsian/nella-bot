@@ -13,6 +13,7 @@ from src.bot.session import get_session
 from src.llm.client import generate_response
 from src.llm.models import MODEL_MAP, ModelManager, friendly
 from src.memory.automatic import extract_and_save
+from src.notifications.context import MessageContext
 
 logger = logging.getLogger(__name__)
 
@@ -121,10 +122,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await reply.edit_text(streamed_text)
             last_edit = now
 
+    msg_context = MessageContext(
+        user_id=str(update.effective_user.id),
+        source_channel="telegram",
+        conversation_id=str(chat_id),
+    )
+
     try:
         result_text = await generate_response(
             session.to_api_messages(),
             on_text_delta=on_text_delta,
+            msg_context=msg_context,
         )
 
         if result_text:

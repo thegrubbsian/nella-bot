@@ -1,12 +1,18 @@
 """Tool registry — central catalog for all tools."""
 
+from __future__ import annotations
+
 import inspect
 import logging
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from src.tools.base import BaseTool, ToolParams, ToolResult
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from src.notifications.context import MessageContext
 
 logger = logging.getLogger(__name__)
 
@@ -108,10 +114,17 @@ class ToolRegistry:
             groups.setdefault(tool_def.category, []).append(tool_def)
         return groups
 
-    async def execute(self, name: str, arguments: dict[str, Any]) -> ToolResult:
+    async def execute(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        msg_context: MessageContext | None = None,
+    ) -> ToolResult:
         """Execute a tool by name with the given arguments.
 
         Validates arguments against the params_model if one is defined.
+        If the handler accepts a ``msg_context`` parameter, it is injected
+        automatically — existing tools need no changes.
         """
         tool_def = self._tools.get(name)
         if tool_def is None:
@@ -120,8 +133,16 @@ class ToolRegistry:
         try:
             if tool_def.params_model is not None:
                 params = tool_def.params_model(**arguments)
-                return await tool_def.handler(**params.model_dump())
-            return await tool_def.handler(**arguments)
+                kwargs = params.model_dump()
+            else:
+                kwargs = dict(arguments)
+
+            if msg_context is not None and _accepts_param(
+                tool_def.handler, "msg_context"
+            ):
+                kwargs["msg_context"] = msg_context
+
+            return await tool_def.handler(**kwargs)
         except Exception:
             logger.exception("Tool '%s' failed", name)
             return ToolResult(error=f"Tool '{name}' failed. Check logs for details.")
@@ -139,6 +160,11 @@ class ToolRegistry:
             "description": tool_def.description,
             "input_schema": input_schema,
         }
+
+
+def _accepts_param(fn: Callable[..., Any], param_name: str) -> bool:
+    """Check whether a callable accepts a given parameter name."""
+    return param_name in inspect.signature(fn).parameters
 
 
 # Global registry — import this from anywhere to register or look up tools.
