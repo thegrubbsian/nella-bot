@@ -1,54 +1,88 @@
-"""Google OAuth2 authentication helper."""
+"""Google OAuth2 authentication manager — singleton."""
 
 import logging
 from pathlib import Path
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
 
 from src.config import settings
 
 logger = logging.getLogger(__name__)
 
-SCOPES = [
-    "https://www.googleapis.com/auth/calendar",
-    "https://www.googleapis.com/auth/gmail.modify",
-    "https://www.googleapis.com/auth/tasks",
-]
 
+class GoogleAuthManager:
+    """Singleton that owns Google OAuth credentials and builds API services."""
 
-def get_google_credentials() -> Credentials:
-    """Load or refresh Google OAuth2 credentials.
+    _instance: "GoogleAuthManager | None" = None
 
-    On first run, opens a browser for OAuth consent. Subsequent runs
-    use the cached token.
-    """
-    token_path = Path(settings.google_token_path)
-    creds_path = Path(settings.google_credentials_path)
+    SCOPES = [
+        "https://www.googleapis.com/auth/gmail.modify",
+        "https://www.googleapis.com/auth/calendar",
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/documents",
+    ]
 
-    creds: Credentials | None = None
+    def __init__(self) -> None:
+        self._credentials: Credentials | None = None
 
-    if token_path.exists():
-        creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
+    @classmethod
+    def get(cls) -> "GoogleAuthManager":
+        """Return the singleton instance."""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
 
-    if creds and creds.valid:
-        return creds
+    @property
+    def enabled(self) -> bool:
+        """True if a token file exists on disk."""
+        return Path(settings.google_token_path).exists()
 
-    if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-    else:
-        if not creds_path.exists():
+    # -- credential management ------------------------------------------------
+
+    def _load_credentials(self) -> Credentials:
+        """Load credentials from token file, refreshing if expired."""
+        token_path = Path(settings.google_token_path)
+        if not token_path.exists():
             msg = (
-                f"Google credentials file not found at {creds_path}. "
-                "Download it from Google Cloud Console."
+                f"Google token file not found at {token_path}. "
+                "Run `python scripts/google_auth.py` to authenticate."
             )
             raise FileNotFoundError(msg)
 
-        flow = InstalledAppFlow.from_client_secrets_file(str(creds_path), SCOPES)
-        creds = flow.run_local_server(port=0)
+        creds = Credentials.from_authorized_user_file(str(token_path), self.SCOPES)
 
-    token_path.write_text(creds.to_json(), encoding="utf-8")
-    logger.info("Google credentials saved to %s", token_path)
+        if creds.expired and creds.refresh_token:
+            logger.info("Refreshing expired Google credentials")
+            creds.refresh(Request())
+            token_path.write_text(creds.to_json(), encoding="utf-8")
+            logger.info("Google credentials refreshed and saved")
 
-    return creds
+        return creds
+
+    def _get_credentials(self) -> Credentials:
+        """Return cached credentials, loading/refreshing as needed."""
+        if self._credentials is None or (
+            self._credentials.expired and self._credentials.refresh_token
+        ):
+            self._credentials = self._load_credentials()
+        return self._credentials
+
+    # -- service builders -----------------------------------------------------
+
+    def gmail(self):  # noqa: ANN201
+        """Build a Gmail API service."""
+        return build("gmail", "v1", credentials=self._get_credentials())
+
+    def calendar(self):  # noqa: ANN201
+        """Build a Calendar API service."""
+        return build("calendar", "v3", credentials=self._get_credentials())
+
+    def drive(self):  # noqa: ANN201
+        """Build a Drive API service."""
+        return build("drive", "v3", credentials=self._get_credentials())
+
+    def docs(self):  # noqa: ANN201
+        """Build a Docs API service."""
+        return build("docs", "v1", credentials=self._get_credentials())
