@@ -35,9 +35,11 @@ class RememberParams(ToolParams):
 )
 async def remember_this(content: str, category: str = "general") -> ToolResult:
     store = MemoryStore.get()
-    result = await store.add(content=content, source="explicit", category=category)
-    if result is None and not store.enabled:
+    if not store.enabled:
         return ToolResult(error="Memory store is not configured.")
+    result = await store.add(content=content, source="explicit", category=category)
+    if result is None:
+        return ToolResult(error="Failed to save memory. Check logs for details.")
     return ToolResult(data={"remembered": True, "content": content, "category": category})
 
 
@@ -135,6 +137,8 @@ class SaveReferenceParams(ToolParams):
 )
 async def save_reference(url: str, title: str, summary: str) -> ToolResult:
     store = MemoryStore.get()
+    if not store.enabled:
+        return ToolResult(error="Memory store is not configured.")
     content = f"{title}\nURL: {url}\nSummary: {summary}"
     result = await store.add(
         content=content,
@@ -142,6 +146,6 @@ async def save_reference(url: str, title: str, summary: str) -> ToolResult:
         category="reference",
         metadata={"url": url, "title": title},
     )
-    if result is None and not store.enabled:
-        return ToolResult(error="Memory store is not configured.")
+    if result is None:
+        return ToolResult(error="Failed to save reference. Check logs for details.")
     return ToolResult(data={"saved": True, "title": title, "url": url})
