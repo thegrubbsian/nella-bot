@@ -129,6 +129,24 @@ class TaskStore:
         finally:
             await db.close()
 
+    async def search_active_tasks(self, query: str) -> list[ScheduledTask]:
+        """Search active tasks by name or description (case-insensitive LIKE)."""
+        db = await self._connect()
+        try:
+            pattern = f"%{query}%"
+            cursor = await db.execute(
+                """
+                SELECT * FROM scheduled_tasks
+                WHERE active = 1 AND (name LIKE ? OR description LIKE ?)
+                ORDER BY created_at
+                """,
+                (pattern, pattern),
+            )
+            rows = await cursor.fetchall()
+            return [ScheduledTask.from_row(row) for row in rows]
+        finally:
+            await db.close()
+
     async def update_last_run(self, task_id: str, timestamp: str | None = None) -> None:
         """Set the last_run_at timestamp (defaults to now UTC)."""
         ts = timestamp or datetime.now(UTC).isoformat()
