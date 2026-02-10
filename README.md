@@ -164,6 +164,25 @@ async def handle_plaud(payload: dict) -> None:
 
 Then import it in `src/webhooks/handlers/__init__.py` so it registers on startup. The handler will receive any POST to `/webhooks/plaud` that passes secret validation.
 
+### How Plaud Transcript Processing Works
+
+Nella's first webhook integration processes meeting transcripts from Plaud (a meeting recorder). The flow is: Plaud records a meeting → transcript lands in Google Drive → Zapier detects the new file and POSTs to `/webhooks/plaud` → Nella processes it.
+
+**What the handler does:**
+1. Receives the payload from Zapier (contains `file_id`, `file_name`, `folder_name`, `meeting_date`).
+2. Reads the transcript from Google Drive — tries `file_id` first, falls back to searching by `file_name` in the configured `PLAUD_DRIVE_FOLDER_ID` folder.
+3. If Drive hasn't synced yet (race condition with Zapier), retries up to 3 times with 30-second delays.
+4. Sends the transcript to Claude with a prompt that asks for: a brief summary, action items organized by owner, decisions made, and follow-ups/deadlines.
+5. Sends the formatted result to the owner via Telegram.
+6. Saves the summary to Mem0 (category: `workstream`, origin: `plaud`) so Nella has context for future conversations about the meeting.
+
+If the transcript isn't found after all retries, the owner gets a notification explaining the issue.
+
+**Setup:**
+1. Set `PLAUD_DRIVE_FOLDER_ID` in `.env` to the Google Drive folder where Zapier drops transcripts.
+2. Set `WEBHOOK_SECRET` in `.env` (the Zapier webhook must send this in the `X-Webhook-Secret` header).
+3. Create a Zapier zap: trigger on new file in the Plaud Drive folder → POST to `https://your-vps:8443/webhooks/plaud` with the file metadata as JSON.
+
 ### How Tool Calling Works
 
 Claude has access to 24 tools organized into categories. When Claude decides it needs to call a tool:
@@ -241,8 +260,9 @@ nellabot/
 │   │   ├── __init__.py              # Package exports
 │   │   ├── server.py                # aiohttp server — lifecycle, routing, secret validation
 │   │   ├── registry.py              # WebhookRegistry — @handler decorator for named sources
-│   │   └── handlers/                # One file per integration (e.g., plaud.py, github.py)
-│   │       └── __init__.py          # Imports handler modules so they auto-register
+│   │   └── handlers/                # One file per integration
+│   │       ├── __init__.py          # Imports handler modules so they auto-register
+│   │       └── plaud.py             # Plaud transcript processing (Drive → Claude → Telegram)
 │   └── config.py                    # Settings class (pydantic-settings, loads .env)
 │
 ├── config/
@@ -252,7 +272,7 @@ nellabot/
 │   ├── MEMORY.md                    # Explicit long-term facts
 │   └── MEMORY_RULES.md              # Auto-extraction rules
 │
-├── tests/                           # 260 tests across 28 modules
+├── tests/                           # 276 tests across 29 modules
 │   ├── test_notification_*.py       # Notification system (3 files)
 │   ├── test_google_*.py             # Google integrations (4 files)
 │   ├── test_memory_*.py             # Memory system (2 files)
@@ -261,6 +281,7 @@ nellabot/
 │   ├── test_callback_query.py       # Inline keyboard callbacks
 │   ├── test_webhook_registry.py     # Webhook handler registry
 │   ├── test_webhook_server.py       # Webhook HTTP server
+│   ├── test_plaud_handler.py        # Plaud transcript processing
 │   ├── test_registry.py             # Tool registry
 │   ├── test_automatic.py            # Memory extraction
 │   ├── test_prompt.py               # System prompt
@@ -334,6 +355,7 @@ Then edit `.env` with your actual values:
 | `SCHEDULER_TIMEZONE` | No | IANA timezone for scheduled tasks. Default: `America/Chicago` |
 | `WEBHOOK_PORT` | No | Port for the inbound webhook HTTP server. Default: `8443` |
 | `WEBHOOK_SECRET` | No | Shared secret for webhook authentication (checked via `X-Webhook-Secret` header). Server is disabled when empty. |
+| `PLAUD_DRIVE_FOLDER_ID` | No | Google Drive folder ID where Zapier drops Plaud transcripts. Used to scope transcript search. |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, or `ERROR`. Default: `INFO` |
 
 ### 3. Set up Google OAuth (optional)

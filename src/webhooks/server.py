@@ -92,6 +92,9 @@ class WebhookServer:
             logger.warning("WEBHOOK_SECRET is empty — webhook server disabled")
             return
 
+        # Import handlers so they register with the webhook_registry.
+        import src.webhooks.handlers  # noqa: F401
+
         app = _create_web_app()
         self._runner = web.AppRunner(app)
         await self._runner.setup()

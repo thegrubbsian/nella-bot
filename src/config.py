@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     webhook_port: int = Field(default=8443)
     webhook_secret: str = Field(default="")
 
+    # Plaud
+    plaud_drive_folder_id: str = Field(default="")
+
     # Logging
     log_level: str = Field(default="INFO")
 
