@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     papertrail_api_token: str = Field(default="")
     papertrail_api_url: str = Field(default="https://api.na-01.cloud.solarwinds.com")
 
+    # Scheduler
+    scheduler_timezone: str = Field(default="America/Chicago")
+
     # Logging
     log_level: str = Field(default="INFO")
 
