@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     # Notifications
     default_notification_channel: str = Field(default="telegram")
 
+    # Papertrail / SolarWinds Observability (log aggregation)
+    papertrail_api_token: str = Field(default="")
+    papertrail_api_url: str = Field(default="https://api.na-01.cloud.solarwinds.com")
+
     # Logging
     log_level: str = Field(default="INFO")
 
