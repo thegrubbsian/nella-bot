@@ -1,11 +1,14 @@
-"""Google Drive tools — search, list, read, delete files."""
+"""Google Drive tools — search, list, read, delete, download, upload files."""
 
 import asyncio
 import logging
+import mimetypes
 
+from googleapiclient.http import MediaInMemoryUpload
 from pydantic import Field
 
 from src.integrations.google_auth import GoogleAuthManager
+from src.scratch import ScratchSpace
 from src.tools.base import GoogleToolParams, ToolResult
 from src.tools.registry import registry
 
@@ -14,6 +17,15 @@ logger = logging.getLogger(__name__)
 _CATEGORY = "google_drive"
 
 _FILE_FIELDS = "files(id,name,mimeType,modifiedTime,webViewLink)"
+
+_EXPORT_FORMATS: dict[str, tuple[str, str]] = {
+    "application/vnd.google-apps.document": ("application/pdf", ".pdf"),
+    "application/vnd.google-apps.spreadsheet": (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".xlsx",
+    ),
+    "application/vnd.google-apps.presentation": ("application/pdf", ".pdf"),
+}
 
 
 def _auth(account: str | None = None) -> GoogleAuthManager:
@@ -199,3 +211,134 @@ async def delete_file(file_id: str, account: str | None = None) -> ToolResult:
     )
 
     return ToolResult(data={"trashed": True, "file_id": file_id})
+
+
+# -- download_drive_file -----------------------------------------------------
+
+
+class DownloadDriveFileParams(GoogleToolParams):
+    file_id: str = Field(description="Google Drive file ID to download")
+    filename: str | None = Field(
+        default=None,
+        description="Filename to save as in scratch space (uses Drive name if omitted)",
+    )
+
+
+@registry.tool(
+    name="download_drive_file",
+    description=(
+        "Download a file from Google Drive to scratch space. "
+        "Google Docs/Sheets/Slides are exported as PDF/XLSX."
+    ),
+    category=_CATEGORY,
+    params_model=DownloadDriveFileParams,
+)
+async def download_drive_file(
+    file_id: str, filename: str | None = None, account: str | None = None
+) -> ToolResult:
+    service = _auth(account).drive()
+
+    meta = await asyncio.to_thread(
+        lambda: service.files()
+        .get(fileId=file_id, fields="id,name,mimeType,webViewLink")
+        .execute()
+    )
+
+    drive_name = meta.get("name", "file")
+    mime_type = meta.get("mimeType", "")
+
+    # Google Workspace files need export
+    export_fmt = _EXPORT_FORMATS.get(mime_type)
+    if export_fmt:
+        export_mime, ext = export_fmt
+        data = await asyncio.to_thread(
+            lambda: service.files()
+            .export(fileId=file_id, mimeType=export_mime)
+            .execute()
+        )
+        # Add extension if the drive name doesn't already have one
+        if filename is None:
+            filename = drive_name + ext if not drive_name.endswith(ext) else drive_name
+        mime_type = export_mime
+    else:
+        data = await asyncio.to_thread(
+            lambda: service.files().get_media(fileId=file_id).execute()
+        )
+        if filename is None:
+            filename = drive_name
+
+    try:
+        scratch = ScratchSpace.get()
+        scratch.write(filename, data)
+    except (ValueError, OSError) as exc:
+        return ToolResult(error=str(exc))
+
+    return ToolResult(data={
+        "downloaded": True,
+        "path": filename,
+        "size": len(data),
+        "mime_type": mime_type,
+        "drive_file_id": meta["id"],
+        "drive_file_name": drive_name,
+    })
+
+
+# -- upload_to_drive ---------------------------------------------------------
+
+
+class UploadToDriveParams(GoogleToolParams):
+    path: str = Field(description="Scratch-space file path to upload")
+    folder_id: str | None = Field(
+        default=None,
+        description="Google Drive folder ID to upload into (root if omitted)",
+    )
+    filename: str | None = Field(
+        default=None,
+        description="Name for the file in Drive (uses scratch filename if omitted)",
+    )
+
+
+@registry.tool(
+    name="upload_to_drive",
+    description="Upload a file from scratch space to Google Drive.",
+    category=_CATEGORY,
+    params_model=UploadToDriveParams,
+    requires_confirmation=True,
+)
+async def upload_to_drive(
+    path: str,
+    folder_id: str | None = None,
+    filename: str | None = None,
+    account: str | None = None,
+) -> ToolResult:
+    try:
+        scratch = ScratchSpace.get()
+        data = scratch.read_bytes(path)
+    except (FileNotFoundError, ValueError) as exc:
+        return ToolResult(error=str(exc))
+
+    name = filename or (path.rsplit("/", 1)[-1] if "/" in path else path)
+    mime_type, _ = mimetypes.guess_type(name)
+    mime_type = mime_type or "application/octet-stream"
+
+    file_metadata: dict = {"name": name}
+    if folder_id:
+        file_metadata["parents"] = [folder_id]
+
+    media = MediaInMemoryUpload(data, mimetype=mime_type, resumable=False)
+    service = _auth(account).drive()
+
+    result = await asyncio.to_thread(
+        lambda: service.files()
+        .create(body=file_metadata, media_body=media, fields="id,name,webViewLink")
+        .execute()
+    )
+
+    logger.info("Uploaded %s to Drive: %s", name, result["id"])
+    return ToolResult(data={
+        "uploaded": True,
+        "file_id": result["id"],
+        "name": result.get("name", name),
+        "web_link": result.get("webViewLink", ""),
+        "size": len(data),
+    })

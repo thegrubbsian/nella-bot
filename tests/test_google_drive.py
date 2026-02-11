@@ -146,3 +146,133 @@ class TestDeleteFile:
         result = await delete_file(file_id="file1")
         assert result.success
         assert result.data["trashed"] is True
+
+
+class TestDownloadDriveFile:
+    @pytest.mark.asyncio
+    async def test_download_regular_file(self, drive_mock, scratch):
+        from src.tools.google_drive import download_drive_file
+
+        drive_mock.files().get().execute.return_value = {
+            **_make_file(name="report.pdf", mime_type="application/pdf"),
+        }
+        file_data = b"%PDF-1.4 fake content"
+        drive_mock.files().get_media().execute.return_value = file_data
+
+        result = await download_drive_file(file_id="file1")
+        assert result.success
+        assert result.data["downloaded"] is True
+        assert result.data["path"] == "report.pdf"
+        assert result.data["size"] == len(file_data)
+        assert result.data["mime_type"] == "application/pdf"
+        assert result.data["drive_file_name"] == "report.pdf"
+        assert scratch.read_bytes("report.pdf") == file_data
+
+    @pytest.mark.asyncio
+    async def test_download_google_doc_exports_pdf(self, drive_mock, scratch):
+        from src.tools.google_drive import download_drive_file
+
+        drive_mock.files().get().execute.return_value = _make_file(
+            name="My Document",
+            mime_type="application/vnd.google-apps.document",
+        )
+        exported = b"%PDF-exported"
+        drive_mock.files().export().execute.return_value = exported
+
+        result = await download_drive_file(file_id="file1")
+        assert result.success
+        assert result.data["path"] == "My Document.pdf"
+        assert result.data["mime_type"] == "application/pdf"
+        assert scratch.read_bytes("My Document.pdf") == exported
+
+    @pytest.mark.asyncio
+    async def test_download_with_custom_filename(self, drive_mock, scratch):
+        from src.tools.google_drive import download_drive_file
+
+        drive_mock.files().get().execute.return_value = _make_file()
+        drive_mock.files().get_media().execute.return_value = b"content"
+
+        result = await download_drive_file(file_id="file1", filename="custom.txt")
+        assert result.success
+        assert result.data["path"] == "custom.txt"
+        assert scratch.read_bytes("custom.txt") == b"content"
+
+    @pytest.mark.asyncio
+    async def test_download_spreadsheet_exports_xlsx(self, drive_mock, scratch):
+        from src.tools.google_drive import download_drive_file
+
+        drive_mock.files().get().execute.return_value = _make_file(
+            name="Budget",
+            mime_type="application/vnd.google-apps.spreadsheet",
+        )
+        exported = b"PK\x03\x04xlsx-data"
+        drive_mock.files().export().execute.return_value = exported
+
+        result = await download_drive_file(file_id="file1")
+        assert result.success
+        assert result.data["path"] == "Budget.xlsx"
+        assert "spreadsheetml" in result.data["mime_type"]
+
+
+class TestUploadToDrive:
+    @pytest.mark.asyncio
+    async def test_upload_success(self, drive_mock, scratch):
+        from src.tools.google_drive import upload_to_drive
+
+        scratch.write("report.pdf", b"%PDF-content")
+        drive_mock.files().create().execute.return_value = {
+            "id": "new_file_id",
+            "name": "report.pdf",
+            "webViewLink": "https://drive.google.com/file/d/new_file_id",
+        }
+
+        result = await upload_to_drive(path="report.pdf")
+        assert result.success
+        assert result.data["uploaded"] is True
+        assert result.data["file_id"] == "new_file_id"
+        assert result.data["name"] == "report.pdf"
+        assert result.data["size"] == len(b"%PDF-content")
+
+    @pytest.mark.asyncio
+    async def test_upload_file_not_found(self, drive_mock, scratch):
+        from src.tools.google_drive import upload_to_drive
+
+        result = await upload_to_drive(path="missing.pdf")
+        assert not result.success
+        assert "not found" in result.error.lower()
+
+    @pytest.mark.asyncio
+    async def test_upload_with_folder_id(self, drive_mock, scratch):
+        from src.tools.google_drive import upload_to_drive
+
+        scratch.write("doc.txt", "hello")
+        drive_mock.files().create().execute.return_value = {
+            "id": "new_id",
+            "name": "doc.txt",
+            "webViewLink": "https://drive.google.com/file/d/new_id",
+        }
+
+        result = await upload_to_drive(path="doc.txt", folder_id="folder123")
+        assert result.success
+        # Verify create was called with parents
+        call_kwargs = drive_mock.files().create.call_args
+        assert call_kwargs is not None
+        body = call_kwargs.kwargs.get("body") or call_kwargs[1].get("body")
+        assert body["parents"] == ["folder123"]
+
+    @pytest.mark.asyncio
+    async def test_upload_with_custom_filename(self, drive_mock, scratch):
+        from src.tools.google_drive import upload_to_drive
+
+        scratch.write("local.txt", "data")
+        drive_mock.files().create().execute.return_value = {
+            "id": "new_id",
+            "name": "remote.txt",
+            "webViewLink": "https://drive.google.com/file/d/new_id",
+        }
+
+        result = await upload_to_drive(path="local.txt", filename="remote.txt")
+        assert result.success
+        call_kwargs = drive_mock.files().create.call_args
+        body = call_kwargs.kwargs.get("body") or call_kwargs[1].get("body")
+        assert body["name"] == "remote.txt"

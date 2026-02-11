@@ -1,6 +1,8 @@
 """Tests for Gmail tools."""
 
 import base64
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -166,3 +168,145 @@ class TestArchiveEmail:
         result = await archive_emails(message_ids=["msg1", "msg2"])
         assert result.success
         assert result.data["count"] == 2
+
+
+class TestBuildMessage:
+    def test_plain_text_returns_mimetext(self):
+        from src.tools.google_gmail import _build_message
+
+        msg = _build_message("Hello")
+        assert isinstance(msg, MIMEText)
+
+    def test_with_attachments_returns_multipart(self, scratch):
+        from src.tools.google_gmail import _build_message
+
+        scratch.write("doc.pdf", b"%PDF-fake-content")
+        msg = _build_message("See attached", ["doc.pdf"])
+        assert isinstance(msg, MIMEMultipart)
+        parts = msg.get_payload()
+        assert len(parts) == 2  # text body + 1 attachment
+        assert parts[0].get_content_type() == "text/plain"
+        assert parts[1].get_filename() == "doc.pdf"
+
+    def test_multiple_attachments(self, scratch):
+        from src.tools.google_gmail import _build_message
+
+        scratch.write("a.txt", "aaa")
+        scratch.write("b.txt", "bbb")
+        msg = _build_message("body", ["a.txt", "b.txt"])
+        parts = msg.get_payload()
+        assert len(parts) == 3  # body + 2 attachments
+
+    def test_missing_file_raises(self):
+        from src.tools.google_gmail import _build_message
+
+        with pytest.raises(FileNotFoundError):
+            _build_message("body", ["nonexistent.pdf"])
+
+    def test_size_limit_raises(self, scratch):
+        from src.tools.google_gmail import GMAIL_ATTACHMENT_LIMIT, _build_message
+
+        # Write a file just over the limit
+        scratch.write("big.bin", b"x" * (GMAIL_ATTACHMENT_LIMIT + 1))
+        with pytest.raises(ValueError, match="too large"):
+            _build_message("body", ["big.bin"])
+
+
+class TestSendEmailWithAttachments:
+    @pytest.mark.asyncio
+    async def test_send_with_attachment(self, gmail_mock, scratch):
+        from src.tools.google_gmail import send_email
+
+        scratch.write("report.pdf", b"%PDF-content")
+        gmail_mock.users().messages().send().execute.return_value = {"id": "sent1"}
+
+        result = await send_email(
+            to="bob@test.com",
+            subject="Report",
+            body="Here's the report",
+            attachments=["report.pdf"],
+        )
+        assert result.success
+        assert result.data["id"] == "sent1"
+
+    @pytest.mark.asyncio
+    async def test_send_missing_attachment_returns_error(self, gmail_mock):
+        from src.tools.google_gmail import send_email
+
+        result = await send_email(
+            to="bob@test.com",
+            subject="Report",
+            body="Here's the report",
+            attachments=["missing.pdf"],
+        )
+        assert not result.success
+        assert "not found" in result.error.lower()
+
+
+class TestReplyWithAttachments:
+    @pytest.mark.asyncio
+    async def test_reply_with_attachment(self, gmail_mock, scratch):
+        from src.tools.google_gmail import reply_to_email
+
+        scratch.write("data.csv", "col1,col2\na,b")
+        original = _make_message()
+        original["payload"]["headers"].append(
+            {"name": "Message-ID", "value": "<orig@test.com>"}
+        )
+        gmail_mock.users().messages().get().execute.return_value = original
+        gmail_mock.users().messages().send().execute.return_value = {"id": "reply1"}
+
+        result = await reply_to_email(
+            message_id="msg1", body="Here's the data", attachments=["data.csv"]
+        )
+        assert result.success
+        assert result.data["id"] == "reply1"
+
+
+class TestExtractAttachments:
+    def test_includes_attachment_id(self):
+        from src.tools.google_gmail import _extract_attachments
+
+        payload = {
+            "parts": [
+                {
+                    "filename": "invoice.pdf",
+                    "body": {"size": 12345, "attachmentId": "ATT_ID_123"},
+                },
+                {
+                    "filename": "",
+                    "body": {"size": 0},
+                },
+            ]
+        }
+        result = _extract_attachments(payload)
+        assert len(result) == 1
+        assert result[0]["name"] == "invoice.pdf"
+        assert result[0]["size"] == "12345"
+        assert result[0]["attachment_id"] == "ATT_ID_123"
+
+
+class TestDownloadEmailAttachment:
+    @pytest.mark.asyncio
+    async def test_download_success(self, gmail_mock, scratch):
+        from src.tools.google_gmail import download_email_attachment
+
+        file_data = b"PDF binary content here"
+        encoded = base64.urlsafe_b64encode(file_data).decode()
+        gmail_mock.users().messages().attachments().get().execute.return_value = {
+            "data": encoded,
+        }
+
+        result = await download_email_attachment(
+            message_id="msg1",
+            attachment_id="att123",
+            filename="invoice.pdf",
+        )
+        assert result.success
+        assert result.data["downloaded"] is True
+        assert result.data["path"] == "invoice.pdf"
+        assert result.data["size"] == len(file_data)
+        assert result.data["mime_type"] == "application/pdf"
+
+        # Verify file actually landed in scratch
+        assert scratch.read_bytes("invoice.pdf") == file_data

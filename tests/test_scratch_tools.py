@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock
 import httpx
 import pytest
 
-from src.scratch import ScratchSpace
 from src.tools.scratch_tools import (
     DeleteFileParams,
     DownloadFileParams,
@@ -21,13 +20,8 @@ from src.tools.scratch_tools import (
 
 
 @pytest.fixture(autouse=True)
-def scratch(tmp_path):
-    """Create a ScratchSpace rooted in a temporary directory for every test."""
-    ScratchSpace.reset()
-    s = ScratchSpace(root=tmp_path / "scratch")
-    ScratchSpace._instance = s
-    yield s
-    ScratchSpace.reset()
+def _ensure_scratch(scratch):
+    """Auto-use the shared scratch fixture for every test in this file."""
 
 
 # ---------------------------------------------------------------------------

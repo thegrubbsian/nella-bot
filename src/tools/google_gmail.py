@@ -1,20 +1,27 @@
-"""Gmail tools — search, read, send, reply, archive."""
+"""Gmail tools — search, read, send, reply, archive, download attachment."""
 
 import asyncio
 import base64
 import logging
+import mimetypes
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from bs4 import BeautifulSoup
 from pydantic import Field
 
 from src.integrations.google_auth import GoogleAuthManager
+from src.scratch import ScratchSpace
 from src.tools.base import GoogleToolParams, ToolResult
 from src.tools.registry import registry
 
 logger = logging.getLogger(__name__)
 
 _CATEGORY = "google_gmail"
+
+GMAIL_ATTACHMENT_LIMIT = 25 * 1024 * 1024  # 25 MB per email
 
 
 def _auth(account: str | None = None) -> GoogleAuthManager:
@@ -69,14 +76,54 @@ def _extract_body(payload: dict) -> str:
 
 
 def _extract_attachments(payload: dict) -> list[dict[str, str]]:
-    """List attachment names and sizes from message payload."""
+    """List attachment names, sizes, and attachment IDs from message payload."""
     attachments = []
     for part in payload.get("parts", []):
         filename = part.get("filename")
         if filename:
-            size = part.get("body", {}).get("size", 0)
-            attachments.append({"name": filename, "size": str(size)})
+            body = part.get("body", {})
+            size = body.get("size", 0)
+            attachment_id = body.get("attachmentId", "")
+            attachments.append({
+                "name": filename,
+                "size": str(size),
+                "attachment_id": attachment_id,
+            })
     return attachments
+
+
+def _build_message(body: str, attachments: list[str] | None = None) -> MIMEText | MIMEMultipart:
+    """Build a MIME message, optionally with scratch-space file attachments.
+
+    Raises ``FileNotFoundError`` if a scratch file doesn't exist, or
+    ``ValueError`` if the total attachment size exceeds Gmail's 25 MB limit.
+    """
+    if not attachments:
+        return MIMEText(body)
+
+    scratch = ScratchSpace.get()
+    msg = MIMEMultipart()
+    msg.attach(MIMEText(body))
+
+    total_size = 0
+    for path in attachments:
+        data = scratch.read_bytes(path)
+        total_size += len(data)
+        if total_size > GMAIL_ATTACHMENT_LIMIT:
+            msg = f"Attachments too large: {total_size} bytes (max {GMAIL_ATTACHMENT_LIMIT})"
+            raise ValueError(msg)
+
+        mime_type, _ = mimetypes.guess_type(path)
+        maintype, subtype = (mime_type or "application/octet-stream").split("/", 1)
+        part = MIMEBase(maintype, subtype)
+        part.set_payload(data)
+        encoders.encode_base64(part)
+        # Use just the filename, not the full scratch path
+        filename = path.rsplit("/", 1)[-1] if "/" in path else path
+        part.add_header("Content-Disposition", "attachment", filename=filename)
+        msg.attach(part)
+
+    return msg
 
 
 # -- search_emails -----------------------------------------------------------
@@ -224,6 +271,10 @@ class SendEmailParams(GoogleToolParams):
     body: str = Field(description="Email body text")
     cc: str | None = Field(default=None, description="CC recipients (comma-separated)")
     bcc: str | None = Field(default=None, description="BCC recipients (comma-separated)")
+    attachments: list[str] | None = Field(
+        default=None,
+        description="Scratch-space file paths to attach (e.g. ['report.pdf'])",
+    )
 
 
 @registry.tool(
@@ -239,11 +290,16 @@ async def send_email(
     body: str,
     cc: str | None = None,
     bcc: str | None = None,
+    attachments: list[str] | None = None,
     account: str | None = None,
 ) -> ToolResult:
     service = _auth(account).gmail()
 
-    message = MIMEText(body)
+    try:
+        message = _build_message(body, attachments)
+    except (FileNotFoundError, ValueError) as exc:
+        return ToolResult(error=str(exc))
+
     message["to"] = to
     message["subject"] = subject
     if cc:
@@ -270,6 +326,10 @@ async def send_email(
 class ReplyToEmailParams(GoogleToolParams):
     message_id: str = Field(description="ID of the message to reply to")
     body: str = Field(description="Reply body text")
+    attachments: list[str] | None = Field(
+        default=None,
+        description="Scratch-space file paths to attach (e.g. ['report.pdf'])",
+    )
 
 
 @registry.tool(
@@ -279,7 +339,12 @@ class ReplyToEmailParams(GoogleToolParams):
     params_model=ReplyToEmailParams,
     requires_confirmation=True,
 )
-async def reply_to_email(message_id: str, body: str, account: str | None = None) -> ToolResult:
+async def reply_to_email(
+    message_id: str,
+    body: str,
+    attachments: list[str] | None = None,
+    account: str | None = None,
+) -> ToolResult:
     service = _auth(account).gmail()
 
     # Fetch original for threading headers
@@ -296,7 +361,11 @@ async def reply_to_email(message_id: str, body: str, account: str | None = None)
     subject = orig_subject if orig_subject.lower().startswith("re:") else f"Re: {orig_subject}"
     reply_to = headers.get("Reply-To") or headers.get("From", "")
 
-    message = MIMEText(body)
+    try:
+        message = _build_message(body, attachments)
+    except (FileNotFoundError, ValueError) as exc:
+        return ToolResult(error=str(exc))
+
     message["to"] = reply_to
     message["subject"] = subject
     message["In-Reply-To"] = headers.get("Message-ID", "")
@@ -370,3 +439,55 @@ async def archive_emails(message_ids: list[str], account: str | None = None) -> 
     )
 
     return ToolResult(data={"archived": True, "count": len(message_ids)})
+
+
+# -- download_email_attachment -----------------------------------------------
+
+
+class DownloadEmailAttachmentParams(GoogleToolParams):
+    message_id: str = Field(description="Gmail message ID containing the attachment")
+    attachment_id: str = Field(description="Attachment ID (from read_email response)")
+    filename: str = Field(description="Filename to save as in scratch space")
+
+
+@registry.tool(
+    name="download_email_attachment",
+    description=(
+        "Download an email attachment to scratch space. Use read_email first "
+        "to get the attachment_id, then download it here."
+    ),
+    category=_CATEGORY,
+    params_model=DownloadEmailAttachmentParams,
+)
+async def download_email_attachment(
+    message_id: str,
+    attachment_id: str,
+    filename: str,
+    account: str | None = None,
+) -> ToolResult:
+    service = _auth(account).gmail()
+
+    result = await asyncio.to_thread(
+        lambda: service.users()
+        .messages()
+        .attachments()
+        .get(userId="me", messageId=message_id, id=attachment_id)
+        .execute()
+    )
+
+    data = base64.urlsafe_b64decode(result["data"])
+
+    try:
+        scratch = ScratchSpace.get()
+        scratch.write(filename, data)
+    except (ValueError, OSError) as exc:
+        return ToolResult(error=str(exc))
+
+    mime_type, _ = mimetypes.guess_type(filename)
+
+    return ToolResult(data={
+        "downloaded": True,
+        "path": filename,
+        "size": len(data),
+        "mime_type": mime_type or "application/octet-stream",
+    })
