@@ -148,6 +148,19 @@ else
     sudo -u nella bash -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'
 fi
 
+# Install ngrok
+if command -v ngrok &>/dev/null; then
+    echo "  ngrok already installed"
+else
+    echo "  Installing ngrok..."
+    curl -sSf https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
+        | tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+    echo "deb https://ngrok-agent.s3.amazonaws.com buster main" \
+        | tee /etc/apt/sources.list.d/ngrok.list >/dev/null
+    apt-get -o DPkg::Lock::Timeout=60 update -qq
+    apt-get -o DPkg::Lock::Timeout=60 install -y -qq ngrok
+fi
+
 # Firewall
 echo "  Configuring firewall..."
 ufw allow OpenSSH >/dev/null
@@ -321,6 +334,15 @@ main() {
 
     local elapsed=$(( $(date +%s) - start_time ))
     log "Deploy complete in ${elapsed}s"
+
+    if [[ "$QUICK" == false ]]; then
+        echo ""
+        echo "--- Next steps ---"
+        echo "  1. SSH into the VPS: ssh $SSH_TARGET"
+        echo "  2. Authenticate ngrok: ngrok config add-authtoken <your-token>"
+        echo "  3. Start ngrok tunnel: ngrok http 8443"
+        echo ""
+    fi
 }
 
 main "$@"
