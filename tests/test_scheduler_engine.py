@@ -199,9 +199,11 @@ async def test_run_task_deactivates_one_off(
     engine: SchedulerEngine, store: TaskStore, executor: TaskExecutor
 ) -> None:
     task = _make_task("t1", task_type="one_off", schedule={"run_at": "2025-06-01T09:00:00"})
-    await store.add_task(task)
+    # Start the engine BEFORE adding the task to the store so that APScheduler
+    # doesn't auto-load and immediately fire the past-date one_off trigger.
     await engine.start()
     try:
+        await store.add_task(task)
         await engine._run_task("t1")
 
         updated = await store.get_task("t1")

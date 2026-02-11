@@ -86,11 +86,15 @@ async def test_post_init_starts_engine() -> None:
 
     mock_app = AsyncMock()
 
-    with patch("src.bot.app.settings") as mock_settings:
+    with (
+        patch("src.bot.app.settings") as mock_settings,
+        patch("src.webhooks.server.WebhookServer") as mock_webhook_cls,
+    ):
         mock_settings.get_allowed_user_ids.return_value = {12345}
         mock_settings.scheduler_timezone = "America/Chicago"
         mock_settings.database_path = "data/nella.db"
         mock_settings.default_notification_channel = "telegram"
+        mock_webhook_cls.return_value = AsyncMock()
 
         import src.bot.app as app_module
 
@@ -102,6 +106,7 @@ async def test_post_init_starts_engine() -> None:
     # Clean up
     await app_module._scheduler_engine.stop()
     app_module._scheduler_engine = None
+    app_module._webhook_server = None
 
 
 async def test_post_shutdown_stops_engine() -> None:
@@ -116,11 +121,15 @@ async def test_post_shutdown_stops_engine() -> None:
 
     mock_app = AsyncMock()
 
-    with patch("src.bot.app.settings") as mock_settings:
+    with (
+        patch("src.bot.app.settings") as mock_settings,
+        patch("src.webhooks.server.WebhookServer") as mock_webhook_cls,
+    ):
         mock_settings.get_allowed_user_ids.return_value = {12345}
         mock_settings.scheduler_timezone = "America/Chicago"
         mock_settings.database_path = "data/nella.db"
         mock_settings.default_notification_channel = "telegram"
+        mock_webhook_cls.return_value = AsyncMock()
 
         import src.bot.app as app_module
 
@@ -134,6 +143,7 @@ async def test_post_shutdown_stops_engine() -> None:
 
     # Clean up
     app_module._scheduler_engine = None
+    app_module._webhook_server = None
 
 
 async def test_post_shutdown_noop_when_no_engine() -> None:
