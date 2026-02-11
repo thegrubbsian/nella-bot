@@ -271,10 +271,66 @@ REMOTE_SCRIPT
 }
 
 # ---------------------------------------------------------------------------
-# Phase 7: Restart + Health Check
+# Phase 7: Configure ngrok
+# ---------------------------------------------------------------------------
+phase_configure_ngrok() {
+    log "Phase 7: Configuring ngrok"
+
+    # Read NGROK_AUTHTOKEN and NGROK_DOMAIN from the deployed .env
+    local ngrok_authtoken ngrok_domain
+    ngrok_authtoken=$(run_remote grep -s '^NGROK_AUTHTOKEN=' "$APP_DIR/.env" | cut -d= -f2- || true)
+    ngrok_domain=$(run_remote grep -s '^NGROK_DOMAIN=' "$APP_DIR/.env" | cut -d= -f2- || true)
+
+    if [[ -z "$ngrok_authtoken" || -z "$ngrok_domain" ]]; then
+        log "WARNING: NGROK_AUTHTOKEN or NGROK_DOMAIN not set in .env — skipping ngrok setup"
+        return 0
+    fi
+
+    run_remote bash -s -- "$ngrok_authtoken" "$ngrok_domain" <<'REMOTE_SCRIPT'
+set -euo pipefail
+AUTHTOKEN="$1"
+DOMAIN="$2"
+
+mkdir -p /root/.config/ngrok
+
+cat > /root/.config/ngrok/ngrok.yml <<NGROK_EOF
+version: "2"
+authtoken: ${AUTHTOKEN}
+tunnels:
+  nella-webhooks:
+    proto: http
+    addr: 8443
+    domain: ${DOMAIN}
+NGROK_EOF
+
+echo "  ngrok config written"
+
+# Install ngrok as a systemd service (idempotent)
+if systemctl list-unit-files | grep -q ngrok.service; then
+    echo "  ngrok service already installed"
+else
+    ngrok service install --config /root/.config/ngrok/ngrok.yml
+    echo "  ngrok service installed"
+fi
+
+# Start or restart
+if systemctl is-active ngrok &>/dev/null; then
+    systemctl restart ngrok
+    echo "  ngrok service restarted"
+else
+    ngrok service start
+    echo "  ngrok service started"
+fi
+REMOTE_SCRIPT
+
+    log "ngrok configured (domain: $ngrok_domain)"
+}
+
+# ---------------------------------------------------------------------------
+# Phase 8: Restart + Health Check
 # ---------------------------------------------------------------------------
 phase_restart_service() {
-    log "Phase 7: Restarting service"
+    log "Phase 8: Restarting service"
     run_remote systemctl restart nella
 
     # Poll until active (up to 15s)
@@ -320,6 +376,7 @@ main() {
         phase_sync_code
         phase_sync_secrets
         phase_install_service
+        phase_configure_ngrok
         phase_restart_service
     else
         log "Full deploy"
@@ -329,18 +386,32 @@ main() {
         phase_install_deps
         phase_init_app
         phase_install_service
+        phase_configure_ngrok
         phase_restart_service
     fi
 
     local elapsed=$(( $(date +%s) - start_time ))
     log "Deploy complete in ${elapsed}s"
 
-    if [[ "$QUICK" == false ]]; then
+    # Post-deploy info
+    local ngrok_domain
+    ngrok_domain=$(grep -s '^NGROK_DOMAIN=' "$SECRETS_DIR/.env" | cut -d= -f2- || true)
+    local ngrok_authtoken
+    ngrok_authtoken=$(grep -s '^NGROK_AUTHTOKEN=' "$SECRETS_DIR/.env" | cut -d= -f2- || true)
+
+    if [[ -n "$ngrok_domain" && -n "$ngrok_authtoken" ]]; then
+        echo ""
+        echo "--- Webhook URL ---"
+        echo "  https://${ngrok_domain}/webhooks/<source>"
+        echo ""
+    else
         echo ""
         echo "--- Next steps ---"
-        echo "  1. SSH into the VPS: ssh $SSH_TARGET"
-        echo "  2. Authenticate ngrok: ngrok config add-authtoken <your-token>"
-        echo "  3. Start ngrok tunnel: ngrok http 8443"
+        echo "  ngrok not configured (NGROK_AUTHTOKEN / NGROK_DOMAIN missing from .env)"
+        echo "  To set up HTTPS webhooks manually:"
+        echo "    1. SSH into the VPS: ssh $SSH_TARGET"
+        echo "    2. Add NGROK_AUTHTOKEN and NGROK_DOMAIN to .env"
+        echo "    3. Re-run this deploy script"
         echo ""
     fi
 }
