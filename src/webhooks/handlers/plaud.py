@@ -40,7 +40,11 @@ async def _read_transcript(file_id: str) -> str | None:
     """Read transcript text from Google Drive by file ID."""
     from src.tools.google_drive import read_file
 
-    result = await read_file(file_id=file_id)
+    try:
+        result = await read_file(file_id=file_id)
+    except Exception:
+        logger.debug("read_file raised for file_id=%s", file_id, exc_info=True)
+        return None
     if not result.success:
         return None
     return result.data.get("content")
@@ -71,7 +75,11 @@ async def _search_transcript(file_name: str) -> str | None:
         return None
 
     found_id = files[0]["id"]
-    read_result = await read_file(file_id=found_id)
+    try:
+        read_result = await read_file(file_id=found_id)
+    except Exception:
+        logger.debug("read_file raised for found_id=%s", found_id, exc_info=True)
+        return None
     if not read_result.success:
         return None
     return read_result.data.get("content")
