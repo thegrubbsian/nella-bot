@@ -293,6 +293,7 @@ nellabot/
 ├── scripts/
 │   ├── google_auth.py               # One-time OAuth browser flow (--account flag required)
 │   ├── init_mem0_dir.py             # Pre-create Mem0 config dir for systemd
+│   ├── deploy.sh                    # Automated deploy to VPS (full or --quick)
 │   ├── logs.py                      # Query production logs via SolarWinds Observability API
 │   └── test_mem0.py                 # Diagnostic script for Mem0 connectivity
 │
@@ -360,6 +361,8 @@ Then edit `.env` with your actual values:
 | `SCHEDULER_TIMEZONE` | No | IANA timezone for scheduled tasks. Default: `America/Chicago` |
 | `WEBHOOK_PORT` | No | Port for the inbound webhook HTTP server. Default: `8443` |
 | `WEBHOOK_SECRET` | No | Shared secret for webhook authentication (checked via `X-Webhook-Secret` header). Server is disabled when empty. |
+| `NGROK_AUTHTOKEN` | No | ngrok auth token from [dashboard.ngrok.com](https://dashboard.ngrok.com). Used by the deploy script to set up an HTTPS tunnel for webhooks. |
+| `NGROK_DOMAIN` | No | ngrok free static domain (e.g. `your-subdomain.ngrok-free.dev`). Claim one at [dashboard.ngrok.com/domains](https://dashboard.ngrok.com/domains). |
 | `PLAUD_DRIVE_FOLDER_ID` | No | Google Drive folder ID where Zapier drops Plaud transcripts. Used to scope transcript search. |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, or `ERROR`. Default: `INFO` |
 
@@ -432,6 +435,22 @@ Ruff is a Python linter (like rubocop or eslint). The rules are configured in `p
 ## Deployment
 
 Nella runs on a Linux VPS as a systemd service.
+
+### Automated deploy
+
+The deploy script handles everything — system setup, code sync, secrets, dependencies, service install, ngrok configuration, and restart with health check:
+
+```bash
+# Full deploy (first time or after system changes)
+bash scripts/deploy.sh root@your-vps ~/nella-secrets
+
+# Quick deploy (code-only — skips system setup and deps)
+bash scripts/deploy.sh root@your-vps ~/nella-secrets --quick
+```
+
+The `secrets-dir` should contain your `.env` and optionally `credentials.json` and `token_*.json` files.
+
+If `NGROK_AUTHTOKEN` and `NGROK_DOMAIN` are set in your `.env`, the script automatically configures ngrok as a systemd service to provide an HTTPS tunnel for webhooks (so external services like Zapier can reach the webhook server).
 
 ### The systemd service
 
