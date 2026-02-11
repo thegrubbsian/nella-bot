@@ -3,10 +3,9 @@
 import logging
 from datetime import UTC, datetime
 
-import aiosqlite
 from pydantic import Field
 
-from src.config import settings
+from src.db import get_connection
 from src.tools.base import ToolParams, ToolResult
 from src.tools.registry import registry
 
@@ -39,12 +38,9 @@ async def get_current_datetime() -> ToolResult:
 # ---------------------------------------------------------------------------
 
 
-async def _ensure_notes_table() -> aiosqlite.Connection:
+async def _ensure_notes_table():
     """Open the DB and ensure the notes table exists."""
-    db_path = settings.database_path
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    db = await aiosqlite.connect(str(db_path))
-    db.row_factory = aiosqlite.Row
+    db = await get_connection()
     await db.execute("""
         CREATE TABLE IF NOT EXISTS notes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -106,12 +102,13 @@ async def search_notes(query: str) -> ToolResult:
             (pattern, pattern),
         )
         rows = await cursor.fetchall()
+        # libsql returns tuples — use positional indexing matching SELECT order
         notes = [
             {
-                "id": row["id"],
-                "title": row["title"],
-                "content": row["content"],
-                "created_at": row["created_at"],
+                "id": row[0],
+                "title": row[1],
+                "content": row[2],
+                "created_at": row[3],
             }
             for row in rows
         ]

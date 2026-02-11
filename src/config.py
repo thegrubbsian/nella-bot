@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     # Database
     database_path: Path = Field(default=Path("data/nella.db"))
 
+    # Turso (hosted libSQL) — when set, overrides local database_path
+    turso_database_url: str = Field(default="")
+    turso_auth_token: str = Field(default="")
+
     # Conversation
     conversation_window_size: int = Field(default=50)
 

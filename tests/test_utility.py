@@ -9,6 +9,7 @@ from src.tools.utility import get_current_datetime, save_note, search_notes
 def _temp_db(tmp_path, monkeypatch) -> None:
     """Route the database to a temp file for test isolation."""
     monkeypatch.setattr("src.config.settings.database_path", tmp_path / "test.db")
+    monkeypatch.setattr("src.config.settings.turso_database_url", "")
 
 
 async def test_get_current_datetime() -> None:

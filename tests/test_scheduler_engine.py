@@ -11,6 +11,12 @@ from src.scheduler.models import ScheduledTask
 from src.scheduler.store import TaskStore
 
 
+@pytest.fixture(autouse=True)
+def _no_turso(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure tests use local file, not remote Turso."""
+    monkeypatch.setattr("src.config.settings.turso_database_url", "")
+
+
 @pytest.fixture
 async def store(tmp_path: Path) -> TaskStore:
     return TaskStore(db_path=tmp_path / "test.db")

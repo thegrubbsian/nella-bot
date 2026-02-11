@@ -1,4 +1,4 @@
-"""TaskStore — aiosqlite CRUD for scheduled tasks."""
+"""TaskStore — CRUD for scheduled tasks via libsql."""
 
 from __future__ import annotations
 
@@ -6,9 +6,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-import aiosqlite
-
-from src.config import settings
+from src.db import get_connection
 from src.scheduler.models import ScheduledTask
 
 if TYPE_CHECKING:
@@ -34,7 +32,7 @@ CREATE TABLE IF NOT EXISTS scheduled_tasks (
 
 
 class TaskStore:
-    """Persists scheduled tasks in SQLite.
+    """Persists scheduled tasks in SQLite / Turso.
 
     Singleton accessed via ``TaskStore.get()``.  Pass an explicit *db_path*
     for test isolation (e.g. ``tmp_path / "test.db"``).
@@ -43,7 +41,7 @@ class TaskStore:
     _instance: TaskStore | None = None
 
     def __init__(self, db_path: Path | None = None) -> None:
-        self._db_path = db_path or settings.database_path
+        self._db_path = db_path
         self._initialised = False
 
     @classmethod
@@ -60,9 +58,8 @@ class TaskStore:
 
     # -- Internal helpers ------------------------------------------------------
 
-    async def _connect(self) -> aiosqlite.Connection:
-        self._db_path.parent.mkdir(parents=True, exist_ok=True)
-        db = await aiosqlite.connect(str(self._db_path))
+    async def _connect(self):
+        db = await get_connection(local_path_override=self._db_path)
         if not self._initialised:
             await db.execute(_CREATE_TABLE)
             await db.commit()
