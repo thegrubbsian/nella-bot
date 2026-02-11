@@ -4,7 +4,7 @@
 
 Nella is an always-on personal AI assistant with Telegram as the primary chat interface.
 She uses Claude as the reasoning engine, Mem0 for persistent memory, and integrates
-with Google APIs (Calendar, Gmail, Tasks) for real-world actions.
+with Google APIs (Calendar, Gmail, Drive, Docs) for real-world actions.
 
 ## Tech Stack
 

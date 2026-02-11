@@ -57,7 +57,7 @@ Nella is an always-on personal AI assistant that lives in Telegram. She uses Cla
 | `src/bot/` | Telegram bot setup, message handlers, session management, user security | You want to change how messages are received or how the bot responds |
 | `src/llm/` | Claude API client, system prompt assembly, model switching | You want to change how Claude is called, what it sees, or the tool-calling loop |
 | `src/memory/` | Mem0 integration, automatic memory extraction, data models | You want to change how Nella remembers things |
-| `src/tools/` | Tool registry, all 24 tool implementations, base classes | You want to add a new tool or modify an existing one |
+| `src/tools/` | Tool registry, all 31 tool implementations, base classes | You want to add a new tool or modify an existing one |
 | `src/integrations/` | Google OAuth multi-account manager | You want to add a new Google API, add an account, or fix auth issues |
 | `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
 | `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
@@ -82,7 +82,7 @@ Here's what happens when you send "What's on my calendar today?" in Telegram:
 
 7. **`generate_response()` is called** in `src/llm/client.py`. This is where the real work happens:
    - **System prompt assembly** (`src/llm/prompt.py`): reads `SOUL.md` and `USER.md`, then searches Mem0 for memories related to your message. These are combined into a system prompt with caching so the static parts aren't re-processed on every tool-calling round.
-   - **Claude API call**: sends your conversation history + system prompt + all 24 tool schemas to Claude via streaming.
+   - **Claude API call**: sends your conversation history + system prompt + all 31 tool schemas to Claude via streaming.
    - **Streaming**: as text chunks arrive, the `on_text_delta` callback edits the placeholder message in Telegram (throttled to every 0.5 seconds to stay under rate limits).
 
 8. **If Claude calls a tool** (in this case, probably `get_todays_schedule`):
@@ -185,7 +185,7 @@ If the transcript isn't found after all retries, the owner gets a notification e
 
 ### How Tool Calling Works
 
-Claude has access to 24 tools organized into categories. When Claude decides it needs to call a tool:
+Claude has access to 31 tools organized into categories. When Claude decides it needs to call a tool:
 
 1. Claude returns a `tool_use` content block with the tool name and arguments.
 2. The registry validates the arguments against a Pydantic model (if one is defined).
@@ -237,7 +237,7 @@ nellabot/
 │   │   ├── __init__.py              # Imports all tool modules (conditional Google loading)
 │   │   ├── registry.py              # ToolRegistry — decorator & class-based registration
 │   │   ├── base.py                  # ToolResult, ToolParams, GoogleToolParams, BaseTool
-│   │   ├── google_gmail.py          # 7 tools: search, read, draft, send, reply, archive, delete
+│   │   ├── google_gmail.py          # 7 tools: search, read, read_thread, send, reply, archive, archive_emails
 │   │   ├── google_calendar.py       # 6 tools: list, today, create, update, delete, availability
 │   │   ├── google_drive.py          # 4 tools: search, list recent, read, delete
 │   │   ├── google_docs.py           # 4 tools: read, create, update, append
@@ -272,7 +272,7 @@ nellabot/
 │   ├── MEMORY.md                    # Explicit long-term facts
 │   └── MEMORY_RULES.md              # Auto-extraction rules
 │
-├── tests/                           # 285 tests across 29 modules
+├── tests/                           # 285 tests across 28 modules
 │   ├── test_notification_*.py       # Notification system (3 files)
 │   ├── test_google_*.py             # Google auth + integrations (5 files)
 │   ├── test_memory_*.py             # Memory system (2 files)
@@ -291,7 +291,10 @@ nellabot/
 │   └── test_utility.py              # Utility tools
 │
 ├── scripts/
-│   └── google_auth.py               # One-time OAuth browser flow (--account flag required)
+│   ├── google_auth.py               # One-time OAuth browser flow (--account flag required)
+│   ├── init_mem0_dir.py             # Pre-create Mem0 config dir for systemd
+│   ├── logs.py                      # Query production logs via SolarWinds Observability API
+│   └── test_mem0.py                 # Diagnostic script for Mem0 connectivity
 │
 ├── nella.service                    # systemd unit file for deployment
 ├── pyproject.toml                   # Dependencies, build config, tool settings
