@@ -191,7 +191,6 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         with contextlib.suppress(Exception):
             await query.edit_message_text(
                 text=query.message.text + "\n\n(expired)",
-                parse_mode="Markdown",
             )
         return
 
@@ -206,6 +205,5 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     with contextlib.suppress(Exception):
         await query.edit_message_text(
             text=query.message.text + f"\n\n→ {status}",
-            parse_mode="Markdown",
         )
     await query.answer(status)

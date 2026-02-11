@@ -8,6 +8,7 @@ user to tap before allowing execution.
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
 import time
 import uuid
@@ -252,11 +253,12 @@ async def request_confirmation(
         ]
     ])
 
+    safe_summary = html.escape(summary)
     msg = await bot.send_message(
         chat_id=chat_id,
-        text=f"**Confirm action:**\n{summary}",
+        text=f"<b>Confirm action:</b>\n{safe_summary}",
         reply_markup=keyboard,
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
 
     loop = asyncio.get_running_loop()
@@ -280,8 +282,8 @@ async def request_confirmation(
             await bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=msg.message_id,
-                text=f"**Confirm action:** (timed out)\n{summary}",
-                parse_mode="Markdown",
+                text=f"<b>Confirm action:</b> (timed out)\n{safe_summary}",
+                parse_mode="HTML",
             )
         except Exception:
             logger.debug("Could not edit timed-out confirmation message", exc_info=True)
