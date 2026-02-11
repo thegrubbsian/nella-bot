@@ -246,7 +246,7 @@ nellabot/
 │   │   ├── google_docs.py           # 4 tools: read, create, update, append
 │   │   ├── memory_tools.py          # 4 tools: remember, forget, recall, save_reference
 │   │   ├── scheduler_tools.py       # 3 tools: schedule, list, cancel scheduled tasks
-│   │   ├── scratch_tools.py         # 5 tools: write_file, read_file, list_files, delete_file, download_file
+│   │   ├── scratch_tools.py         # 5 tools: scratch_write, scratch_read, scratch_list, scratch_delete, scratch_download
 │   │   ├── log_tools.py             # 1 tool: query production logs (SolarWinds/Papertrail)
 │   │   ├── web_tools.py             # 2 tools: web_search (Brave), read_webpage (content extraction)
 │   │   └── utility.py               # 3 tools: datetime, save_note, search_notes

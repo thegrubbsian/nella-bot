@@ -53,7 +53,7 @@ class DownloadFileParams(ToolParams):
 
 
 @registry.tool(
-    name="write_file",
+    name="scratch_write",
     description=(
         "Write text content to a file in the local scratch space. "
         "Creates subdirectories as needed. Use for drafting documents, "
@@ -79,7 +79,7 @@ async def write_file(path: str, content: str) -> ToolResult:
 
 
 @registry.tool(
-    name="read_file",
+    name="scratch_read",
     description=(
         "Read a file from the local scratch space. Returns the text content "
         "for text files, or metadata for binary files."
@@ -113,7 +113,7 @@ async def read_file(path: str) -> ToolResult:
 
 
 @registry.tool(
-    name="list_files",
+    name="scratch_list",
     description=(
         "List all files in the local scratch space with size, age, "
         "and modification time."
@@ -132,7 +132,7 @@ async def list_files() -> ToolResult:
 
 
 @registry.tool(
-    name="delete_file",
+    name="scratch_delete",
     description="Delete a file from the local scratch space.",
     category="files",
     params_model=DeleteFileParams,
@@ -149,7 +149,7 @@ async def delete_file(path: str) -> ToolResult:
 
 
 @registry.tool(
-    name="download_file",
+    name="scratch_download",
     description=(
         "Download a file from a URL into the local scratch space. "
         "Supports any file type (PDF, images, documents, etc.). "
