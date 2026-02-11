@@ -3,6 +3,7 @@
 import logging
 from pathlib import Path
 
+from src.config import settings
 from src.memory.models import MemoryEntry
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,20 @@ async def build_system_prompt(user_message: str = "") -> list[dict]:
         sections.append(soul)
     if user:
         sections.append(f"# Owner Profile\n\n{user}")
+
+    # Inject Google account list so Claude knows what accounts exist
+    accounts = settings.get_google_accounts()
+    if accounts:
+        default = settings.google_default_account or accounts[0]
+        lines = [
+            "# Google Accounts\n",
+            "When using Google tools, specify which account via the `account` parameter. "
+            "If omitted, the default is used.\n",
+        ]
+        for name in accounts:
+            suffix = " (default)" if name == default else ""
+            lines.append(f"- {name}{suffix}")
+        sections.append("\n".join(lines))
 
     static_text = "\n\n---\n\n".join(sections)
 

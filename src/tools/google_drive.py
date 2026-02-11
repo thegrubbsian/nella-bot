@@ -6,7 +6,7 @@ import logging
 from pydantic import Field
 
 from src.integrations.google_auth import GoogleAuthManager
-from src.tools.base import ToolParams, ToolResult
+from src.tools.base import GoogleToolParams, ToolResult
 from src.tools.registry import registry
 
 logger = logging.getLogger(__name__)
@@ -16,14 +16,14 @@ _CATEGORY = "google_drive"
 _FILE_FIELDS = "files(id,name,mimeType,modifiedTime,webViewLink)"
 
 
-def _auth():
-    return GoogleAuthManager.get()
+def _auth(account: str | None = None) -> GoogleAuthManager:
+    return GoogleAuthManager.get(account)
 
 
 # -- search_files ------------------------------------------------------------
 
 
-class SearchFilesParams(ToolParams):
+class SearchFilesParams(GoogleToolParams):
     query: str = Field(description="Search query (searches file names and content)")
     max_results: int = Field(default=10, description="Maximum number of results")
 
@@ -34,8 +34,8 @@ class SearchFilesParams(ToolParams):
     category=_CATEGORY,
     params_model=SearchFilesParams,
 )
-async def search_files(query: str, max_results: int = 10) -> ToolResult:
-    service = _auth().drive()
+async def search_files(query: str, max_results: int = 10, account: str | None = None) -> ToolResult:
+    service = _auth(account).drive()
 
     # Search in both full text and file name
     q = f"fullText contains '{query}' or name contains '{query}'"
@@ -63,7 +63,7 @@ async def search_files(query: str, max_results: int = 10) -> ToolResult:
 # -- list_recent_files -------------------------------------------------------
 
 
-class ListRecentFilesParams(ToolParams):
+class ListRecentFilesParams(GoogleToolParams):
     max_results: int = Field(default=10, description="Maximum number of results")
 
 
@@ -73,8 +73,8 @@ class ListRecentFilesParams(ToolParams):
     category=_CATEGORY,
     params_model=ListRecentFilesParams,
 )
-async def list_recent_files(max_results: int = 10) -> ToolResult:
-    service = _auth().drive()
+async def list_recent_files(max_results: int = 10, account: str | None = None) -> ToolResult:
+    service = _auth(account).drive()
 
     result = await asyncio.to_thread(
         lambda: service.files()
@@ -103,7 +103,7 @@ async def list_recent_files(max_results: int = 10) -> ToolResult:
 # -- read_file ---------------------------------------------------------------
 
 
-class ReadFileParams(ToolParams):
+class ReadFileParams(GoogleToolParams):
     file_id: str = Field(description="Google Drive file ID")
 
 
@@ -116,8 +116,8 @@ class ReadFileParams(ToolParams):
     category=_CATEGORY,
     params_model=ReadFileParams,
 )
-async def read_file(file_id: str) -> ToolResult:
-    service = _auth().drive()
+async def read_file(file_id: str, account: str | None = None) -> ToolResult:
+    service = _auth(account).drive()
 
     # Get file metadata
     meta = await asyncio.to_thread(
@@ -140,7 +140,7 @@ async def read_file(file_id: str) -> ToolResult:
     if mime_type == "application/vnd.google-apps.document":
         from src.tools.google_docs import _read_document_content
 
-        content = await _read_document_content(meta["id"])
+        content = await _read_document_content(meta["id"], account=account)
         return ToolResult(data={**base_info, "content": content})
 
     # Google Sheets / Slides → return metadata only (complex to parse)
@@ -178,7 +178,7 @@ async def read_file(file_id: str) -> ToolResult:
 # -- delete_file -------------------------------------------------------------
 
 
-class DeleteFileParams(ToolParams):
+class DeleteFileParams(GoogleToolParams):
     file_id: str = Field(description="Google Drive file ID to delete (moves to trash)")
 
 
@@ -189,8 +189,8 @@ class DeleteFileParams(ToolParams):
     params_model=DeleteFileParams,
     requires_confirmation=True,
 )
-async def delete_file(file_id: str) -> ToolResult:
-    service = _auth().drive()
+async def delete_file(file_id: str, account: str | None = None) -> ToolResult:
+    service = _auth(account).drive()
 
     await asyncio.to_thread(
         lambda: service.files()

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """One-time OAuth2 browser flow for Google Workspace APIs.
 
-Run this once on your Mac to generate token.json, then copy
-the token file to your VPS.
+Run this once per account on your Mac to generate a token file,
+then copy it to your VPS.
 
 Usage:
-    python scripts/google_auth.py
+    python scripts/google_auth.py --account work
+    python scripts/google_auth.py --account personal
 """
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -21,8 +23,17 @@ from src.integrations.google_auth import GoogleAuthManager
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Google OAuth2 authentication for Nella")
+    parser.add_argument(
+        "--account",
+        required=True,
+        help="Account name (e.g. 'work', 'personal'). Token saved as token_<account>.json",
+    )
+    args = parser.parse_args()
+
+    account = args.account
     creds_path = Path(settings.google_credentials_path)
-    token_path = Path(settings.google_token_path)
+    token_path = Path(f"token_{account}.json")
 
     if not creds_path.exists():
         print(f"ERROR: credentials file not found at {creds_path}")
@@ -36,6 +47,7 @@ def main() -> None:
             print("Aborted.")
             sys.exit(0)
 
+    print(f"Authenticating account: {account}")
     print(f"Requesting scopes: {GoogleAuthManager.SCOPES}")
     print("Opening browser for Google OAuth consent...")
 
@@ -48,7 +60,7 @@ def main() -> None:
     token_path.write_text(creds.to_json(), encoding="utf-8")
     print(f"\nToken saved to {token_path}")
     print("\nTo deploy on your VPS, copy this file:")
-    print(f"  scp {token_path} your-vps:{token_path}")
+    print(f"  scp {token_path} your-vps:/home/nella/app/{token_path}")
 
 
 if __name__ == "__main__":

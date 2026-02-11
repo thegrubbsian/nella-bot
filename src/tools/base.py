@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 @dataclass
@@ -36,6 +36,20 @@ class ToolParams(BaseModel):
     Subclass with Field() definitions. The JSON schema is auto-generated
     via model_json_schema() for Claude's tool definitions.
     """
+
+
+class GoogleToolParams(ToolParams):
+    """Base params for all Google Workspace tools.
+
+    Adds an optional ``account`` parameter so Claude can choose which
+    Google account to use (e.g. 'work', 'personal'). When omitted the
+    default account from settings is used.
+    """
+
+    account: str | None = Field(
+        default=None,
+        description="Google account to use (e.g. 'work', 'personal'). Uses default if omitted.",
+    )
 
 
 class BaseTool(ABC):

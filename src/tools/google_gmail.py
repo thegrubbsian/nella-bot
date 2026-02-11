@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from pydantic import Field
 
 from src.integrations.google_auth import GoogleAuthManager
-from src.tools.base import ToolParams, ToolResult
+from src.tools.base import GoogleToolParams, ToolResult
 from src.tools.registry import registry
 
 logger = logging.getLogger(__name__)
@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 _CATEGORY = "google_gmail"
 
 
-def _auth():
-    return GoogleAuthManager.get()
+def _auth(account: str | None = None) -> GoogleAuthManager:
+    return GoogleAuthManager.get(account)
 
 
 def _extract_headers(msg: dict) -> dict[str, str]:
@@ -82,7 +82,7 @@ def _extract_attachments(payload: dict) -> list[dict[str, str]]:
 # -- search_emails -----------------------------------------------------------
 
 
-class SearchEmailsParams(ToolParams):
+class SearchEmailsParams(GoogleToolParams):
     query: str = Field(description="Gmail search query (same syntax as Gmail search bar)")
     max_results: int = Field(default=10, description="Maximum number of results")
 
@@ -96,8 +96,10 @@ class SearchEmailsParams(ToolParams):
     category=_CATEGORY,
     params_model=SearchEmailsParams,
 )
-async def search_emails(query: str, max_results: int = 10) -> ToolResult:
-    service = _auth().gmail()
+async def search_emails(
+    query: str, max_results: int = 10, account: str | None = None
+) -> ToolResult:
+    service = _auth(account).gmail()
 
     result = await asyncio.to_thread(
         lambda: service.users()
@@ -131,7 +133,7 @@ async def search_emails(query: str, max_results: int = 10) -> ToolResult:
 # -- read_email --------------------------------------------------------------
 
 
-class ReadEmailParams(ToolParams):
+class ReadEmailParams(GoogleToolParams):
     message_id: str = Field(description="Gmail message ID")
 
 
@@ -141,8 +143,8 @@ class ReadEmailParams(ToolParams):
     category=_CATEGORY,
     params_model=ReadEmailParams,
 )
-async def read_email(message_id: str) -> ToolResult:
-    service = _auth().gmail()
+async def read_email(message_id: str, account: str | None = None) -> ToolResult:
+    service = _auth(account).gmail()
 
     msg = await asyncio.to_thread(
         lambda: service.users()
@@ -170,7 +172,7 @@ async def read_email(message_id: str) -> ToolResult:
 # -- read_thread -------------------------------------------------------------
 
 
-class ReadThreadParams(ToolParams):
+class ReadThreadParams(GoogleToolParams):
     thread_id: str = Field(description="Gmail thread ID")
 
 
@@ -180,8 +182,8 @@ class ReadThreadParams(ToolParams):
     category=_CATEGORY,
     params_model=ReadThreadParams,
 )
-async def read_thread(thread_id: str) -> ToolResult:
-    service = _auth().gmail()
+async def read_thread(thread_id: str, account: str | None = None) -> ToolResult:
+    service = _auth(account).gmail()
 
     thread = await asyncio.to_thread(
         lambda: service.users()
@@ -216,7 +218,7 @@ async def read_thread(thread_id: str) -> ToolResult:
 # -- send_email --------------------------------------------------------------
 
 
-class SendEmailParams(ToolParams):
+class SendEmailParams(GoogleToolParams):
     to: str = Field(description="Recipient email address")
     subject: str = Field(description="Email subject line")
     body: str = Field(description="Email body text")
@@ -237,8 +239,9 @@ async def send_email(
     body: str,
     cc: str | None = None,
     bcc: str | None = None,
+    account: str | None = None,
 ) -> ToolResult:
-    service = _auth().gmail()
+    service = _auth(account).gmail()
 
     message = MIMEText(body)
     message["to"] = to
@@ -264,7 +267,7 @@ async def send_email(
 # -- reply_to_email ----------------------------------------------------------
 
 
-class ReplyToEmailParams(ToolParams):
+class ReplyToEmailParams(GoogleToolParams):
     message_id: str = Field(description="ID of the message to reply to")
     body: str = Field(description="Reply body text")
 
@@ -276,8 +279,8 @@ class ReplyToEmailParams(ToolParams):
     params_model=ReplyToEmailParams,
     requires_confirmation=True,
 )
-async def reply_to_email(message_id: str, body: str) -> ToolResult:
-    service = _auth().gmail()
+async def reply_to_email(message_id: str, body: str, account: str | None = None) -> ToolResult:
+    service = _auth(account).gmail()
 
     # Fetch original for threading headers
     original = await asyncio.to_thread(
@@ -315,7 +318,7 @@ async def reply_to_email(message_id: str, body: str) -> ToolResult:
 # -- archive_email -----------------------------------------------------------
 
 
-class ArchiveEmailParams(ToolParams):
+class ArchiveEmailParams(GoogleToolParams):
     message_id: str = Field(description="Gmail message ID to archive")
 
 
@@ -326,8 +329,8 @@ class ArchiveEmailParams(ToolParams):
     params_model=ArchiveEmailParams,
     requires_confirmation=True,
 )
-async def archive_email(message_id: str) -> ToolResult:
-    service = _auth().gmail()
+async def archive_email(message_id: str, account: str | None = None) -> ToolResult:
+    service = _auth(account).gmail()
 
     await asyncio.to_thread(
         lambda: service.users()
@@ -342,7 +345,7 @@ async def archive_email(message_id: str) -> ToolResult:
 # -- archive_emails ----------------------------------------------------------
 
 
-class ArchiveEmailsParams(ToolParams):
+class ArchiveEmailsParams(GoogleToolParams):
     message_ids: list[str] = Field(description="List of Gmail message IDs to archive")
 
 
@@ -353,8 +356,8 @@ class ArchiveEmailsParams(ToolParams):
     params_model=ArchiveEmailsParams,
     requires_confirmation=True,
 )
-async def archive_emails(message_ids: list[str]) -> ToolResult:
-    service = _auth().gmail()
+async def archive_emails(message_ids: list[str], account: str | None = None) -> ToolResult:
+    service = _auth(account).gmail()
 
     await asyncio.to_thread(
         lambda: service.users()

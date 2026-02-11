@@ -6,8 +6,8 @@ from src.integrations.google_auth import GoogleAuthManager
 from src.tools import memory_tools, scheduler_tools, utility  # noqa: F401
 from src.tools.registry import registry
 
-# Conditionally load Google tools when credentials are available.
-if GoogleAuthManager.get().enabled:
+# Conditionally load Google tools when at least one account has a token file.
+if GoogleAuthManager.any_enabled():
     from src.tools import google_calendar, google_docs, google_drive, google_gmail  # noqa: F401
 
 __all__ = ["registry"]

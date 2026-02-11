@@ -58,7 +58,7 @@ Nella is an always-on personal AI assistant that lives in Telegram. She uses Cla
 | `src/llm/` | Claude API client, system prompt assembly, model switching | You want to change how Claude is called, what it sees, or the tool-calling loop |
 | `src/memory/` | Mem0 integration, automatic memory extraction, data models | You want to change how Nella remembers things |
 | `src/tools/` | Tool registry, all 24 tool implementations, base classes | You want to add a new tool or modify an existing one |
-| `src/integrations/` | Google OAuth manager | You want to add a new Google API or fix auth issues |
+| `src/integrations/` | Google OAuth multi-account manager | You want to add a new Google API, add an account, or fix auth issues |
 | `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
 | `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
 | `src/webhooks/` | Inbound HTTP server, handler registry, per-integration handlers | You want to receive webhooks from external services (Zapier, Plaud, etc.) |
@@ -232,11 +232,11 @@ nellabot/
 │   │   ├── automatic.py             # Background memory extraction pipeline
 │   │   └── models.py                # MemoryEntry, ConversationMessage pydantic models
 │   ├── integrations/
-│   │   └── google_auth.py           # GoogleAuthManager singleton (OAuth + service builders)
+│   │   └── google_auth.py           # GoogleAuthManager multi-account registry (OAuth + service builders)
 │   ├── tools/
 │   │   ├── __init__.py              # Imports all tool modules (conditional Google loading)
 │   │   ├── registry.py              # ToolRegistry — decorator & class-based registration
-│   │   ├── base.py                  # ToolResult, ToolParams, BaseTool abstract class
+│   │   ├── base.py                  # ToolResult, ToolParams, GoogleToolParams, BaseTool
 │   │   ├── google_gmail.py          # 7 tools: search, read, draft, send, reply, archive, delete
 │   │   ├── google_calendar.py       # 6 tools: list, today, create, update, delete, availability
 │   │   ├── google_drive.py          # 4 tools: search, list recent, read, delete
@@ -272,9 +272,9 @@ nellabot/
 │   ├── MEMORY.md                    # Explicit long-term facts
 │   └── MEMORY_RULES.md              # Auto-extraction rules
 │
-├── tests/                           # 276 tests across 29 modules
+├── tests/                           # 285 tests across 29 modules
 │   ├── test_notification_*.py       # Notification system (3 files)
-│   ├── test_google_*.py             # Google integrations (4 files)
+│   ├── test_google_*.py             # Google auth + integrations (5 files)
 │   ├── test_memory_*.py             # Memory system (2 files)
 │   ├── test_scheduler_*.py          # Scheduler system (6 files)
 │   ├── test_confirmations.py        # Tool confirmation flow
@@ -291,7 +291,7 @@ nellabot/
 │   └── test_utility.py              # Utility tools
 │
 ├── scripts/
-│   └── google_auth.py               # One-time OAuth browser flow
+│   └── google_auth.py               # One-time OAuth browser flow (--account flag required)
 │
 ├── nella.service                    # systemd unit file for deployment
 ├── pyproject.toml                   # Dependencies, build config, tool settings
@@ -345,7 +345,9 @@ Then edit `.env` with your actual values:
 | `DEFAULT_CHAT_MODEL` | No | Friendly name: `haiku`, `sonnet`, or `opus`. Default: `sonnet` |
 | `DEFAULT_MEMORY_MODEL` | No | Model for memory extraction. Default: `haiku` |
 | `GOOGLE_CREDENTIALS_PATH` | No | Path to Google OAuth credentials file. Default: `credentials.json` |
-| `GOOGLE_TOKEN_PATH` | No | Path to Google OAuth token. Default: `token.json` |
+| `GOOGLE_ACCOUNTS` | No | Comma-separated named accounts (e.g. `work,personal`). Token files: `token_{name}.json`. Google tools are disabled when empty. |
+| `GOOGLE_DEFAULT_ACCOUNT` | No | Account used when a tool call omits `account`. Defaults to the first entry in `GOOGLE_ACCOUNTS`. |
+| `PLAUD_GOOGLE_ACCOUNT` | No | Which Google account to use for Plaud transcript access (webhook handler runs without Claude reasoning). |
 | `MEM0_API_KEY` | No | Mem0 API key from [app.mem0.ai](https://app.mem0.ai). If empty, memory features are disabled (Nella still works, just without long-term memory) |
 | `DATABASE_PATH` | No | SQLite database path. Default: `data/nella.db` |
 | `CONVERSATION_WINDOW_SIZE` | No | Max messages kept in context. Default: `50` |
@@ -366,13 +368,17 @@ If you want Gmail, Calendar, Drive, and Docs access:
 2. Enable the Gmail API, Calendar API, Drive API, and Docs API.
 3. Create OAuth 2.0 credentials (Desktop application type).
 4. Download the credentials JSON file and save it as `credentials.json` in the project root.
-5. Run the auth flow:
+5. Set `GOOGLE_ACCOUNTS` in your `.env` (e.g. `GOOGLE_ACCOUNTS=work,personal`).
+6. Run the auth flow for each account:
 
 ```bash
-uv run python scripts/google_auth.py
+uv run python scripts/google_auth.py --account work
+uv run python scripts/google_auth.py --account personal
 ```
 
-This opens a browser for you to authorize. After you approve, it saves `token.json` locally. The Google tools will automatically load when this file exists.
+Each command opens a browser for you to authorize the corresponding Google account. Tokens are saved as `token_work.json`, `token_personal.json`, etc. Google tools automatically load when at least one token file exists.
+
+All 21 Google tools accept an optional `account` parameter. Claude picks the right account based on conversational context (the system prompt tells it which accounts are available). When `account` is omitted, the default from `GOOGLE_DEFAULT_ACCOUNT` is used.
 
 If you skip this step, Nella works fine — she just won't have Google tools available.
 
@@ -454,8 +460,9 @@ sudo systemctl restart nella
 ### Where secrets live on the server
 
 - `/home/nella/app/.env` — environment variables (loaded by systemd via `EnvironmentFile`)
-- `/home/nella/app/token.json` — Google OAuth token
-- `/home/nella/app/credentials.json` — Google OAuth client credentials
+- `/home/nella/app/token_work.json` — Google OAuth token (work account)
+- `/home/nella/app/token_personal.json` — Google OAuth token (personal account)
+- `/home/nella/app/credentials.json` — Google OAuth client credentials (shared across accounts)
 
 These are **not** in the git repo. If you're setting up a new server, you need to copy them manually.
 
@@ -577,11 +584,11 @@ Resets the in-memory conversation window. Doesn't affect long-term memory in Mem
 If Google API calls start failing with auth errors, the token may have expired:
 
 ```bash
-# Run locally (needs a browser)
-uv run python scripts/google_auth.py
+# Run locally (needs a browser) — specify which account
+uv run python scripts/google_auth.py --account work
 
 # Copy the new token to your VPS
-scp token.json your-vps:/home/nella/app/token.json
+scp token_work.json your-vps:/home/nella/app/token_work.json
 
 # Restart the bot
 ssh your-vps sudo systemctl restart nella
@@ -612,7 +619,7 @@ ssh your-vps sudo systemctl stop nella
 
 ### Google tools not showing up
 
-The Google tools only load if `token.json` exists at the path specified by `GOOGLE_TOKEN_PATH`. Run the auth flow first (see setup above). Check the logs — if it loaded successfully, you'll see the tool count in the startup messages.
+Google tools only load if `GOOGLE_ACCOUNTS` is set in `.env` and at least one `token_{name}.json` file exists. Run the auth flow first (see setup above). Check the logs — if `GOOGLE_ACCOUNTS` is empty you'll see a warning: "GOOGLE_ACCOUNTS is not configured — Google tools disabled".
 
 ### Google OAuth token expiry
 

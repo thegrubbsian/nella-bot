@@ -6,7 +6,7 @@ import logging
 from pydantic import Field
 
 from src.integrations.google_auth import GoogleAuthManager
-from src.tools.base import ToolParams, ToolResult
+from src.tools.base import GoogleToolParams, ToolResult
 from src.tools.registry import registry
 
 logger = logging.getLogger(__name__)
@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 _CATEGORY = "google_docs"
 
 
-def _auth():
-    return GoogleAuthManager.get()
+def _auth(account: str | None = None) -> GoogleAuthManager:
+    return GoogleAuthManager.get(account)
 
 
 def _extract_text(doc: dict) -> str:
@@ -53,9 +53,9 @@ def _extract_text(doc: dict) -> str:
     return "".join(lines)
 
 
-async def _read_document_content(document_id: str) -> str:
+async def _read_document_content(document_id: str, account: str | None = None) -> str:
     """Read document text — shared by read_document and Drive's read_file."""
-    service = _auth().docs()
+    service = _auth(account).docs()
 
     doc = await asyncio.to_thread(
         lambda: service.documents().get(documentId=document_id).execute()
@@ -67,7 +67,7 @@ async def _read_document_content(document_id: str) -> str:
 # -- read_document -----------------------------------------------------------
 
 
-class ReadDocumentParams(ToolParams):
+class ReadDocumentParams(GoogleToolParams):
     document_id: str = Field(description="Google Docs document ID")
 
 
@@ -77,8 +77,8 @@ class ReadDocumentParams(ToolParams):
     category=_CATEGORY,
     params_model=ReadDocumentParams,
 )
-async def read_document(document_id: str) -> ToolResult:
-    service = _auth().docs()
+async def read_document(document_id: str, account: str | None = None) -> ToolResult:
+    service = _auth(account).docs()
 
     doc = await asyncio.to_thread(
         lambda: service.documents().get(documentId=document_id).execute()
@@ -98,7 +98,7 @@ async def read_document(document_id: str) -> ToolResult:
 # -- create_document ---------------------------------------------------------
 
 
-class CreateDocumentParams(ToolParams):
+class CreateDocumentParams(GoogleToolParams):
     title: str = Field(description="Document title")
     content: str = Field(default="", description="Initial document content")
 
@@ -110,8 +110,8 @@ class CreateDocumentParams(ToolParams):
     params_model=CreateDocumentParams,
     requires_confirmation=True,
 )
-async def create_document(title: str, content: str = "") -> ToolResult:
-    service = _auth().docs()
+async def create_document(title: str, content: str = "", account: str | None = None) -> ToolResult:
+    service = _auth(account).docs()
 
     doc = await asyncio.to_thread(
         lambda: service.documents().create(body={"title": title}).execute()
@@ -146,7 +146,7 @@ async def create_document(title: str, content: str = "") -> ToolResult:
 # -- update_document ---------------------------------------------------------
 
 
-class UpdateDocumentParams(ToolParams):
+class UpdateDocumentParams(GoogleToolParams):
     document_id: str = Field(description="Google Docs document ID")
     content: str = Field(description="New document content (replaces all existing content)")
 
@@ -158,8 +158,8 @@ class UpdateDocumentParams(ToolParams):
     params_model=UpdateDocumentParams,
     requires_confirmation=True,
 )
-async def update_document(document_id: str, content: str) -> ToolResult:
-    service = _auth().docs()
+async def update_document(document_id: str, content: str, account: str | None = None) -> ToolResult:
+    service = _auth(account).docs()
 
     # Get current document to find end index
     doc = await asyncio.to_thread(
@@ -197,7 +197,7 @@ async def update_document(document_id: str, content: str) -> ToolResult:
 # -- append_to_document ------------------------------------------------------
 
 
-class AppendToDocumentParams(ToolParams):
+class AppendToDocumentParams(GoogleToolParams):
     document_id: str = Field(description="Google Docs document ID")
     content: str = Field(description="Content to append to the end of the document")
 
@@ -209,8 +209,10 @@ class AppendToDocumentParams(ToolParams):
     params_model=AppendToDocumentParams,
     requires_confirmation=True,
 )
-async def append_to_document(document_id: str, content: str) -> ToolResult:
-    service = _auth().docs()
+async def append_to_document(
+    document_id: str, content: str, account: str | None = None
+) -> ToolResult:
+    service = _auth(account).docs()
 
     # Get current document to find end index
     doc = await asyncio.to_thread(

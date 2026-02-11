@@ -20,7 +20,7 @@ src/
 ├── bot/          # Telegram bot handlers, command routing, message lifecycle
 ├── llm/          # Claude API client, prompt assembly, tool dispatch
 ├── memory/       # Mem0 integration, SQLite conversation store, file-based memory
-├── integrations/ # Google Calendar, Gmail, Tasks API clients
+├── integrations/ # Google OAuth multi-account manager
 ├── tools/        # Tool definitions for Claude function calling
 └── webhooks/     # Inbound webhook HTTP server + handler registry
 
@@ -52,6 +52,11 @@ tests/            # pytest + pytest-asyncio
 - Tools that perform destructive or externally-visible actions should set
   `requires_confirmation=True`. This triggers an inline keyboard confirmation
   prompt in Telegram before execution. See `src/bot/confirmations.py`.
+- Google tools use `GoogleToolParams` (from `src/tools/base.py`) as their param
+  base class. This adds an optional `account` parameter to every Google tool.
+  Named accounts are configured via `GOOGLE_ACCOUNTS` in `.env`, with token
+  files named `token_{account}.json`. Claude picks the right account from
+  conversational context; the system prompt lists available accounts.
 - Webhook handlers go in `src/webhooks/handlers/`, one file per integration.
   Register them with `@webhook_registry.handler("source_name")`. The HTTP
   server runs alongside Telegram on `WEBHOOK_PORT` (default 8443), validates

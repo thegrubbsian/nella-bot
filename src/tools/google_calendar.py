@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pydantic import Field
 
 from src.integrations.google_auth import GoogleAuthManager
-from src.tools.base import ToolParams, ToolResult
+from src.tools.base import GoogleToolParams, ToolResult
 from src.tools.registry import registry
 
 logger = logging.getLogger(__name__)
@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 _CATEGORY = "google_calendar"
 
 
-def _auth():
-    return GoogleAuthManager.get()
+def _auth(account: str | None = None) -> GoogleAuthManager:
+    return GoogleAuthManager.get(account)
 
 
 def _format_event(event: dict) -> dict:
@@ -52,7 +52,7 @@ def _format_event(event: dict) -> dict:
 # -- list_events -------------------------------------------------------------
 
 
-class ListEventsParams(ToolParams):
+class ListEventsParams(GoogleToolParams):
     days_ahead: int = Field(default=7, description="Number of days to look ahead")
     calendar_id: str = Field(default="primary", description="Calendar ID")
 
@@ -66,8 +66,9 @@ class ListEventsParams(ToolParams):
 async def list_events(
     days_ahead: int = 7,
     calendar_id: str = "primary",
+    account: str | None = None,
 ) -> ToolResult:
-    service = _auth().calendar()
+    service = _auth(account).calendar()
     now = datetime.now(UTC)
     time_max = now + timedelta(days=days_ahead)
 
@@ -90,7 +91,7 @@ async def list_events(
 # -- get_todays_schedule -----------------------------------------------------
 
 
-class TodaysScheduleParams(ToolParams):
+class TodaysScheduleParams(GoogleToolParams):
     calendar_id: str = Field(default="primary", description="Calendar ID")
 
 
@@ -100,8 +101,10 @@ class TodaysScheduleParams(ToolParams):
     category=_CATEGORY,
     params_model=TodaysScheduleParams,
 )
-async def get_todays_schedule(calendar_id: str = "primary") -> ToolResult:
-    service = _auth().calendar()
+async def get_todays_schedule(
+    calendar_id: str = "primary", account: str | None = None
+) -> ToolResult:
+    service = _auth(account).calendar()
     now = datetime.now(UTC)
     start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_day = start_of_day + timedelta(days=1)
@@ -125,7 +128,7 @@ async def get_todays_schedule(calendar_id: str = "primary") -> ToolResult:
 # -- create_event ------------------------------------------------------------
 
 
-class CreateEventParams(ToolParams):
+class CreateEventParams(GoogleToolParams):
     title: str = Field(description="Event title")
     start_time: str = Field(description="Start time in ISO 8601 format")
     end_time: str = Field(description="End time in ISO 8601 format")
@@ -150,8 +153,9 @@ async def create_event(
     attendees: list[str] | None = None,
     location: str | None = None,
     calendar_id: str = "primary",
+    account: str | None = None,
 ) -> ToolResult:
-    service = _auth().calendar()
+    service = _auth(account).calendar()
 
     body: dict = {
         "summary": title,
@@ -182,7 +186,7 @@ async def create_event(
 # -- update_event ------------------------------------------------------------
 
 
-class UpdateEventParams(ToolParams):
+class UpdateEventParams(GoogleToolParams):
     event_id: str = Field(description="Event ID to update")
     calendar_id: str = Field(default="primary", description="Calendar ID")
     title: str | None = Field(default=None, description="New event title")
@@ -209,8 +213,9 @@ async def update_event(
     description: str | None = None,
     attendees: list[str] | None = None,
     location: str | None = None,
+    account: str | None = None,
 ) -> ToolResult:
-    service = _auth().calendar()
+    service = _auth(account).calendar()
 
     # Fetch existing event
     existing = await asyncio.to_thread(
@@ -249,7 +254,7 @@ async def update_event(
 # -- delete_event ------------------------------------------------------------
 
 
-class DeleteEventParams(ToolParams):
+class DeleteEventParams(GoogleToolParams):
     event_id: str = Field(description="Event ID to delete")
     calendar_id: str = Field(default="primary", description="Calendar ID")
 
@@ -264,8 +269,9 @@ class DeleteEventParams(ToolParams):
 async def delete_event(
     event_id: str,
     calendar_id: str = "primary",
+    account: str | None = None,
 ) -> ToolResult:
-    service = _auth().calendar()
+    service = _auth(account).calendar()
 
     await asyncio.to_thread(
         lambda: service.events()
@@ -279,7 +285,7 @@ async def delete_event(
 # -- check_availability ------------------------------------------------------
 
 
-class CheckAvailabilityParams(ToolParams):
+class CheckAvailabilityParams(GoogleToolParams):
     date: str = Field(description="Date to check in YYYY-MM-DD format")
     calendar_id: str = Field(default="primary", description="Calendar ID")
 
@@ -293,8 +299,9 @@ class CheckAvailabilityParams(ToolParams):
 async def check_availability(
     date: str,
     calendar_id: str = "primary",
+    account: str | None = None,
 ) -> ToolResult:
-    service = _auth().calendar()
+    service = _auth(account).calendar()
 
     # Parse date and build midnight-to-midnight range
     day = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=UTC)

@@ -40,8 +40,9 @@ async def _read_transcript(file_id: str) -> str | None:
     """Read transcript text from Google Drive by file ID."""
     from src.tools.google_drive import read_file
 
+    account = settings.plaud_google_account or None
     try:
-        result = await read_file(file_id=file_id)
+        result = await read_file(file_id=file_id, account=account)
     except Exception:
         logger.debug("read_file raised for file_id=%s", file_id, exc_info=True)
         return None
@@ -55,7 +56,8 @@ async def _search_transcript(file_name: str) -> str | None:
     from src.integrations.google_auth import GoogleAuthManager
     from src.tools.google_drive import read_file
 
-    service = GoogleAuthManager.get().drive()
+    account = settings.plaud_google_account or None
+    service = GoogleAuthManager.get(account).drive()
 
     # Build query: name match, scoped to the Plaud folder if configured
     parts = [f"name = '{file_name}'"]
@@ -76,7 +78,7 @@ async def _search_transcript(file_name: str) -> str | None:
 
     found_id = files[0]["id"]
     try:
-        read_result = await read_file(file_id=found_id)
+        read_result = await read_file(file_id=found_id, account=account)
     except Exception:
         logger.debug("read_file raised for found_id=%s", found_id, exc_info=True)
         return None

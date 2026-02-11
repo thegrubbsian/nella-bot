@@ -25,8 +25,9 @@ def _fail_result() -> ToolResult:
 
 
 class _FakeSettings:
-    def __init__(self, folder_id: str = "folder123") -> None:
+    def __init__(self, folder_id: str = "folder123", plaud_account: str = "") -> None:
         self.plaud_drive_folder_id = folder_id
+        self.plaud_google_account = plaud_account
         self.allowed_user_ids = "12345"
 
     def get_allowed_user_ids(self) -> set[int]:
@@ -37,15 +38,21 @@ class _FakeSettings:
 
 
 async def test_read_transcript_by_file_id() -> None:
-    with patch("src.tools.google_drive.read_file", new_callable=AsyncMock) as mock:
+    with (
+        patch("src.tools.google_drive.read_file", new_callable=AsyncMock) as mock,
+        patch("src.webhooks.handlers.plaud.settings", _FakeSettings()),
+    ):
         mock.return_value = _ok_result("hello")
         result = await _read_transcript("file123")
         assert result == "hello"
-        mock.assert_awaited_once_with(file_id="file123")
+        mock.assert_awaited_once_with(file_id="file123", account=None)
 
 
 async def test_read_transcript_returns_none_on_failure() -> None:
-    with patch("src.tools.google_drive.read_file", new_callable=AsyncMock) as mock:
+    with (
+        patch("src.tools.google_drive.read_file", new_callable=AsyncMock) as mock,
+        patch("src.webhooks.handlers.plaud.settings", _FakeSettings()),
+    ):
         mock.return_value = _fail_result()
         result = await _read_transcript("file123")
         assert result is None
@@ -71,7 +78,7 @@ async def test_search_transcript_finds_file() -> None:
 
         result = await _search_transcript("meeting.txt")
         assert result == "found it"
-        mock_read.assert_awaited_once_with(file_id="found_id")
+        mock_read.assert_awaited_once_with(file_id="found_id", account=None)
 
 
 async def test_search_transcript_returns_none_when_not_found() -> None:

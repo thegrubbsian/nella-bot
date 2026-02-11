@@ -24,7 +24,9 @@ class Settings(BaseSettings):
 
     # Google
     google_credentials_path: str = Field(default="credentials.json")
-    google_token_path: str = Field(default="token.json")
+    google_accounts: str = Field(default="")
+    google_default_account: str = Field(default="")
+    plaud_google_account: str = Field(default="")
 
     # Mem0
     mem0_api_key: str = Field(default="")
@@ -66,6 +68,12 @@ class Settings(BaseSettings):
         if not self.allowed_user_ids.strip():
             return set()
         return {int(uid.strip()) for uid in self.allowed_user_ids.split(",") if uid.strip()}
+
+    def get_google_accounts(self) -> list[str]:
+        """Parse GOOGLE_ACCOUNTS into a list of account names."""
+        if not self.google_accounts.strip():
+            return []
+        return [name.strip() for name in self.google_accounts.split(",") if name.strip()]
 
 
 settings = Settings()

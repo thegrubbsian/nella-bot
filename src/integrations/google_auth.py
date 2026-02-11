@@ -1,4 +1,4 @@
-"""Google OAuth2 authentication manager — singleton."""
+"""Google OAuth2 authentication manager — multi-account registry."""
 
 import logging
 from pathlib import Path
@@ -13,9 +13,13 @@ logger = logging.getLogger(__name__)
 
 
 class GoogleAuthManager:
-    """Singleton that owns Google OAuth credentials and builds API services."""
+    """Per-account Google OAuth credentials and API service builder.
 
-    _instance: "GoogleAuthManager | None" = None
+    Instances are cached by account name. Use ``get(account)`` to obtain
+    the manager for a named account (or the default).
+    """
+
+    _instances: dict[str, "GoogleAuthManager"] = {}
 
     SCOPES = [
         "https://www.googleapis.com/auth/gmail.modify",
@@ -24,40 +28,79 @@ class GoogleAuthManager:
         "https://www.googleapis.com/auth/documents",
     ]
 
-    def __init__(self) -> None:
+    def __init__(self, account: str, token_path: Path) -> None:
+        self._account = account
+        self._token_path = token_path
         self._credentials: Credentials | None = None
 
     @classmethod
-    def get(cls) -> "GoogleAuthManager":
-        """Return the singleton instance."""
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
+    def get(cls, account: str | None = None) -> "GoogleAuthManager":
+        """Return the manager for *account*, creating it lazily.
+
+        When *account* is ``None``, the default account from settings is used.
+        Raises ``ValueError`` if the account is not in ``GOOGLE_ACCOUNTS``.
+        """
+        configured = settings.get_google_accounts()
+        if not configured:
+            msg = (
+                "GOOGLE_ACCOUNTS is not configured. "
+                "Set it in .env (e.g. GOOGLE_ACCOUNTS=work,personal)."
+            )
+            raise ValueError(msg)
+
+        name = account or settings.google_default_account
+        if not name:
+            name = configured[0]
+
+        if name not in configured:
+            msg = (
+                f"Google account '{name}' is not in GOOGLE_ACCOUNTS "
+                f"({', '.join(configured)})"
+            )
+            raise ValueError(msg)
+
+        if name not in cls._instances:
+            token_path = Path(f"token_{name}.json")
+            cls._instances[name] = cls(name, token_path)
+
+        return cls._instances[name]
+
+    @classmethod
+    def any_enabled(cls) -> bool:
+        """True if any configured account has a token file on disk.
+
+        Returns False (with a warning) when ``GOOGLE_ACCOUNTS`` is empty.
+        """
+        configured = settings.get_google_accounts()
+        if not configured:
+            logger.warning("GOOGLE_ACCOUNTS is not configured — Google tools disabled")
+            return False
+        return any(Path(f"token_{name}.json").exists() for name in configured)
 
     @property
     def enabled(self) -> bool:
-        """True if a token file exists on disk."""
-        return Path(settings.google_token_path).exists()
+        """True if this account's token file exists on disk."""
+        return self._token_path.exists()
 
     # -- credential management ------------------------------------------------
 
     def _load_credentials(self) -> Credentials:
         """Load credentials from token file, refreshing if expired."""
-        token_path = Path(settings.google_token_path)
-        if not token_path.exists():
+        if not self._token_path.exists():
             msg = (
-                f"Google token file not found at {token_path}. "
-                "Run `python scripts/google_auth.py` to authenticate."
+                f"Google token file not found at {self._token_path}. "
+                f"Run `python scripts/google_auth.py --account {self._account}` "
+                "to authenticate."
             )
             raise FileNotFoundError(msg)
 
-        creds = Credentials.from_authorized_user_file(str(token_path), self.SCOPES)
+        creds = Credentials.from_authorized_user_file(str(self._token_path), self.SCOPES)
 
         if creds.expired and creds.refresh_token:
-            logger.info("Refreshing expired Google credentials")
+            logger.info("Refreshing expired Google credentials for account '%s'", self._account)
             creds.refresh(Request())
-            token_path.write_text(creds.to_json(), encoding="utf-8")
-            logger.info("Google credentials refreshed and saved")
+            self._token_path.write_text(creds.to_json(), encoding="utf-8")
+            logger.info("Google credentials refreshed and saved for account '%s'", self._account)
 
         return creds
 
