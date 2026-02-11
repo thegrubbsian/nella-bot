@@ -258,6 +258,28 @@ def test_cleanup_empty_subdirs_removed(scratch) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Wipe
+# ---------------------------------------------------------------------------
+
+
+def test_wipe_removes_all_files(scratch) -> None:
+    scratch.write("a.txt", "aaa")
+    scratch.write("b.txt", "bbb")
+    scratch.write("sub/c.txt", "ccc")
+    assert len(scratch.list_files()) == 3
+
+    removed = scratch.wipe()
+    assert removed == 3
+    assert len(scratch.list_files()) == 0
+    assert scratch.total_size() == 0
+
+
+def test_wipe_empty_scratch(scratch) -> None:
+    removed = scratch.wipe()
+    assert removed == 0
+
+
+# ---------------------------------------------------------------------------
 # Singleton
 # ---------------------------------------------------------------------------
 

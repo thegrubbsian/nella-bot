@@ -148,6 +148,26 @@ async def delete_file(path: str) -> ToolResult:
         return ToolResult(error=str(exc))
 
 
+class WipeFilesParams(ToolParams):
+    pass
+
+
+@registry.tool(
+    name="scratch_wipe",
+    description=(
+        "Delete ALL files from the local scratch space. "
+        "Use when the scratch space has too much cruft or stale files."
+    ),
+    category="files",
+    params_model=WipeFilesParams,
+    requires_confirmation=True,
+)
+async def wipe_files() -> ToolResult:
+    scratch = ScratchSpace.get()
+    count = scratch.wipe()
+    return ToolResult(data={"wiped": True, "files_removed": count})
+
+
 @registry.tool(
     name="scratch_download",
     description=(

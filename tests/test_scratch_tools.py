@@ -10,11 +10,13 @@ from src.tools.scratch_tools import (
     DownloadFileParams,
     ListFilesParams,
     ReadFileParams,
+    WipeFilesParams,
     WriteFileParams,
     delete_file,
     download_file,
     list_files,
     read_file,
+    wipe_files,
     write_file,
 )
 
@@ -110,6 +112,31 @@ async def test_delete_file_not_found() -> None:
     result = await delete_file(path="nope.txt")
     assert not result.success
     assert "not found" in result.error.lower()
+
+
+# ---------------------------------------------------------------------------
+# wipe_files
+# ---------------------------------------------------------------------------
+
+
+async def test_wipe_files_success(scratch) -> None:
+    scratch.write("a.txt", "aaa")
+    scratch.write("b.txt", "bbb")
+    result = await wipe_files()
+    assert result.success
+    assert result.data["wiped"] is True
+    assert result.data["files_removed"] == 2
+
+
+async def test_wipe_files_empty() -> None:
+    result = await wipe_files()
+    assert result.success
+    assert result.data["files_removed"] == 0
+
+
+def test_wipe_files_params_no_fields() -> None:
+    p = WipeFilesParams()
+    assert p is not None
 
 
 # ---------------------------------------------------------------------------

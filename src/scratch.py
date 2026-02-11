@@ -197,3 +197,7 @@ class ScratchSpace:
                 logger.debug("Scratch cleanup: removed empty dir %s", path)
 
         return removed
+
+    def wipe(self) -> int:
+        """Remove all files and subdirectories. Returns the number of files removed."""
+        return self.cleanup(max_age_hours=0)
