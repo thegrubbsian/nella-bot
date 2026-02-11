@@ -28,8 +28,9 @@ Nella is an always-on personal AI assistant that lives in Telegram. She uses Cla
                                            │  Memory (4)         │
                     ┌─────────────────┐    │  Scheduler (3)      │
                     │  Memory System  │    │  Utility (3)        │
-                    │                 │    │  Observability (1)  │
-                    │  Mem0 (semantic) │    └─────────────────────┘
+                    │                 │    │  Research (2)       │
+                    │  Mem0 (semantic) │    │  Observability (1)  │
+                    │                 │    └─────────────────────┘
                     │  SQLite (notes) │    ┌─────────────────────┐
                     │  Auto-extract   │    │ Notification Router  │
                     └─────────────────┘    │                     │
@@ -57,7 +58,7 @@ Nella is an always-on personal AI assistant that lives in Telegram. She uses Cla
 | `src/bot/` | Telegram bot setup, message handlers, session management, user security | You want to change how messages are received or how the bot responds |
 | `src/llm/` | Claude API client, system prompt assembly, model switching | You want to change how Claude is called, what it sees, or the tool-calling loop |
 | `src/memory/` | Mem0 integration, automatic memory extraction, data models | You want to change how Nella remembers things |
-| `src/tools/` | Tool registry, all 32 tool implementations, base classes | You want to add a new tool or modify an existing one |
+| `src/tools/` | Tool registry, all 34 tool implementations, base classes | You want to add a new tool or modify an existing one |
 | `src/integrations/` | Google OAuth multi-account manager | You want to add a new Google API, add an account, or fix auth issues |
 | `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
 | `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
@@ -82,7 +83,7 @@ Here's what happens when you send "What's on my calendar today?" in Telegram:
 
 7. **`generate_response()` is called** in `src/llm/client.py`. This is where the real work happens:
    - **System prompt assembly** (`src/llm/prompt.py`): reads `SOUL.md` and `USER.md`, then searches Mem0 for memories related to your message. These are combined into a system prompt with caching so the static parts aren't re-processed on every tool-calling round.
-   - **Claude API call**: sends your conversation history + system prompt + all 32 tool schemas to Claude via streaming.
+   - **Claude API call**: sends your conversation history + system prompt + all 34 tool schemas to Claude via streaming.
    - **Streaming**: as text chunks arrive, the `on_text_delta` callback edits the placeholder message in Telegram (throttled to every 0.5 seconds to stay under rate limits).
 
 8. **If Claude calls a tool** (in this case, probably `get_todays_schedule`):
@@ -185,7 +186,7 @@ If the transcript isn't found after all retries, the owner gets a notification e
 
 ### How Tool Calling Works
 
-Claude has access to 32 tools organized into categories. When Claude decides it needs to call a tool:
+Claude has access to 34 tools organized into categories. When Claude decides it needs to call a tool:
 
 1. Claude returns a `tool_use` content block with the tool name and arguments.
 2. The registry validates the arguments against a Pydantic model (if one is defined).
@@ -244,6 +245,7 @@ nellabot/
 │   │   ├── memory_tools.py          # 4 tools: remember, forget, recall, save_reference
 │   │   ├── scheduler_tools.py       # 3 tools: schedule, list, cancel scheduled tasks
 │   │   ├── log_tools.py             # 1 tool: query production logs (SolarWinds/Papertrail)
+│   │   ├── web_tools.py             # 2 tools: web_search (Brave), read_webpage (content extraction)
 │   │   └── utility.py               # 3 tools: datetime, save_note, search_notes
 │   ├── notifications/
 │   │   ├── __init__.py              # Package exports
@@ -290,6 +292,7 @@ nellabot/
 │   ├── test_security.py             # User allowlist
 │   ├── test_models.py               # Model switching
 │   ├── test_log_tools.py            # Log query tool
+│   ├── test_web_tools.py            # Web research tools
 │   └── test_utility.py              # Utility tools
 │
 ├── scripts/
@@ -366,6 +369,7 @@ Then edit `.env` with your actual values:
 | `NGROK_AUTHTOKEN` | No | ngrok auth token from [dashboard.ngrok.com](https://dashboard.ngrok.com). Used by the deploy script to set up an HTTPS tunnel for webhooks. |
 | `NGROK_DOMAIN` | No | ngrok free static domain (e.g. `your-subdomain.ngrok-free.dev`). Claim one at [dashboard.ngrok.com/domains](https://dashboard.ngrok.com/domains). |
 | `PLAUD_DRIVE_FOLDER_ID` | No | Google Drive folder ID where Zapier drops Plaud transcripts. Used to scope transcript search. |
+| `BRAVE_SEARCH_API_KEY` | No | Brave Search API key. Enables `web_search` and `read_webpage` tools. Get a free key at [brave.com/search/api](https://brave.com/search/api/) (2,000 queries/month free tier). |
 | `PAPERTRAIL_API_TOKEN` | No | SolarWinds Observability API Access token. Enables the `query_logs` tool. Get from [SolarWinds Observability](https://my.na-01.cloud.solarwinds.com). |
 | `PAPERTRAIL_API_URL` | No | SolarWinds API base URL. Default: `https://api.na-01.cloud.solarwinds.com` |
 | `PAPERTRAIL_INGESTION_TOKEN` | No | SolarWinds Observability Ingestion token. Used by the deploy script to configure rsyslog forwarding. Different from the API token — create one under API Tokens → Ingestion. |

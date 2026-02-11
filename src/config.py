@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     ngrok_authtoken: str = Field(default="")
     ngrok_domain: str = Field(default="")
 
+    # Brave Search (web research)
+    brave_search_api_key: str = Field(default="")
+
     # Plaud
     plaud_drive_folder_id: str = Field(default="")
 

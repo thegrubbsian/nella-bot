@@ -15,4 +15,8 @@ if GoogleAuthManager.any_enabled():
 if settings.papertrail_api_token:
     from src.tools import log_tools  # noqa: F401
 
+# Conditionally load web research tools when Brave Search API key is configured.
+if settings.brave_search_api_key:
+    from src.tools import web_tools  # noqa: F401
+
 __all__ = ["registry"]
