@@ -174,6 +174,16 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     data = query.data or ""
 
+    if data.startswith("mst:"):
+        parts = data.split(":")
+        if len(parts) != 3 or parts[2] not in ("run", "del"):
+            await query.answer("Invalid callback data.")
+            return
+        from src.scheduler.missed import handle_missed_task_callback
+
+        await handle_missed_task_callback(query, conf_key=parts[1], action=parts[2])
+        return
+
     if not data.startswith("cfm:"):
         await query.answer()
         return

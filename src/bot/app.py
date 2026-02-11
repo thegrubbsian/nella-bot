@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 
@@ -48,6 +49,7 @@ def _init_scheduler() -> SchedulerEngine:
     from src.llm.client import generate_response
     from src.scheduler.engine import SchedulerEngine
     from src.scheduler.executor import TaskExecutor
+    from src.scheduler.missed import init_missed_task_recovery
     from src.scheduler.store import TaskStore
     from src.tools.scheduler_tools import init_scheduler_tools
 
@@ -74,6 +76,9 @@ def _init_scheduler() -> SchedulerEngine:
     # Give the scheduler tools access to the engine
     init_scheduler_tools(engine)
 
+    # Wire missed-task recovery (notifications sent in _post_init)
+    init_missed_task_recovery(engine, executor, owner_user_id)
+
     return engine
 
 
@@ -82,6 +87,11 @@ async def _post_init(app: Application) -> None:
     global _scheduler_engine, _webhook_server  # noqa: PLW0603
     _scheduler_engine = _init_scheduler()
     await _scheduler_engine.start()
+
+    # Fire-and-forget: notify owner about missed one-off tasks
+    from src.scheduler.missed import check_and_notify_missed_tasks
+
+    asyncio.create_task(check_and_notify_missed_tasks())
 
     from src.webhooks.server import WebhookServer
 
