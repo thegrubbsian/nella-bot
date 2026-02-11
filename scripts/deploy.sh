@@ -306,7 +306,7 @@ NGROK_EOF
 echo "  ngrok config written"
 
 # Install ngrok as a systemd service (idempotent)
-if systemctl list-unit-files | grep -q ngrok.service; then
+if [[ -f /etc/systemd/system/ngrok.service ]]; then
     echo "  ngrok service already installed"
 else
     ngrok service install --config /root/.config/ngrok/ngrok.yml
