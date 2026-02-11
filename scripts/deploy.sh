@@ -250,6 +250,9 @@ set -euo pipefail
 mkdir -p /home/nella/app/data
 chown nella:nella /home/nella/app/data
 
+mkdir -p /home/nella/app/data/scratch
+chown nella:nella /home/nella/app/data/scratch
+
 # Run Mem0 dir init
 sudo -u nella bash -c 'cd /home/nella/app && MEM0_DIR=/home/nella/app/data/.mem0 /home/nella/.local/bin/uv run python scripts/init_mem0_dir.py'
 REMOTE_SCRIPT

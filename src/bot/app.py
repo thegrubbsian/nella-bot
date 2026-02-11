@@ -85,6 +85,14 @@ def _init_scheduler() -> SchedulerEngine:
 async def _post_init(app: Application) -> None:
     """Called after the Application is fully initialized (event loop running)."""
     global _scheduler_engine, _webhook_server  # noqa: PLW0603
+
+    from src.scratch import ScratchSpace
+
+    scratch = ScratchSpace.get()
+    removed = scratch.cleanup()
+    if removed:
+        logger.info("Scratch cleanup: removed %d old files", removed)
+
     _scheduler_engine = _init_scheduler()
     await _scheduler_engine.start()
 

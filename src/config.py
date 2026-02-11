@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     turso_database_url: str = Field(default="")
     turso_auth_token: str = Field(default="")
 
+    # Scratch space (local file storage for working files)
+    scratch_dir: Path = Field(default=Path("data/scratch"))
+
     # Conversation
     conversation_window_size: int = Field(default=50)
 
