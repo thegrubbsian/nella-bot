@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -130,6 +131,9 @@ class ToolRegistry:
         if tool_def is None:
             return ToolResult(error=f"Unknown tool: {name}")
 
+        logger.info("Tool '%s' called with %s", name, arguments)
+        t0 = time.monotonic()
+
         try:
             if tool_def.params_model is not None:
                 params = tool_def.params_model(**arguments)
@@ -142,9 +146,16 @@ class ToolRegistry:
             ):
                 kwargs["msg_context"] = msg_context
 
-            return await tool_def.handler(**kwargs)
+            result = await tool_def.handler(**kwargs)
+            elapsed = time.monotonic() - t0
+            if result.success:
+                logger.info("Tool '%s' succeeded in %.2fs", name, elapsed)
+            else:
+                logger.warning("Tool '%s' returned error in %.2fs: %s", name, elapsed, result.error)
+            return result
         except Exception:
-            logger.exception("Tool '%s' failed", name)
+            elapsed = time.monotonic() - t0
+            logger.exception("Tool '%s' failed in %.2fs", name, elapsed)
             return ToolResult(error=f"Tool '{name}' failed. Check logs for details.")
 
     @staticmethod
