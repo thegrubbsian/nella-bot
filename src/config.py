@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     # Papertrail / SolarWinds Observability (log aggregation)
     papertrail_api_token: str = Field(default="")
     papertrail_api_url: str = Field(default="https://api.na-01.cloud.solarwinds.com")
+    papertrail_ingestion_token: str = Field(default="")
 
     # Scheduler
     scheduler_timezone: str = Field(default="America/Chicago")

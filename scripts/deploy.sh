@@ -327,10 +327,61 @@ REMOTE_SCRIPT
 }
 
 # ---------------------------------------------------------------------------
-# Phase 8: Restart + Health Check
+# Phase 8: Configure SolarWinds syslog forwarding
+# ---------------------------------------------------------------------------
+phase_configure_syslog() {
+    log "Phase 8: Configuring SolarWinds syslog forwarding"
+
+    # Read PAPERTRAIL_INGESTION_TOKEN from the deployed .env
+    local ingestion_token
+    ingestion_token=$(run_remote grep -s '^PAPERTRAIL_INGESTION_TOKEN=' "$APP_DIR/.env" | cut -d= -f2- || true)
+
+    if [[ -z "$ingestion_token" ]]; then
+        log "WARNING: PAPERTRAIL_INGESTION_TOKEN not set in .env — skipping syslog setup"
+        return 0
+    fi
+
+    run_remote bash -s -- "$ingestion_token" <<'REMOTE_SCRIPT'
+set -euo pipefail
+TOKEN="$1"
+CONF="/etc/rsyslog.d/60-solarwinds.conf"
+
+if [[ -f "$CONF" ]]; then
+    echo "  SolarWinds rsyslog config already exists"
+else
+    cat > "$CONF" <<SYSLOG_EOF
+# SolarWinds Observability — forward all logs via TLS syslog
+\$DefaultNetstreamDriverCAFile /etc/ssl/certs/ca-certificates.crt
+\$ActionSendStreamDriver gtls
+\$ActionSendStreamDriverMode 1
+\$ActionSendStreamDriverAuthMode x509/name
+\$ActionSendStreamDriverPermittedPeer *.na-01.cloud.solarwinds.com
+
+\$template SWOFormat,"<%pri%>1 %timestamp:::date-rfc3339% %HOSTNAME% %app-name% %procid% %msgid% [${TOKEN}@41058]%msg:::sp-if-no-1st-sp%%msg%"
+
+*.* @@syslog.collector.na-01.cloud.solarwinds.com:6514;SWOFormat
+SYSLOG_EOF
+
+    # rsyslog needs the gtls driver for TLS
+    if ! dpkg -l rsyslog-gnutls 2>/dev/null | grep -q "^ii"; then
+        echo "  Installing rsyslog-gnutls..."
+        apt-get -o DPkg::Lock::Timeout=60 update -qq
+        apt-get -o DPkg::Lock::Timeout=60 install -y -qq rsyslog-gnutls
+    fi
+
+    systemctl restart rsyslog
+    echo "  SolarWinds rsyslog config created and rsyslog restarted"
+fi
+REMOTE_SCRIPT
+
+    log "SolarWinds syslog configured"
+}
+
+# ---------------------------------------------------------------------------
+# Phase 9: Restart + Health Check
 # ---------------------------------------------------------------------------
 phase_restart_service() {
-    log "Phase 8: Restarting service"
+    log "Phase 9: Restarting service"
     run_remote systemctl restart nella
 
     # Poll until active (up to 15s)
@@ -387,6 +438,7 @@ main() {
         phase_init_app
         phase_install_service
         phase_configure_ngrok
+        phase_configure_syslog
         phase_restart_service
     fi
 

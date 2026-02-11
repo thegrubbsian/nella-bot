@@ -366,8 +366,9 @@ Then edit `.env` with your actual values:
 | `NGROK_AUTHTOKEN` | No | ngrok auth token from [dashboard.ngrok.com](https://dashboard.ngrok.com). Used by the deploy script to set up an HTTPS tunnel for webhooks. |
 | `NGROK_DOMAIN` | No | ngrok free static domain (e.g. `your-subdomain.ngrok-free.dev`). Claim one at [dashboard.ngrok.com/domains](https://dashboard.ngrok.com/domains). |
 | `PLAUD_DRIVE_FOLDER_ID` | No | Google Drive folder ID where Zapier drops Plaud transcripts. Used to scope transcript search. |
-| `PAPERTRAIL_API_TOKEN` | No | SolarWinds Observability API token. Enables the `query_logs` tool. Get from [SolarWinds Observability](https://my.na-01.cloud.solarwinds.com). |
+| `PAPERTRAIL_API_TOKEN` | No | SolarWinds Observability API Access token. Enables the `query_logs` tool. Get from [SolarWinds Observability](https://my.na-01.cloud.solarwinds.com). |
 | `PAPERTRAIL_API_URL` | No | SolarWinds API base URL. Default: `https://api.na-01.cloud.solarwinds.com` |
+| `PAPERTRAIL_INGESTION_TOKEN` | No | SolarWinds Observability Ingestion token. Used by the deploy script to configure rsyslog forwarding. Different from the API token — create one under API Tokens → Ingestion. |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, or `ERROR`. Default: `INFO` |
 
 ### 3. Set up Google OAuth (optional)
