@@ -80,6 +80,7 @@ async def test_hours_param_computes_start_time() -> None:
 
         call_url = mock_client.get.call_args[0][0]
         assert "startTime=" in call_url
+        assert "endTime=" in call_url
         # The start time should be roughly 2 hours ago
         from urllib.parse import parse_qs, urlparse
 
@@ -87,6 +88,9 @@ async def test_hours_param_computes_start_time() -> None:
         start = datetime.strptime(parsed["startTime"][0], "%Y-%m-%dT%H:%M:%SZ")
         # Allow 5 seconds of tolerance
         assert abs((start.replace(tzinfo=UTC) - before).total_seconds()) < 5
+        # endTime should be roughly now
+        end = datetime.strptime(parsed["endTime"][0], "%Y-%m-%dT%H:%M:%SZ")
+        assert abs((end.replace(tzinfo=UTC) - datetime.now(UTC)).total_seconds()) < 5
 
 
 async def test_minutes_param_overrides_hours() -> None:

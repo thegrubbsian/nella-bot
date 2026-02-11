@@ -70,19 +70,25 @@ async def query_logs(
 
     base_url = settings.papertrail_api_url or "https://api.na-01.cloud.solarwinds.com"
 
-    # Compute time window
+    # Compute time window — the SolarWinds API requires both startTime and
+    # endTime when using direction=tail, otherwise it returns empty results.
+    now = datetime.now(UTC)
     time_fmt = "%Y-%m-%dT%H:%M:%SZ"
     if minutes is not None:
-        start_time = (datetime.now(UTC) - timedelta(minutes=minutes)).strftime(time_fmt)
+        start_time = (now - timedelta(minutes=minutes)).strftime(time_fmt)
     elif hours is not None:
-        start_time = (datetime.now(UTC) - timedelta(hours=hours)).strftime(time_fmt)
+        start_time = (now - timedelta(hours=hours)).strftime(time_fmt)
     else:
-        start_time = (datetime.now(UTC) - timedelta(hours=1)).strftime(time_fmt)
+        start_time = (now - timedelta(hours=1)).strftime(time_fmt)
+    end_time = now.strftime(time_fmt)
 
+    # Use direction=forward (the only reliable mode for the SolarWinds API
+    # across arbitrary time windows) and reverse results to show newest first.
     params: dict[str, str | int] = {
         "pageSize": min(limit, 100),
-        "direction": "tail",
+        "direction": "forward",
         "startTime": start_time,
+        "endTime": end_time,
     }
     if filter_query:
         params["filter"] = filter_query
@@ -98,7 +104,10 @@ async def query_logs(
             return ToolResult(error=f"Log API returned {resp.status_code}: {resp.text[:200]}")
 
         data = resp.json()
-        logs = data.get("logs", [])[:limit]
+        # forward returns oldest-first; reverse so newest entries come first.
+        logs = data.get("logs", [])
+        logs.reverse()
+        logs = logs[:limit]
 
         formatted = [_format_entry(entry) for entry in logs]
         return ToolResult(data={"logs": formatted, "count": len(formatted)})

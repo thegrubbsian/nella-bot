@@ -112,12 +112,6 @@ def main() -> None:
     parser.add_argument("--hours", type=float, help="Show logs from the last N hours")
     parser.add_argument("--minutes", type=float, help="Show logs from the last N minutes")
     parser.add_argument("--limit", "-n", type=int, default=50, help="Max log lines (default: 50)")
-    parser.add_argument(
-        "--tail", action="store_true", default=True, help="Show newest logs first (default)"
-    )
-    parser.add_argument(
-        "--oldest", action="store_true", help="Show oldest logs first (within time window)"
-    )
     parser.add_argument("--no-color", action="store_true", help="Disable color output")
     args = parser.parse_args()
 
@@ -131,7 +125,14 @@ def main() -> None:
     elif args.minutes:
         start_time = (datetime.now(UTC) - timedelta(minutes=args.minutes)).strftime(time_fmt)
 
-    direction = "backward" if args.oldest else "tail"
+    # SolarWinds API only reliably returns results with direction=forward;
+    # tail/backward silently return empty for wide time windows.
+    if not end_time:
+        end_time = datetime.now(UTC).strftime(time_fmt)
+    if not start_time:
+        start_time = (datetime.now(UTC) - timedelta(hours=1)).strftime(time_fmt)
+
+    direction = "forward"
 
     logs = fetch_logs(
         filter_query=args.filter,
@@ -142,7 +143,8 @@ def main() -> None:
         max_pages=(args.limit // 100) + 1,
     )
 
-    # Trim to limit
+    # forward returns oldest-first; reverse so newest are shown first.
+    logs.reverse()
     logs = logs[: args.limit]
 
     if not logs:
