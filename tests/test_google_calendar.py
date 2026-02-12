@@ -146,6 +146,56 @@ class TestDeleteEvent:
         assert result.data["deleted"] is True
 
 
+class TestGetEventsByDateRange:
+    @pytest.mark.asyncio
+    async def test_get_events_by_date_range(self, cal_mock):
+        from src.tools.google_calendar import get_events_by_date_range
+
+        cal_mock.events().list().execute.return_value = {
+            "items": [_make_event()],
+        }
+
+        result = await get_events_by_date_range(
+            start_date="2025-01-13", end_date="2025-01-13"
+        )
+        assert isinstance(result, ToolResult)
+        assert result.success
+        assert result.data["count"] == 1
+        assert result.data["events"][0]["title"] == "Meeting"
+
+    @pytest.mark.asyncio
+    async def test_get_events_by_date_range_empty(self, cal_mock):
+        from src.tools.google_calendar import get_events_by_date_range
+
+        cal_mock.events().list().execute.return_value = {"items": []}
+
+        result = await get_events_by_date_range(
+            start_date="2025-01-13", end_date="2025-01-14"
+        )
+        assert result.success
+        assert result.data["count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_get_events_by_date_range_invalid_date(self, cal_mock):
+        from src.tools.google_calendar import get_events_by_date_range
+
+        result = await get_events_by_date_range(
+            start_date="not-a-date", end_date="2025-01-14"
+        )
+        assert not result.success
+        assert "Invalid date format" in result.error
+
+    @pytest.mark.asyncio
+    async def test_get_events_by_date_range_inverted(self, cal_mock):
+        from src.tools.google_calendar import get_events_by_date_range
+
+        result = await get_events_by_date_range(
+            start_date="2025-01-15", end_date="2025-01-13"
+        )
+        assert not result.success
+        assert "start_date must be on or before end_date" in result.error
+
+
 class TestCheckAvailability:
     @pytest.mark.asyncio
     async def test_check_availability(self, cal_mock):

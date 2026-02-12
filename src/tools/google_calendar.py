@@ -282,6 +282,61 @@ async def delete_event(
     return ToolResult(data={"deleted": True, "event_id": event_id})
 
 
+# -- get_events_by_date_range ------------------------------------------------
+
+
+class GetEventsByDateRangeParams(GoogleToolParams):
+    start_date: str = Field(description="Start date in YYYY-MM-DD format (inclusive)")
+    end_date: str = Field(description="End date in YYYY-MM-DD format (inclusive)")
+    calendar_id: str = Field(default="primary", description="Calendar ID")
+
+
+@registry.tool(
+    name="get_events_by_date_range",
+    description=(
+        "Get calendar events for a specific date range (past or future). "
+        "Use this to look at events on a particular day or span of days, "
+        "including past events that have already occurred."
+    ),
+    category=_CATEGORY,
+    params_model=GetEventsByDateRangeParams,
+)
+async def get_events_by_date_range(
+    start_date: str,
+    end_date: str,
+    calendar_id: str = "primary",
+    account: str | None = None,
+) -> ToolResult:
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=UTC)
+        end = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=UTC)
+    except ValueError:
+        return ToolResult(error="Invalid date format. Use YYYY-MM-DD.")
+
+    if start > end:
+        return ToolResult(error="start_date must be on or before end_date.")
+
+    # Make end_date inclusive (add 1 day)
+    end = end + timedelta(days=1)
+
+    service = _auth(account).calendar()
+
+    result = await asyncio.to_thread(
+        lambda: service.events()
+        .list(
+            calendarId=calendar_id,
+            timeMin=start.isoformat(),
+            timeMax=end.isoformat(),
+            singleEvents=True,
+            orderBy="startTime",
+        )
+        .execute()
+    )
+
+    events = [_format_event(e) for e in result.get("items", [])]
+    return ToolResult(data={"events": events, "count": len(events)})
+
+
 # -- check_availability ------------------------------------------------------
 
 

@@ -22,8 +22,8 @@ Nella is an always-on personal AI assistant that lives in Telegram. She uses Cla
                     │  System Prompt  │    │   Tool Registry     │
                     │                 │    │                     │
                     │  SOUL.md        │    │  Google Gmail (8)   │
-                    │  USER.md        │    │  Google Calendar (6)│
-                    │  + Mem0 recall  │    │  Google Drive (6)   │
+                    │  USER.md        │    │  Google Calendar (7)│
+                    │  + Mem0 recall  │    │  Google Drive (7)   │
                     └─────────────────┘    │  Google Docs (4)    │
                                            │  Google People (6)  │
                                            │  Memory (4)         │
@@ -60,7 +60,7 @@ Nella is an always-on personal AI assistant that lives in Telegram. She uses Cla
 | `src/bot/` | Telegram bot setup, message handlers, session management, user security | You want to change how messages are received or how the bot responds |
 | `src/llm/` | Claude API client, system prompt assembly, model switching | You want to change how Claude is called, what it sees, or the tool-calling loop |
 | `src/memory/` | Mem0 integration, automatic memory extraction, data models | You want to change how Nella remembers things |
-| `src/tools/` | Tool registry, all 49 tool implementations, base classes | You want to add a new tool or modify an existing one |
+| `src/tools/` | Tool registry, all 51 tool implementations, base classes | You want to add a new tool or modify an existing one |
 | `src/integrations/` | Google OAuth multi-account manager | You want to add a new Google API, add an account, or fix auth issues |
 | `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
 | `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
@@ -85,7 +85,7 @@ Here's what happens when you send "What's on my calendar today?" in Telegram:
 
 7. **`generate_response()` is called** in `src/llm/client.py`. This is where the real work happens:
    - **System prompt assembly** (`src/llm/prompt.py`): reads `SOUL.md` and `USER.md`, then searches Mem0 for memories related to your message. These are combined into a system prompt with caching so the static parts aren't re-processed on every tool-calling round.
-   - **Claude API call**: sends your conversation history + system prompt + all 49 tool schemas to Claude via streaming.
+   - **Claude API call**: sends your conversation history + system prompt + all 51 tool schemas to Claude via streaming.
    - **Streaming**: as text chunks arrive, the `on_text_delta` callback edits the placeholder message in Telegram (throttled to every 0.5 seconds to stay under rate limits).
 
 8. **If Claude calls a tool** (in this case, probably `get_todays_schedule`):
@@ -188,7 +188,7 @@ If the transcript isn't found after all retries, the owner gets a notification e
 
 ### How Tool Calling Works
 
-Claude has access to 49 tools organized into categories. When Claude decides it needs to call a tool:
+Claude has access to 51 tools organized into categories. When Claude decides it needs to call a tool:
 
 1. Claude returns a `tool_use` content block with the tool name and arguments.
 2. The registry validates the arguments against a Pydantic model (if one is defined).
@@ -245,8 +245,8 @@ nellabot/
 │   │   ├── registry.py              # ToolRegistry — decorator & class-based registration
 │   │   ├── base.py                  # ToolResult, ToolParams, GoogleToolParams, BaseTool
 │   │   ├── google_gmail.py          # 8 tools: search, read, read_thread, send, reply, archive, archive_emails, download_attachment
-│   │   ├── google_calendar.py       # 6 tools: list, today, create, update, delete, availability
-│   │   ├── google_drive.py          # 6 tools: search, list recent, read, delete, download, upload
+│   │   ├── google_calendar.py       # 7 tools: list, today, date_range, create, update, delete, availability
+│   │   ├── google_drive.py          # 7 tools: search, list recent, list folder, read, delete, download, upload
 │   │   ├── google_docs.py           # 4 tools: read, create, update, append
 │   │   ├── google_people.py         # 6 tools: search, get, create, update contacts + local notes
 │   │   ├── memory_tools.py          # 4 tools: remember, forget, recall, save_reference

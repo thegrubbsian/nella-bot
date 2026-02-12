@@ -61,6 +61,35 @@ class TestSearchFiles:
         assert result.success
         assert result.data["count"] == 0
 
+    @pytest.mark.asyncio
+    async def test_search_files_with_folder_id(self, drive_mock):
+        from src.tools.google_drive import search_files
+
+        drive_mock.files().list().execute.return_value = {
+            "files": [_make_file()],
+        }
+
+        result = await search_files(query="test", folder_id="folder123")
+        assert result.success
+        assert result.data["count"] == 1
+        # Verify the query includes the parent filter
+        call_args = drive_mock.files().list.call_args
+        q = call_args.kwargs.get("q") or call_args[1].get("q")
+        assert "'folder123' in parents" in q
+        assert "fullText contains" in q
+
+    @pytest.mark.asyncio
+    async def test_search_files_escapes_quotes(self, drive_mock):
+        from src.tools.google_drive import search_files
+
+        drive_mock.files().list().execute.return_value = {"files": []}
+
+        await search_files(query="Dean's Notes")
+        call_args = drive_mock.files().list.call_args
+        q = call_args.kwargs.get("q") or call_args[1].get("q")
+        # The single quote should be escaped
+        assert "Dean\\'s Notes" in q
+
 
 class TestListRecentFiles:
     @pytest.mark.asyncio
@@ -74,6 +103,39 @@ class TestListRecentFiles:
         result = await list_recent_files(max_results=5)
         assert result.success
         assert result.data["count"] == 2
+
+
+class TestListFolder:
+    @pytest.mark.asyncio
+    async def test_list_folder(self, drive_mock):
+        from src.tools.google_drive import list_folder
+
+        drive_mock.files().list().execute.return_value = {
+            "files": [
+                _make_file("file1", "notes.txt"),
+                _make_file(
+                    "sub1",
+                    "Subfolder",
+                    mime_type="application/vnd.google-apps.folder",
+                ),
+            ],
+        }
+
+        result = await list_folder(folder_id="folder123")
+        assert result.success
+        assert result.data["count"] == 2
+        assert result.data["files"][0]["name"] == "notes.txt"
+        assert result.data["files"][1]["mime_type"] == "application/vnd.google-apps.folder"
+
+    @pytest.mark.asyncio
+    async def test_list_folder_empty(self, drive_mock):
+        from src.tools.google_drive import list_folder
+
+        drive_mock.files().list().execute.return_value = {"files": []}
+
+        result = await list_folder(folder_id="empty_folder")
+        assert result.success
+        assert result.data["count"] == 0
 
 
 class TestReadFile:

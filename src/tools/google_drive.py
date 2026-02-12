@@ -32,25 +32,45 @@ def _auth(account: str | None = None) -> GoogleAuthManager:
     return GoogleAuthManager.get(account)
 
 
+def _escape_query(text: str) -> str:
+    """Escape single quotes for Google Drive query strings."""
+    return text.replace("\\", "\\\\").replace("'", "\\'")
+
+
 # -- search_files ------------------------------------------------------------
 
 
 class SearchFilesParams(GoogleToolParams):
     query: str = Field(description="Search query (searches file names and content)")
+    folder_id: str | None = Field(
+        default=None,
+        description="Optional folder ID to scope search to a specific folder",
+    )
     max_results: int = Field(default=10, description="Maximum number of results")
 
 
 @registry.tool(
     name="search_files",
-    description="Search Google Drive for files by name or content.",
+    description=(
+        "Search Google Drive for files by name or content. "
+        "Optionally scope to a specific folder."
+    ),
     category=_CATEGORY,
     params_model=SearchFilesParams,
 )
-async def search_files(query: str, max_results: int = 10, account: str | None = None) -> ToolResult:
+async def search_files(
+    query: str,
+    folder_id: str | None = None,
+    max_results: int = 10,
+    account: str | None = None,
+) -> ToolResult:
     service = _auth(account).drive()
 
     # Search in both full text and file name
-    q = f"fullText contains '{query}' or name contains '{query}'"
+    escaped = _escape_query(query)
+    q = f"fullText contains '{escaped}' or name contains '{escaped}'"
+    if folder_id:
+        q = f"'{folder_id}' in parents and ({q})"
 
     result = await asyncio.to_thread(
         lambda: service.files()
@@ -91,6 +111,55 @@ async def list_recent_files(max_results: int = 10, account: str | None = None) -
     result = await asyncio.to_thread(
         lambda: service.files()
         .list(
+            orderBy="modifiedTime desc",
+            pageSize=max_results,
+            fields=_FILE_FIELDS,
+        )
+        .execute()
+    )
+
+    files = [
+        {
+            "id": f["id"],
+            "name": f["name"],
+            "mime_type": f.get("mimeType", ""),
+            "modified_time": f.get("modifiedTime", ""),
+            "web_link": f.get("webViewLink", ""),
+        }
+        for f in result.get("files", [])
+    ]
+
+    return ToolResult(data={"files": files, "count": len(files)})
+
+
+# -- list_folder -------------------------------------------------------------
+
+
+class ListFolderParams(GoogleToolParams):
+    folder_id: str = Field(description="Google Drive folder ID")
+    max_results: int = Field(default=20, description="Maximum number of results")
+
+
+@registry.tool(
+    name="list_folder",
+    description=(
+        "List the contents of a Google Drive folder. Returns files and subfolders "
+        "sorted by most recently modified. Use search_files to find a folder by name first."
+    ),
+    category=_CATEGORY,
+    params_model=ListFolderParams,
+)
+async def list_folder(
+    folder_id: str, max_results: int = 20, account: str | None = None
+) -> ToolResult:
+    service = _auth(account).drive()
+
+    q = f"'{folder_id}' in parents"
+
+    result = await asyncio.to_thread(
+        lambda: service.files()
+        .list(
+            q=q,
             orderBy="modifiedTime desc",
             pageSize=max_results,
             fields=_FILE_FIELDS,
