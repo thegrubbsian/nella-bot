@@ -54,13 +54,13 @@ async def _read_transcript(file_id: str) -> str | None:
 async def _search_transcript(file_name: str) -> str | None:
     """Search for a transcript by name in the configured Plaud folder."""
     from src.integrations.google_auth import GoogleAuthManager
-    from src.tools.google_drive import read_file
+    from src.tools.google_drive import _escape_query, read_file
 
     account = settings.plaud_google_account or None
     service = GoogleAuthManager.get(account).drive()
 
     # Build query: name match, scoped to the Plaud folder if configured
-    parts = [f"name = '{file_name}'"]
+    parts = [f"name = '{_escape_query(file_name)}'"]
     folder_id = settings.plaud_drive_folder_id
     if folder_id:
         parts.append(f"'{folder_id}' in parents")
@@ -68,7 +68,7 @@ async def _search_transcript(file_name: str) -> str | None:
 
     result = await asyncio.to_thread(
         lambda: service.files()
-        .list(q=q, pageSize=1, fields="files(id)")
+        .list(q=q, pageSize=1, orderBy="createdTime desc", fields="files(id)")
         .execute()
     )
 
@@ -115,12 +115,23 @@ async def _fetch_transcript(payload: dict[str, Any]) -> str | None:
 
 
 async def _analyze_transcript(transcript: str) -> str:
-    """Send the transcript to Claude for summarization."""
-    from src.llm.client import generate_response
+    """Send the transcript to Claude for summarization.
 
+    Uses a bare API call (no system prompt, no Mem0 memories) to avoid
+    contaminating the summary with facts from previous meetings.
+    """
+    import anthropic
+
+    from src.llm.models import ModelManager
+
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     prompt = ANALYSIS_PROMPT.format(transcript=transcript)
-    messages = [{"role": "user", "content": prompt}]
-    return await generate_response(messages)
+    response = await client.messages.create(
+        model=ModelManager.get().get_chat_model(),
+        max_tokens=4096,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text
 
 
 async def _notify_owner(message: str) -> None:

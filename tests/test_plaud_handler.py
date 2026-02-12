@@ -29,6 +29,7 @@ class _FakeSettings:
         self.plaud_drive_folder_id = folder_id
         self.plaud_google_account = plaud_account
         self.allowed_user_ids = "12345"
+        self.anthropic_api_key = "test-key"
 
     def get_allowed_user_ids(self) -> set[int]:
         return {12345}
@@ -111,6 +112,56 @@ async def test_search_scopes_to_folder_when_configured() -> None:
         mock_thread.assert_awaited_once()
 
 
+async def test_search_transcript_orders_by_newest() -> None:
+    mock_service = MagicMock()
+    mock_service.files().list().execute.return_value = {"files": []}
+    mock_auth = MagicMock()
+    mock_auth.drive.return_value = mock_service
+
+    with (
+        patch("src.integrations.google_auth.GoogleAuthManager.get", return_value=mock_auth),
+        patch("src.webhooks.handlers.plaud.settings", _FakeSettings()),
+        patch("src.webhooks.handlers.plaud.asyncio.to_thread") as mock_thread,
+    ):
+        mock_thread.return_value = {"files": []}
+        await _search_transcript("test.txt")
+
+        # Execute the lambda that was passed to asyncio.to_thread
+        # to observe the Drive API call on the mock service.
+        fn = mock_thread.call_args[0][0]
+        fn()
+        mock_service.files().list.assert_called_with(
+            q="name = 'test.txt' and 'folder123' in parents",
+            pageSize=1,
+            orderBy="createdTime desc",
+            fields="files(id)",
+        )
+
+
+async def test_search_transcript_escapes_quotes_in_name() -> None:
+    mock_service = MagicMock()
+    mock_service.files().list().execute.return_value = {"files": []}
+    mock_auth = MagicMock()
+    mock_auth.drive.return_value = mock_service
+
+    with (
+        patch("src.integrations.google_auth.GoogleAuthManager.get", return_value=mock_auth),
+        patch("src.webhooks.handlers.plaud.settings", _FakeSettings()),
+        patch("src.webhooks.handlers.plaud.asyncio.to_thread") as mock_thread,
+    ):
+        mock_thread.return_value = {"files": []}
+        await _search_transcript("Dean's Meeting")
+
+        fn = mock_thread.call_args[0][0]
+        fn()
+        mock_service.files().list.assert_called_with(
+            q="name = 'Dean\\'s Meeting' and 'folder123' in parents",
+            pageSize=1,
+            orderBy="createdTime desc",
+            fields="files(id)",
+        )
+
+
 # -- _fetch_transcript -------------------------------------------------------
 
 
@@ -181,16 +232,29 @@ async def test_fetch_returns_none_after_all_retries() -> None:
 # -- _analyze_transcript -----------------------------------------------------
 
 
-async def test_analyze_calls_generate_response() -> None:
-    with patch(
-        "src.llm.client.generate_response",
-        new_callable=AsyncMock,
-        return_value="Summary here",
-    ) as mock:
+async def test_analyze_calls_claude_directly() -> None:
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock(text="Summary here")]
+
+    mock_client_instance = MagicMock()
+    mock_client_instance.messages.create = AsyncMock(return_value=mock_response)
+
+    mock_model_mgr = MagicMock()
+    mock_model_mgr.get_chat_model.return_value = "claude-test-model"
+
+    with (
+        patch("anthropic.AsyncAnthropic", return_value=mock_client_instance),
+        patch("src.llm.models.ModelManager.get", return_value=mock_model_mgr),
+        patch("src.webhooks.handlers.plaud.settings", _FakeSettings()),
+    ):
         result = await _analyze_transcript("some transcript")
         assert result == "Summary here"
-        call_args = mock.call_args[0][0]
-        assert "some transcript" in call_args[0]["content"]
+
+        call_kwargs = mock_client_instance.messages.create.call_args.kwargs
+        assert "some transcript" in call_kwargs["messages"][0]["content"]
+        assert call_kwargs["model"] == "claude-test-model"
+        # No system prompt — avoids Mem0 contamination
+        assert "system" not in call_kwargs
 
 
 # -- _notify_owner -----------------------------------------------------------
