@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     # Brave Search (web research)
     brave_search_api_key: str = Field(default="")
 
+    # GitHub
+    github_token: str = Field(default="")
+    nella_source_repo: str = Field(default="")
+
     # Plaud
     plaud_drive_folder_id: str = Field(default="")
 

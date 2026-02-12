@@ -25,4 +25,8 @@ if settings.papertrail_api_token:
 if settings.brave_search_api_key:
     from src.tools import web_tools  # noqa: F401
 
+# Conditionally load GitHub tools when token is configured.
+if settings.github_token:
+    from src.tools import github_tools  # noqa: F401
+
 __all__ = ["registry"]

@@ -83,6 +83,15 @@ async def build_system_prompt(user_message: str = "") -> list[dict]:
             lines.append(f"- {name}{suffix}")
         sections.append("\n".join(lines))
 
+    # Inject Nella's source repo so she can reference her own code
+    if settings.nella_source_repo:
+        sections.append(
+            "# Source Code\n\n"
+            f"Your own source code is at GitHub repo `{settings.nella_source_repo}`. "
+            "When debugging yourself or exploring your own code, use GitHub tools "
+            "with this repo. Combine with `query_logs` for full self-debugging."
+        )
+
     static_text = "\n\n---\n\n".join(sections)
 
     # Retrieve relevant memories
