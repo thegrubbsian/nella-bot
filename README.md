@@ -25,6 +25,7 @@ Nella is an always-on personal AI assistant that lives in Telegram. She uses Cla
                     │  USER.md        │    │  Google Calendar (6)│
                     │  + Mem0 recall  │    │  Google Drive (6)   │
                     └─────────────────┘    │  Google Docs (4)    │
+                                           │  Google People (6)  │
                                            │  Memory (4)         │
                     ┌─────────────────┐    │  Scheduler (3)      │
                     │  Memory System  │    │  Utility (3)        │
@@ -59,7 +60,7 @@ Nella is an always-on personal AI assistant that lives in Telegram. She uses Cla
 | `src/bot/` | Telegram bot setup, message handlers, session management, user security | You want to change how messages are received or how the bot responds |
 | `src/llm/` | Claude API client, system prompt assembly, model switching | You want to change how Claude is called, what it sees, or the tool-calling loop |
 | `src/memory/` | Mem0 integration, automatic memory extraction, data models | You want to change how Nella remembers things |
-| `src/tools/` | Tool registry, all 42 tool implementations, base classes | You want to add a new tool or modify an existing one |
+| `src/tools/` | Tool registry, all 49 tool implementations, base classes | You want to add a new tool or modify an existing one |
 | `src/integrations/` | Google OAuth multi-account manager | You want to add a new Google API, add an account, or fix auth issues |
 | `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
 | `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
@@ -84,7 +85,7 @@ Here's what happens when you send "What's on my calendar today?" in Telegram:
 
 7. **`generate_response()` is called** in `src/llm/client.py`. This is where the real work happens:
    - **System prompt assembly** (`src/llm/prompt.py`): reads `SOUL.md` and `USER.md`, then searches Mem0 for memories related to your message. These are combined into a system prompt with caching so the static parts aren't re-processed on every tool-calling round.
-   - **Claude API call**: sends your conversation history + system prompt + all 42 tool schemas to Claude via streaming.
+   - **Claude API call**: sends your conversation history + system prompt + all 49 tool schemas to Claude via streaming.
    - **Streaming**: as text chunks arrive, the `on_text_delta` callback edits the placeholder message in Telegram (throttled to every 0.5 seconds to stay under rate limits).
 
 8. **If Claude calls a tool** (in this case, probably `get_todays_schedule`):
@@ -187,7 +188,7 @@ If the transcript isn't found after all retries, the owner gets a notification e
 
 ### How Tool Calling Works
 
-Claude has access to 42 tools organized into categories. When Claude decides it needs to call a tool:
+Claude has access to 49 tools organized into categories. When Claude decides it needs to call a tool:
 
 1. Claude returns a `tool_use` content block with the tool name and arguments.
 2. The registry validates the arguments against a Pydantic model (if one is defined).
@@ -235,6 +236,9 @@ nellabot/
 │   │   └── models.py                # MemoryEntry, ConversationMessage pydantic models
 │   ├── integrations/
 │   │   └── google_auth.py           # GoogleAuthManager multi-account registry (OAuth + service builders)
+│   ├── people/
+│   │   ├── __init__.py              # Package init
+│   │   └── store.py                 # PeopleStore — libsql CRUD for people_notes
 │   ├── scratch.py                       # ScratchSpace — sandboxed local filesystem for temp files
 │   ├── tools/
 │   │   ├── __init__.py              # Imports all tool modules (conditional Google loading)
@@ -244,6 +248,7 @@ nellabot/
 │   │   ├── google_calendar.py       # 6 tools: list, today, create, update, delete, availability
 │   │   ├── google_drive.py          # 6 tools: search, list recent, read, delete, download, upload
 │   │   ├── google_docs.py           # 4 tools: read, create, update, append
+│   │   ├── google_people.py         # 6 tools: search, get, create, update contacts + local notes
 │   │   ├── memory_tools.py          # 4 tools: remember, forget, recall, save_reference
 │   │   ├── scheduler_tools.py       # 3 tools: schedule, list, cancel scheduled tasks
 │   │   ├── scratch_tools.py         # 5 tools: scratch_write, scratch_read, scratch_list, scratch_delete, scratch_download
@@ -280,7 +285,8 @@ nellabot/
 │
 ├── tests/                           # 304 tests across 29 modules
 │   ├── test_notification_*.py       # Notification system (3 files)
-│   ├── test_google_*.py             # Google auth + integrations (5 files)
+│   ├── test_google_*.py             # Google auth + integrations (6 files)
+│   ├── test_people_store.py        # PeopleStore CRUD
 │   ├── test_memory_*.py             # Memory system (2 files)
 │   ├── test_scheduler_*.py          # Scheduler system (6 files)
 │   ├── test_confirmations.py        # Tool confirmation flow
@@ -384,10 +390,10 @@ Then edit `.env` with your actual values:
 
 ### 3. Set up Google OAuth (optional)
 
-If you want Gmail, Calendar, Drive, and Docs access:
+If you want Gmail, Calendar, Drive, Docs, and Contacts access:
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com), create a project.
-2. Enable the Gmail API, Calendar API, Drive API, and Docs API.
+2. Enable the Gmail API, Calendar API, Drive API, Docs API, and People API.
 3. Create OAuth 2.0 credentials (Desktop application type).
 4. Download the credentials JSON file and save it as `credentials.json` in the project root.
 5. Set `GOOGLE_ACCOUNTS` in your `.env` (e.g. `GOOGLE_ACCOUNTS=work,personal`).
@@ -400,7 +406,7 @@ uv run python scripts/google_auth.py --account personal
 
 Each command opens a browser for you to authorize the corresponding Google account. Tokens are saved as `token_work.json`, `token_personal.json`, etc. Google tools automatically load when at least one token file exists.
 
-All 24 Google tools accept an optional `account` parameter. Claude picks the right account based on conversational context (the system prompt tells it which accounts are available). When `account` is omitted, the default from `GOOGLE_DEFAULT_ACCOUNT` is used.
+All 30 Google tools accept an optional `account` parameter. Claude picks the right account based on conversational context (the system prompt tells it which accounts are available). When `account` is omitted, the default from `GOOGLE_DEFAULT_ACCOUNT` is used.
 
 If you skip this step, Nella works fine — she just won't have Google tools available.
 

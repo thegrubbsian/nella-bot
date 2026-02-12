@@ -9,7 +9,13 @@ from src.tools.registry import registry
 
 # Conditionally load Google tools when at least one account has a token file.
 if GoogleAuthManager.any_enabled():
-    from src.tools import google_calendar, google_docs, google_drive, google_gmail  # noqa: F401
+    from src.tools import (  # noqa: F401
+        google_calendar,
+        google_docs,
+        google_drive,
+        google_gmail,
+        google_people,
+    )
 
 # Conditionally load log tools when API token is configured.
 if settings.papertrail_api_token:

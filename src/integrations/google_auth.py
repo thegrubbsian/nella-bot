@@ -26,6 +26,7 @@ class GoogleAuthManager:
         "https://www.googleapis.com/auth/calendar",
         "https://www.googleapis.com/auth/drive",
         "https://www.googleapis.com/auth/documents",
+        "https://www.googleapis.com/auth/contacts",
     ]
 
     def __init__(self, account: str, token_path: Path) -> None:
@@ -129,3 +130,7 @@ class GoogleAuthManager:
     def docs(self):  # noqa: ANN201
         """Build a Docs API service."""
         return build("docs", "v1", credentials=self._get_credentials())
+
+    def people(self):  # noqa: ANN201
+        """Build a People API service."""
+        return build("people", "v1", credentials=self._get_credentials())
