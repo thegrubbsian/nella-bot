@@ -28,10 +28,12 @@ Nella is an always-on personal AI assistant that lives in Telegram. She uses Cla
                                            │  Google People (6)  │
                                            │  Memory (4)         │
                     ┌─────────────────┐    │  Scheduler (3)      │
-                    │  Memory System  │    │  Utility (3)        │
-                    │                 │    │  Files (5)          │
+                    │  Memory System  │    │  Utility (4)        │
+                    │                 │    │  Files (6)          │
                     │  Mem0 (semantic) │    │  Research (2)       │
                     │                 │    │  Observability (1)  │
+                    │                 │    │  GitHub (8)         │
+                    │                 │    │  LinkedIn (2)       │
                     │                 │    └─────────────────────┘
                     │  SQLite (notes) │    ┌─────────────────────┐
                     │  Auto-extract   │    │ Notification Router  │
@@ -60,8 +62,8 @@ Nella is an always-on personal AI assistant that lives in Telegram. She uses Cla
 | `src/bot/` | Telegram bot setup, message handlers, session management, user security | You want to change how messages are received or how the bot responds |
 | `src/llm/` | Claude API client, system prompt assembly, model switching | You want to change how Claude is called, what it sees, or the tool-calling loop |
 | `src/memory/` | Mem0 integration, automatic memory extraction, data models | You want to change how Nella remembers things |
-| `src/tools/` | Tool registry, all 51 tool implementations, base classes | You want to add a new tool or modify an existing one |
-| `src/integrations/` | Google OAuth multi-account manager | You want to add a new Google API, add an account, or fix auth issues |
+| `src/tools/` | Tool registry, all 62 tool implementations, base classes | You want to add a new tool or modify an existing one |
+| `src/integrations/` | Google OAuth multi-account manager, LinkedIn OAuth | You want to add a new Google API, add an account, or fix auth issues |
 | `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
 | `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
 | `src/webhooks/` | Inbound HTTP server, handler registry, per-integration handlers | You want to receive webhooks from external services (Zapier, Plaud, etc.) |
@@ -85,7 +87,7 @@ Here's what happens when you send "What's on my calendar today?" in Telegram:
 
 7. **`generate_response()` is called** in `src/llm/client.py`. This is where the real work happens:
    - **System prompt assembly** (`src/llm/prompt.py`): reads `SOUL.md` and `USER.md`, then searches Mem0 for memories related to your message. These are combined into a system prompt with caching so the static parts aren't re-processed on every tool-calling round.
-   - **Claude API call**: sends your conversation history + system prompt + all 51 tool schemas to Claude via streaming.
+   - **Claude API call**: sends your conversation history + system prompt + all 62 tool schemas to Claude via streaming.
    - **Streaming**: as text chunks arrive, the `on_text_delta` callback edits the placeholder message in Telegram (throttled to every 0.5 seconds to stay under rate limits).
 
 8. **If Claude calls a tool** (in this case, probably `get_todays_schedule`):
@@ -188,7 +190,7 @@ If the transcript isn't found after all retries, the owner gets a notification e
 
 ### How Tool Calling Works
 
-Claude has access to 51 tools organized into categories. When Claude decides it needs to call a tool:
+Claude has access to 62 tools organized into categories. When Claude decides it needs to call a tool:
 
 1. Claude returns a `tool_use` content block with the tool name and arguments.
 2. The registry validates the arguments against a Pydantic model (if one is defined).
@@ -235,10 +237,12 @@ nellabot/
 │   │   ├── automatic.py             # Background memory extraction pipeline
 │   │   └── models.py                # MemoryEntry, ConversationMessage pydantic models
 │   ├── integrations/
-│   │   └── google_auth.py           # GoogleAuthManager multi-account registry (OAuth + service builders)
+│   │   ├── google_auth.py           # GoogleAuthManager multi-account registry (OAuth + service builders)
+│   │   └── linkedin_auth.py         # LinkedInAuth single-account manager (OAuth + token refresh)
 │   ├── people/
 │   │   ├── __init__.py              # Package init
 │   │   └── store.py                 # PeopleStore — libsql CRUD for people_notes
+│   ├── db.py                            # Async wrapper over libsql (local SQLite or remote Turso)
 │   ├── scratch.py                       # ScratchSpace — sandboxed local filesystem for temp files
 │   ├── tools/
 │   │   ├── __init__.py              # Imports all tool modules (conditional Google loading)
@@ -251,10 +255,12 @@ nellabot/
 │   │   ├── google_people.py         # 6 tools: search, get, create, update contacts + local notes
 │   │   ├── memory_tools.py          # 4 tools: remember, forget, recall, save_reference
 │   │   ├── scheduler_tools.py       # 3 tools: schedule, list, cancel scheduled tasks
-│   │   ├── scratch_tools.py         # 5 tools: scratch_write, scratch_read, scratch_list, scratch_delete, scratch_download
+│   │   ├── scratch_tools.py         # 6 tools: scratch_write, scratch_read, scratch_list, scratch_delete, scratch_wipe, scratch_download
+│   │   ├── github_tools.py          # 8 tools: get_repo, list_directory, read_file, search_code, list_commits, get_commit, list_issues, get_issue
+│   │   ├── linkedin_tools.py        # 2 tools: create_post, post_comment
 │   │   ├── log_tools.py             # 1 tool: query production logs (SolarWinds/Papertrail)
 │   │   ├── web_tools.py             # 2 tools: web_search (Brave), read_webpage (content extraction)
-│   │   └── utility.py               # 3 tools: datetime, save_note, search_notes
+│   │   └── utility.py               # 4 tools: get_current_datetime, save_note, search_notes, delete_note
 │   ├── notifications/
 │   │   ├── __init__.py              # Package exports
 │   │   ├── channels.py              # NotificationChannel protocol
@@ -264,9 +270,10 @@ nellabot/
 │   ├── scheduler/
 │   │   ├── __init__.py              # Package exports
 │   │   ├── models.py                # ScheduledTask dataclass, make_task_id()
-│   │   ├── store.py                 # TaskStore — aiosqlite CRUD for scheduled_tasks
+│   │   ├── store.py                 # TaskStore — libsql CRUD for scheduled_tasks
 │   │   ├── executor.py              # TaskExecutor — dispatches simple_message and ai_task
-│   │   └── engine.py                # SchedulerEngine — APScheduler lifecycle and job management
+│   │   ├── engine.py                # SchedulerEngine — APScheduler lifecycle and job management
+│   │   └── missed.py                # Missed task recovery — detect and notify on startup
 │   ├── webhooks/
 │   │   ├── __init__.py              # Package exports
 │   │   ├── server.py                # aiohttp server — lifecycle, routing, secret validation
@@ -283,16 +290,17 @@ nellabot/
 │   ├── MEMORY.md                    # Explicit long-term facts
 │   └── MEMORY_RULES.md              # Auto-extraction rules
 │
-├── tests/                           # 304 tests across 29 modules
-│   ├── test_notification_*.py       # Notification system (3 files)
+├── tests/                           # 492+ tests
 │   ├── test_google_*.py             # Google auth + integrations (6 files)
-│   ├── test_people_store.py        # PeopleStore CRUD
+│   ├── test_linkedin_*.py           # LinkedIn tools
+│   ├── test_github_*.py             # GitHub tools
+│   ├── test_people_store.py         # PeopleStore CRUD
+│   ├── test_notification_*.py       # Notification system (3 files)
 │   ├── test_memory_*.py             # Memory system (2 files)
-│   ├── test_scheduler_*.py          # Scheduler system (6 files)
+│   ├── test_scheduler_*.py          # Scheduler system (7 files, includes missed tasks)
 │   ├── test_confirmations.py        # Tool confirmation flow
 │   ├── test_callback_query.py       # Inline keyboard callbacks
-│   ├── test_webhook_registry.py     # Webhook handler registry
-│   ├── test_webhook_server.py       # Webhook HTTP server
+│   ├── test_webhook_*.py            # Webhook registry + server (2 files)
 │   ├── test_plaud_handler.py        # Plaud transcript processing
 │   ├── test_registry.py             # Tool registry
 │   ├── test_automatic.py            # Memory extraction
@@ -308,6 +316,7 @@ nellabot/
 │
 ├── scripts/
 │   ├── google_auth.py               # One-time OAuth browser flow (--account flag required)
+│   ├── linkedin_auth.py             # One-time OAuth browser flow for LinkedIn
 │   ├── init_mem0_dir.py             # Pre-create Mem0 config dir for systemd
 │   ├── deploy.sh                    # Automated deploy to VPS (full or --quick)
 │   ├── logs.py                      # Query production logs via SolarWinds Observability API
@@ -371,9 +380,10 @@ Then edit `.env` with your actual values:
 | `PLAUD_GOOGLE_ACCOUNT` | No | Which Google account to use for Plaud transcript access (webhook handler runs without Claude reasoning). |
 | `MEM0_API_KEY` | No | Mem0 API key from [app.mem0.ai](https://app.mem0.ai). If empty, memory features are disabled (Nella still works, just without long-term memory) |
 | `DATABASE_PATH` | No | SQLite database path. Default: `data/nella.db` |
+| `TURSO_DATABASE_URL` | No | Remote libSQL database URL. When set, overrides local `DATABASE_PATH`. Create at [turso.tech](https://turso.tech). |
+| `TURSO_AUTH_TOKEN` | No | Auth token for remote Turso database. |
 | `CONVERSATION_WINDOW_SIZE` | No | Max messages kept in context. Default: `50` |
 | `MEMORY_EXTRACTION_ENABLED` | No | Enable background memory extraction. Default: `true` |
-| `MEMORY_EXTRACTION_MODEL` | No | Model for extraction. Default: `claude-haiku-4-5-20251001` |
 | `DEFAULT_NOTIFICATION_CHANNEL` | No | Default channel for outbound messages. Default: `telegram` |
 | `SCHEDULER_TIMEZONE` | No | IANA timezone for scheduled tasks. Default: `America/Chicago` |
 | `WEBHOOK_PORT` | No | Port for the inbound webhook HTTP server. Default: `8443` |
@@ -386,6 +396,10 @@ Then edit `.env` with your actual values:
 | `PAPERTRAIL_API_TOKEN` | No | SolarWinds Observability API Access token. Enables the `query_logs` tool. Get from [SolarWinds Observability](https://my.na-01.cloud.solarwinds.com). |
 | `PAPERTRAIL_API_URL` | No | SolarWinds API base URL. Default: `https://api.na-01.cloud.solarwinds.com` |
 | `PAPERTRAIL_INGESTION_TOKEN` | No | SolarWinds Observability Ingestion token. Used by the deploy script to configure rsyslog forwarding. Different from the API token — create one under API Tokens → Ingestion. |
+| `GITHUB_TOKEN` | No | Fine-grained GitHub PAT. Enables 8 read-only GitHub tools. Needs "Contents" read + "Issues" read. Get one at [github.com/settings/tokens](https://github.com/settings/tokens?type=beta). |
+| `NELLA_SOURCE_REPO` | No | Nella's own source code repo (`owner/repo` format). Injected into the system prompt for self-debugging. |
+| `LINKEDIN_CLIENT_ID` | No | LinkedIn OAuth client ID. Required for LinkedIn tools (`create_post`, `post_comment`). Create an app at [linkedin.com/developers](https://www.linkedin.com/developers/apps). |
+| `LINKEDIN_CLIENT_SECRET` | No | LinkedIn OAuth client secret. |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, or `ERROR`. Default: `INFO` |
 
 ### 3. Set up Google OAuth (optional)
@@ -406,7 +420,7 @@ uv run python scripts/google_auth.py --account personal
 
 Each command opens a browser for you to authorize the corresponding Google account. Tokens are saved to `auth_tokens/google_work_auth_token.json`, `auth_tokens/google_personal_auth_token.json`, etc. Google tools automatically load when at least one token file exists.
 
-All 30 Google tools accept an optional `account` parameter. Claude picks the right account based on conversational context (the system prompt tells it which accounts are available). When `account` is omitted, the default from `GOOGLE_DEFAULT_ACCOUNT` is used.
+All 32 Google tools accept an optional `account` parameter. Claude picks the right account based on conversational context (the system prompt tells it which accounts are available). When `account` is omitted, the default from `GOOGLE_DEFAULT_ACCOUNT` is used.
 
 If you skip this step, Nella works fine — she just won't have Google tools available.
 

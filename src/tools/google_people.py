@@ -352,9 +352,7 @@ class SearchContactNotesParams(GoogleToolParams):
     category=_CATEGORY,
     params_model=SearchContactNotesParams,
 )
-async def search_contact_notes(
-    query: str, account: str | None = None  # noqa: ARG001
-) -> ToolResult:
+async def search_contact_notes(query: str) -> ToolResult:
     store = PeopleStore.get()
     results = await store.search(query)
     return ToolResult(data={"results": results, "count": len(results)})

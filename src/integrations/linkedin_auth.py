@@ -44,7 +44,7 @@ class LinkedInAuth:
         return TOKEN_PATH.exists()
 
     @classmethod
-    def reset(cls) -> None:
+    def _reset(cls) -> None:
         """Clear the singleton (for testing)."""
         cls._instance = None
 

@@ -45,7 +45,7 @@ class ScratchSpace:
         return cls._instance
 
     @classmethod
-    def reset(cls) -> None:
+    def _reset(cls) -> None:
         """Clear the singleton (for tests)."""
         cls._instance = None
 

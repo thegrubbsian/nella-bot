@@ -47,7 +47,7 @@ tests/            # pytest + pytest-asyncio
 - Use `ruff` for linting and formatting.
 - Tests go in `tests/` mirroring `src/` structure.
 - Environment variables in `.env`, never committed.
-- All database access through `aiosqlite`.
+- All database access through `libsql` (wrapped async in `src/db.py`).
 - Pydantic models for all structured data crossing boundaries.
 - Tools that perform destructive or externally-visible actions should set
   `requires_confirmation=True`. This triggers an inline keyboard confirmation

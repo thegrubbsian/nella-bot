@@ -60,7 +60,7 @@ def _extract_links(html: str, base_url: str) -> list[dict[str, str]]:
     if container is None:
         return []
 
-    seen_urls: set[str] = []
+    seen_urls: list[str] = []
     links: list[dict[str, str]] = []
 
     for a_tag in container.find_all("a", href=True):

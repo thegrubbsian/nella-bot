@@ -11,10 +11,10 @@ from src.scratch import DEFAULT_CLEANUP_HOURS, MAX_FILE_SIZE, ScratchSpace
 @pytest.fixture()
 def scratch(tmp_path):
     """Create a ScratchSpace rooted in a temporary directory."""
-    ScratchSpace.reset()
+    ScratchSpace._reset()
     s = ScratchSpace(root=tmp_path / "scratch")
     yield s
-    ScratchSpace.reset()
+    ScratchSpace._reset()
 
 
 # ---------------------------------------------------------------------------
@@ -285,14 +285,14 @@ def test_wipe_empty_scratch(scratch) -> None:
 
 
 def test_singleton_get_and_reset(tmp_path) -> None:
-    ScratchSpace.reset()
+    ScratchSpace._reset()
     try:
         # Patch settings so get() uses our tmp_path
         s1 = ScratchSpace(root=tmp_path / "single")
         ScratchSpace._instance = s1
         assert ScratchSpace.get() is s1
 
-        ScratchSpace.reset()
+        ScratchSpace._reset()
         assert ScratchSpace._instance is None
     finally:
-        ScratchSpace.reset()
+        ScratchSpace._reset()

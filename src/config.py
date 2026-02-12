@@ -46,7 +46,6 @@ class Settings(BaseSettings):
 
     # Memory extraction
     memory_extraction_enabled: bool = Field(default=True)
-    memory_extraction_model: str = Field(default="claude-haiku-4-5-20251001")
 
     # Notifications
     default_notification_channel: str = Field(default="telegram")

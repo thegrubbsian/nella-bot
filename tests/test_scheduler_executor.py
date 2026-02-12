@@ -9,11 +9,7 @@ from src.scheduler.executor import TaskExecutor
 from src.scheduler.models import ScheduledTask
 from src.scheduler.store import TaskStore
 
-
-@pytest.fixture(autouse=True)
-def _no_turso(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Ensure tests use local file, not remote Turso."""
-    monkeypatch.setattr("src.config.settings.turso_database_url", "")
+pytestmark = pytest.mark.usefixtures("_no_turso")
 
 
 @pytest.fixture
