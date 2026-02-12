@@ -92,6 +92,17 @@ async def build_system_prompt(user_message: str = "") -> list[dict]:
             "with this repo. Combine with `query_logs` for full self-debugging."
         )
 
+    # Inject LinkedIn availability
+    from src.integrations.linkedin_auth import LinkedInAuth
+
+    if LinkedInAuth.enabled():
+        sections.append(
+            "# LinkedIn\n\n"
+            "LinkedIn is connected. You can create posts with `linkedin_create_post` "
+            "and comment on posts with `linkedin_post_comment` (provide the post URL). "
+            "Both require confirmation before executing."
+        )
+
     static_text = "\n\n---\n\n".join(sections)
 
     # Retrieve relevant memories

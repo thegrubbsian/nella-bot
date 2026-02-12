@@ -29,4 +29,10 @@ if settings.brave_search_api_key:
 if settings.github_token:
     from src.tools import github_tools  # noqa: F401
 
+# Conditionally load LinkedIn tools when token file exists.
+from src.integrations.linkedin_auth import LinkedInAuth
+
+if LinkedInAuth.enabled():
+    from src.tools import linkedin_tools  # noqa: F401
+
 __all__ = ["registry"]

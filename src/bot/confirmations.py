@@ -174,6 +174,24 @@ def _fmt_cancel_scheduled_task(inp: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _fmt_linkedin_create_post(inp: dict[str, Any]) -> str:
+    lines = ["Create LinkedIn post"]
+    vis = inp.get("visibility", "PUBLIC")
+    lines.append(f"Visibility: {vis}")
+    if inp.get("text"):
+        lines.append(f"Text: {_trunc(inp['text'])}")
+    return "\n".join(lines)
+
+
+def _fmt_linkedin_post_comment(inp: dict[str, Any]) -> str:
+    lines = ["Comment on LinkedIn post"]
+    if inp.get("post_url"):
+        lines.append(f"Post: {inp['post_url']}")
+    if inp.get("text"):
+        lines.append(f"Comment: {_trunc(inp['text'])}")
+    return "\n".join(lines)
+
+
 _TOOL_FORMATTERS: dict[str, Any] = {
     "send_email": _fmt_send_email,
     "reply_to_email": _fmt_reply_to_email,
@@ -188,6 +206,8 @@ _TOOL_FORMATTERS: dict[str, Any] = {
     "delete_file": _fmt_delete_file,
     "schedule_task": _fmt_schedule_task,
     "cancel_scheduled_task": _fmt_cancel_scheduled_task,
+    "linkedin_create_post": _fmt_linkedin_create_post,
+    "linkedin_post_comment": _fmt_linkedin_post_comment,
 }
 
 

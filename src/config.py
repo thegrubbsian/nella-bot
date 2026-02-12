@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     github_token: str = Field(default="")
     nella_source_repo: str = Field(default="")
 
+    # LinkedIn
+    linkedin_client_id: str = Field(default="")
+    linkedin_client_secret: str = Field(default="")
+
     # Plaud
     plaud_drive_folder_id: str = Field(default="")
 
