@@ -133,10 +133,20 @@ async def generate_response(
             kwargs["tools"] = tool_schemas
 
         async with client.messages.stream(**kwargs) as stream:
+            first_chunk = True
             async for text in stream.text_stream:
+                # Insert a visual separator between streaming rounds so
+                # text from successive tool-calling rounds doesn't run
+                # together into an unreadable blob.
+                if first_chunk and round_num > 0 and full_text and not full_text.endswith("\n"):
+                    full_text += "\n\n"
+                    if on_text_delta:
+                        await on_text_delta("\n\n")
+                    first_chunk = False
                 full_text += text
                 if on_text_delta:
                     await on_text_delta(text)
+                first_chunk = False
 
             response = await stream.get_final_message()
 

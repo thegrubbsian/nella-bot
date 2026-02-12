@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.tools.utility import get_current_datetime, save_note, search_notes
+from src.tools.utility import delete_note, get_current_datetime, save_note, search_notes
 
 
 @pytest.fixture(autouse=True)
@@ -62,3 +62,24 @@ async def test_save_and_search_multiple() -> None:
     result = await search_notes(query="Python")
     assert result.success
     assert result.data["count"] == 2
+
+
+async def test_delete_note() -> None:
+    await save_note(title="To Delete", content="Goodbye")
+    found = await search_notes(query="To Delete")
+    note_id = found.data["notes"][0]["id"]
+
+    result = await delete_note(note_id=note_id)
+    assert result.success
+    assert result.data["deleted"] is True
+    assert result.data["title"] == "To Delete"
+
+    # Verify it's gone
+    after = await search_notes(query="To Delete")
+    assert after.data["count"] == 0
+
+
+async def test_delete_note_not_found() -> None:
+    result = await delete_note(note_id=99999)
+    assert not result.success
+    assert "not found" in result.error

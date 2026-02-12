@@ -34,7 +34,7 @@ async def get_current_datetime() -> ToolResult:
 
 
 # ---------------------------------------------------------------------------
-# save_note / search_notes
+# save_note / search_notes / delete_note
 # ---------------------------------------------------------------------------
 
 
@@ -113,5 +113,31 @@ async def search_notes(query: str) -> ToolResult:
             for row in rows
         ]
         return ToolResult(data={"notes": notes, "count": len(notes)})
+    finally:
+        await db.close()
+
+
+class DeleteNoteParams(ToolParams):
+    note_id: int = Field(description="ID of the note to delete (from search_notes results)")
+
+
+@registry.tool(
+    name="delete_note",
+    description="Delete a saved note by its ID.",
+    category="utility",
+    params_model=DeleteNoteParams,
+    requires_confirmation=True,
+)
+async def delete_note(note_id: int) -> ToolResult:
+    db = await _ensure_notes_table()
+    try:
+        cursor = await db.execute("SELECT id, title FROM notes WHERE id = ?", (note_id,))
+        row = await cursor.fetchone()
+        if row is None:
+            return ToolResult(error=f"Note with id {note_id} not found.")
+        await db.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+        await db.commit()
+        logger.info("Deleted note %d: %s", row[0], row[1])
+        return ToolResult(data={"deleted": True, "id": row[0], "title": row[1]})
     finally:
         await db.close()
