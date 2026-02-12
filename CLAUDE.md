@@ -61,6 +61,15 @@ tests/            # pytest + pytest-asyncio
   Register them with `@webhook_registry.handler("source_name")`. The HTTP
   server runs alongside Telegram on `WEBHOOK_PORT` (default 8443), validates
   `X-Webhook-Secret`, and is disabled when `WEBHOOK_SECRET` is empty.
+- `src/llm/client.py` exposes two calling patterns for the Claude API:
+  - **`generate_response()`** — full pipeline: system prompt, Mem0 memories,
+    tool schemas, streaming, multi-round tool-calling loop. Used by the main
+    chat handler and `ai_task` scheduler jobs.
+  - **`complete_text()`** — bare single-shot call: no memory, no tools, no
+    streaming. Used for isolated LLM tasks (summarization, extraction, etc.).
+  Both share the same lazy `AsyncAnthropic` singleton. New code that needs
+  Claude should use one of these — do not create standalone `AsyncAnthropic`
+  instances elsewhere.
 
 ## Running
 

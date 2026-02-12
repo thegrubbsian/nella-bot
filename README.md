@@ -227,7 +227,7 @@ nellabot/
 │   │   ├── session.py               # In-memory conversation history (sliding window)
 │   │   └── security.py              # User allowlist check
 │   ├── llm/
-│   │   ├── client.py                # Claude API client, streaming, tool-calling loop
+│   │   ├── client.py                # Claude API: generate_response() (full pipeline) + complete_text() (bare call)
 │   │   ├── prompt.py                # System prompt builder (SOUL + USER + memories)
 │   │   └── models.py                # ModelManager — runtime model switching
 │   ├── memory/

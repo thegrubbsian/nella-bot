@@ -117,21 +117,13 @@ async def _fetch_transcript(payload: dict[str, Any]) -> str | None:
 async def _analyze_transcript(transcript: str) -> str:
     """Send the transcript to Claude for summarization.
 
-    Uses a bare API call (no system prompt, no Mem0 memories) to avoid
+    Uses complete_text() (no system prompt, no Mem0 memories) to avoid
     contaminating the summary with facts from previous meetings.
     """
-    import anthropic
+    from src.llm.client import complete_text
 
-    from src.llm.models import ModelManager
-
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     prompt = ANALYSIS_PROMPT.format(transcript=transcript)
-    response = await client.messages.create(
-        model=ModelManager.get().get_chat_model(),
-        max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return response.content[0].text
+    return await complete_text([{"role": "user", "content": prompt}])
 
 
 async def _notify_owner(message: str) -> None:

@@ -45,6 +45,30 @@ def _get_client() -> anthropic.AsyncAnthropic:
     return _client
 
 
+async def complete_text(
+    messages: list[dict[str, Any]],
+    *,
+    system: str | list[dict[str, Any]] | None = None,
+    model: str | None = None,
+    max_tokens: int = 4096,
+) -> str:
+    """Single-shot Claude call — no tools, no memory, no streaming.
+
+    Use this for isolated LLM tasks (summarization, extraction, etc.)
+    where the full generate_response() pipeline is not needed.
+    """
+    client = _get_client()
+    kwargs: dict[str, Any] = {
+        "model": model or ModelManager.get().get_chat_model(),
+        "max_tokens": max_tokens,
+        "messages": messages,
+    }
+    if system is not None:
+        kwargs["system"] = system
+    response = await client.messages.create(**kwargs)
+    return response.content[0].text
+
+
 def _serialize_content(content: list[Any]) -> list[dict[str, Any]]:
     """Convert SDK content blocks to plain dicts for message history."""
     result: list[dict[str, Any]] = []

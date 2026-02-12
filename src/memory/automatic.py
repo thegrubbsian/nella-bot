@@ -9,8 +9,6 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import anthropic
-
 from src.config import settings
 from src.llm.models import ModelManager
 from src.memory.store import MemoryStore
@@ -18,15 +16,6 @@ from src.memory.store import MemoryStore
 logger = logging.getLogger(__name__)
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
-
-_extraction_client: anthropic.AsyncAnthropic | None = None
-
-
-def _get_extraction_client() -> anthropic.AsyncAnthropic:
-    global _extraction_client  # noqa: PLW0603
-    if _extraction_client is None:
-        _extraction_client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-    return _extraction_client
 
 
 # -- Data structures ---------------------------------------------------------
@@ -157,18 +146,19 @@ async def extract_and_save(
         return
 
     try:
-        client = _get_extraction_client()
+        from src.llm.client import complete_text
+
         rules = _load_rules()
         prompt = build_extraction_prompt(user_message, assistant_response, recent_history)
 
-        response = await client.messages.create(
+        response_text = await complete_text(
+            [{"role": "user", "content": prompt}],
+            system=rules,
             model=ModelManager.get().get_memory_model(),
             max_tokens=1024,
-            system=rules,
-            messages=[{"role": "user", "content": prompt}],
         )
 
-        result = parse_extraction_result(response.content[0].text)
+        result = parse_extraction_result(response_text)
 
         # Save medium and high importance memories
         saved = 0

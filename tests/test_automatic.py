@@ -1,7 +1,7 @@
 """Tests for automatic memory extraction."""
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from src.memory.automatic import (
     ExtractionResult,
@@ -116,26 +116,21 @@ async def test_extract_saves_medium_and_high_only() -> None:
     mock_store = AsyncMock()
     mock_store.enabled = True
 
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock(text=json.dumps({
+    response_json = json.dumps({
         "memories": [
             {"content": "Important fact", "category": "fact", "importance": "high"},
             {"content": "Useful detail", "category": "preference", "importance": "medium"},
             {"content": "Trivial thing", "category": "general", "importance": "low"},
         ],
         "topic_switch": None,
-    }))]
-
-    mock_client = AsyncMock()
-    mock_client.messages.create.return_value = mock_response
+    })
 
     with (
         patch("src.memory.automatic.MemoryStore.get", return_value=mock_store),
-        patch("src.memory.automatic._get_extraction_client", return_value=mock_client),
+        patch("src.llm.client.complete_text", new_callable=AsyncMock, return_value=response_json),
         patch("src.memory.automatic.settings") as mock_settings,
     ):
         mock_settings.memory_extraction_enabled = True
-        mock_settings.memory_extraction_model = "claude-haiku-4-5-20251001"
 
         await extract_and_save("hello", "hi", [], "conv_1")
 
@@ -147,8 +142,7 @@ async def test_extract_saves_topic_switch() -> None:
     mock_store = AsyncMock()
     mock_store.enabled = True
 
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock(text=json.dumps({
+    response_json = json.dumps({
         "memories": [],
         "topic_switch": {
             "previous_topic": "Budget",
@@ -156,18 +150,14 @@ async def test_extract_saves_topic_switch() -> None:
             "open_items": "Vendor quotes",
             "next_steps": "Email vendors",
         },
-    }))]
-
-    mock_client = AsyncMock()
-    mock_client.messages.create.return_value = mock_response
+    })
 
     with (
         patch("src.memory.automatic.MemoryStore.get", return_value=mock_store),
-        patch("src.memory.automatic._get_extraction_client", return_value=mock_client),
+        patch("src.llm.client.complete_text", new_callable=AsyncMock, return_value=response_json),
         patch("src.memory.automatic.settings") as mock_settings,
     ):
         mock_settings.memory_extraction_enabled = True
-        mock_settings.memory_extraction_model = "claude-haiku-4-5-20251001"
 
         await extract_and_save("let's switch topics", "sure", [], "conv_1")
 

@@ -29,7 +29,6 @@ class _FakeSettings:
         self.plaud_drive_folder_id = folder_id
         self.plaud_google_account = plaud_account
         self.allowed_user_ids = "12345"
-        self.anthropic_api_key = "test-key"
 
     def get_allowed_user_ids(self) -> set[int]:
         return {12345}
@@ -233,28 +232,20 @@ async def test_fetch_returns_none_after_all_retries() -> None:
 
 
 async def test_analyze_calls_claude_directly() -> None:
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock(text="Summary here")]
-
-    mock_client_instance = MagicMock()
-    mock_client_instance.messages.create = AsyncMock(return_value=mock_response)
-
-    mock_model_mgr = MagicMock()
-    mock_model_mgr.get_chat_model.return_value = "claude-test-model"
-
-    with (
-        patch("anthropic.AsyncAnthropic", return_value=mock_client_instance),
-        patch("src.llm.models.ModelManager.get", return_value=mock_model_mgr),
-        patch("src.webhooks.handlers.plaud.settings", _FakeSettings()),
-    ):
+    with patch(
+        "src.llm.client.complete_text",
+        new_callable=AsyncMock,
+        return_value="Summary here",
+    ) as mock_complete:
         result = await _analyze_transcript("some transcript")
         assert result == "Summary here"
 
-        call_kwargs = mock_client_instance.messages.create.call_args.kwargs
-        assert "some transcript" in call_kwargs["messages"][0]["content"]
-        assert call_kwargs["model"] == "claude-test-model"
-        # No system prompt — avoids Mem0 contamination
-        assert "system" not in call_kwargs
+        mock_complete.assert_awaited_once()
+        call_args = mock_complete.call_args
+        messages = call_args[0][0]
+        assert "some transcript" in messages[0]["content"]
+        # No system kwarg — avoids Mem0 contamination
+        assert "system" not in call_args.kwargs
 
 
 # -- _notify_owner -----------------------------------------------------------
