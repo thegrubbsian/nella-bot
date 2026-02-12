@@ -27,13 +27,14 @@ def main() -> None:
     parser.add_argument(
         "--account",
         required=True,
-        help="Account name (e.g. 'work', 'personal'). Token saved as token_<account>.json",
+        help="Account name (e.g. 'work', 'personal'). "
+        "Token saved to auth_tokens/google_<account>_auth_token.json",
     )
     args = parser.parse_args()
 
     account = args.account
     creds_path = Path(settings.google_credentials_path)
-    token_path = Path(f"token_{account}.json")
+    token_path = Path(f"auth_tokens/google_{account}_auth_token.json")
 
     if not creds_path.exists():
         print(f"ERROR: credentials file not found at {creds_path}")
@@ -57,10 +58,9 @@ def main() -> None:
     )
     creds = flow.run_local_server(port=0)
 
+    token_path.parent.mkdir(parents=True, exist_ok=True)
     token_path.write_text(creds.to_json(), encoding="utf-8")
     print(f"\nToken saved to {token_path}")
-    print("\nTo deploy on your VPS, copy this file:")
-    print(f"  scp {token_path} your-vps:/home/nella/app/{token_path}")
 
 
 if __name__ == "__main__":

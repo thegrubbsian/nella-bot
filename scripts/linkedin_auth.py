@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """One-time OAuth2 browser flow for LinkedIn.
 
-Run this once on your Mac to generate linkedin_token.json,
-then copy it to your VPS.
+Run this once on your Mac to generate auth_tokens/linkedin_default_auth_token.json,
+then copy the auth_tokens/ directory to your VPS.
 
 Usage:
     python scripts/linkedin_auth.py
@@ -29,7 +29,7 @@ import httpx
 
 from src.config import settings
 
-TOKEN_PATH = Path("linkedin_token.json")
+TOKEN_PATH = Path("auth_tokens/linkedin_default_auth_token.json")
 REDIRECT_URI = "http://localhost:8585/callback"
 SCOPES = "openid profile email w_member_social"
 
@@ -168,11 +168,10 @@ def main() -> None:
         "name": name,
         "email": email,
     }
+    TOKEN_PATH.parent.mkdir(parents=True, exist_ok=True)
     TOKEN_PATH.write_text(json.dumps(saved, indent=2), encoding="utf-8")
     print(f"\nToken saved to {TOKEN_PATH}")
     print(f"Expires in {expires_in // 86400} days.")
-    print("\nTo deploy on your VPS, copy this file:")
-    print(f"  scp {TOKEN_PATH} your-vps:/home/nella/app/{TOKEN_PATH}")
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ APP_DIR="/home/nella/app"
 UV_BIN="/home/nella/.local/bin/uv"
 RSYNC_EXCLUDES=(
     .git/ __pycache__/ "*.pyc" .venv/ .env ".env.*"
-    "token*.json" credentials.json data/ .DS_Store .ruff_cache/
+    auth_tokens/ credentials.json data/ .DS_Store .ruff_cache/
     .pytest_cache/ "*.db" "*.db-journal" .claude/
 )
 
@@ -36,29 +36,28 @@ run_remote() {
 # ---------------------------------------------------------------------------
 QUICK=false
 SSH_TARGET=""
-SECRETS_DIR=""
 
 usage() {
     cat <<EOF
-Usage: $0 <ssh-target> <secrets-dir> [--quick]
+Usage: $0 <ssh-target> [--quick]
 
   ssh-target   e.g. root@203.0.113.5
-  secrets-dir  local directory containing .env (and optionally credentials.json, token_*.json)
   --quick      skip system setup and dependency install (code-only update)
 
+Reads .env and auth_tokens/ from the project root.
+
 Examples:
-  $0 root@203.0.113.5 ~/nella-secrets
-  $0 root@203.0.113.5 ~/nella-secrets --quick
+  $0 root@203.0.113.5
+  $0 root@203.0.113.5 --quick
 EOF
     exit 1
 }
 
 parse_args() {
-    [[ $# -lt 2 ]] && usage
+    [[ $# -lt 1 ]] && usage
 
     SSH_TARGET="$1"
-    SECRETS_DIR="$2"
-    shift 2
+    shift
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -79,23 +78,15 @@ validate_args() {
         exit 1
     fi
 
-    # Secrets dir must exist with .env
-    if [[ ! -d "$SECRETS_DIR" ]]; then
-        echo "ERROR: Secrets directory does not exist: $SECRETS_DIR" >&2
-        exit 1
-    fi
-    if [[ ! -f "$SECRETS_DIR/.env" ]]; then
-        echo "ERROR: .env not found in secrets directory: $SECRETS_DIR" >&2
+    # .env must exist in project root
+    if [[ ! -f ".env" ]]; then
+        echo "ERROR: .env not found in project root." >&2
         exit 1
     fi
 
-    # Warn about optional secret files
-    if [[ ! -f "$SECRETS_DIR/credentials.json" ]]; then
-        log "WARNING: credentials.json not found in $SECRETS_DIR (Google OAuth won't work for new accounts)"
-    fi
-    # shellcheck disable=SC2012
-    if ! ls "$SECRETS_DIR"/token_*.json &>/dev/null; then
-        log "WARNING: No token_*.json files found in $SECRETS_DIR (Google tools will be disabled)"
+    # Warn about optional auth tokens
+    if [[ ! -d "auth_tokens" ]] || ! ls auth_tokens/*.json &>/dev/null; then
+        log "WARNING: No auth token files found in auth_tokens/ (Google/LinkedIn tools will be disabled)"
     fi
 
     # SSH connectivity
@@ -201,18 +192,13 @@ phase_sync_secrets() {
     log "Phase 3: Syncing secrets"
 
     # .env (required — already validated)
-    scp -q "$SECRETS_DIR/.env" "$SSH_TARGET:$APP_DIR/.env"
+    scp -q ".env" "$SSH_TARGET:$APP_DIR/.env"
 
-    # credentials.json (optional)
-    if [[ -f "$SECRETS_DIR/credentials.json" ]]; then
-        scp -q "$SECRETS_DIR/credentials.json" "$SSH_TARGET:$APP_DIR/credentials.json"
+    # auth_tokens/ directory (optional)
+    if ls auth_tokens/*.json &>/dev/null; then
+        run_remote mkdir -p "$APP_DIR/auth_tokens"
+        scp -q auth_tokens/*.json "$SSH_TARGET:$APP_DIR/auth_tokens/"
     fi
-
-    # token_*.json (optional, glob)
-    for token_file in "$SECRETS_DIR"/token_*.json; do
-        [[ -f "$token_file" ]] || continue
-        scp -q "$token_file" "$SSH_TARGET:$APP_DIR/$(basename "$token_file")"
-    done
 
     # Lock down permissions
     run_remote bash -s <<'REMOTE_SCRIPT'
@@ -220,9 +206,13 @@ set -euo pipefail
 cd /home/nella/app
 chmod 600 .env
 chown nella:nella .env
-for f in credentials.json token_*.json; do
-    [[ -f "$f" ]] && chmod 600 "$f" && chown nella:nella "$f"
-done
+if [[ -d auth_tokens ]]; then
+    chmod 700 auth_tokens
+    chown nella:nella auth_tokens
+    for f in auth_tokens/*.json; do
+        [[ -f "$f" ]] && chmod 600 "$f" && chown nella:nella "$f"
+    done
+fi
 REMOTE_SCRIPT
 
     log "Secrets synced"
@@ -450,9 +440,9 @@ main() {
 
     # Post-deploy info
     local ngrok_domain
-    ngrok_domain=$(grep -s '^NGROK_DOMAIN=' "$SECRETS_DIR/.env" | cut -d= -f2- || true)
+    ngrok_domain=$(grep -s '^NGROK_DOMAIN=' ".env" | cut -d= -f2- || true)
     local ngrok_authtoken
-    ngrok_authtoken=$(grep -s '^NGROK_AUTHTOKEN=' "$SECRETS_DIR/.env" | cut -d= -f2- || true)
+    ngrok_authtoken=$(grep -s '^NGROK_AUTHTOKEN=' ".env" | cut -d= -f2- || true)
 
     if [[ -n "$ngrok_domain" && -n "$ngrok_authtoken" ]]; then
         echo ""

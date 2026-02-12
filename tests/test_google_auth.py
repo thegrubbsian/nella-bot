@@ -27,12 +27,12 @@ class TestGet:
     def test_default_account(self, _accounts):
         mgr = GoogleAuthManager.get()
         assert mgr._account == "work"
-        assert mgr._token_path == Path("token_work.json")
+        assert mgr._token_path == Path("auth_tokens/google_work_auth_token.json")
 
     def test_explicit_account(self, _accounts):
         mgr = GoogleAuthManager.get("personal")
         assert mgr._account == "personal"
-        assert mgr._token_path == Path("token_personal.json")
+        assert mgr._token_path == Path("auth_tokens/google_personal_auth_token.json")
 
     def test_caching(self, _accounts):
         a = GoogleAuthManager.get("work")
@@ -63,7 +63,8 @@ class TestGet:
 class TestAnyEnabled:
     def test_returns_true_when_token_exists(self, _accounts, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "token_work.json").write_text("{}")
+        (tmp_path / "auth_tokens").mkdir()
+        (tmp_path / "auth_tokens/google_work_auth_token.json").write_text("{}")
         assert GoogleAuthManager.any_enabled() is True
 
     def test_returns_false_when_no_tokens(self, _accounts, tmp_path, monkeypatch):
@@ -78,7 +79,8 @@ class TestAnyEnabled:
 class TestEnabled:
     def test_enabled_when_token_exists(self, _accounts, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "token_work.json").write_text("{}")
+        (tmp_path / "auth_tokens").mkdir()
+        (tmp_path / "auth_tokens/google_work_auth_token.json").write_text("{}")
         assert GoogleAuthManager.get("work").enabled is True
 
     def test_disabled_when_no_token(self, _accounts, tmp_path, monkeypatch):
@@ -95,7 +97,8 @@ class TestLoadCredentials:
     @patch("src.integrations.google_auth.Credentials")
     def test_load_valid(self, mock_creds_cls, _accounts, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "token_work.json").write_text("{}")
+        (tmp_path / "auth_tokens").mkdir()
+        (tmp_path / "auth_tokens/google_work_auth_token.json").write_text("{}")
 
         mock_creds = MagicMock()
         mock_creds.expired = False
@@ -110,7 +113,8 @@ class TestLoadCredentials:
         self, mock_creds_cls, mock_request_cls, _accounts, tmp_path, monkeypatch
     ):
         monkeypatch.chdir(tmp_path)
-        token = tmp_path / "token_work.json"
+        (tmp_path / "auth_tokens").mkdir()
+        token = tmp_path / "auth_tokens/google_work_auth_token.json"
         token.write_text("{}")
 
         mock_creds = MagicMock()
@@ -130,7 +134,8 @@ class TestServiceBuilders:
     @patch("src.integrations.google_auth.Credentials")
     def test_gmail_service(self, mock_creds_cls, mock_build, _accounts, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "token_work.json").write_text("{}")
+        (tmp_path / "auth_tokens").mkdir()
+        (tmp_path / "auth_tokens/google_work_auth_token.json").write_text("{}")
         mock_creds = MagicMock(expired=False)
         mock_creds_cls.from_authorized_user_file.return_value = mock_creds
 
@@ -141,7 +146,8 @@ class TestServiceBuilders:
     @patch("src.integrations.google_auth.Credentials")
     def test_calendar_service(self, mock_creds_cls, mock_build, _accounts, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "token_work.json").write_text("{}")
+        (tmp_path / "auth_tokens").mkdir()
+        (tmp_path / "auth_tokens/google_work_auth_token.json").write_text("{}")
         mock_creds = MagicMock(expired=False)
         mock_creds_cls.from_authorized_user_file.return_value = mock_creds
 
@@ -152,7 +158,8 @@ class TestServiceBuilders:
     @patch("src.integrations.google_auth.Credentials")
     def test_drive_service(self, mock_creds_cls, mock_build, _accounts, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "token_work.json").write_text("{}")
+        (tmp_path / "auth_tokens").mkdir()
+        (tmp_path / "auth_tokens/google_work_auth_token.json").write_text("{}")
         mock_creds = MagicMock(expired=False)
         mock_creds_cls.from_authorized_user_file.return_value = mock_creds
 
@@ -163,7 +170,8 @@ class TestServiceBuilders:
     @patch("src.integrations.google_auth.Credentials")
     def test_docs_service(self, mock_creds_cls, mock_build, _accounts, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "token_work.json").write_text("{}")
+        (tmp_path / "auth_tokens").mkdir()
+        (tmp_path / "auth_tokens/google_work_auth_token.json").write_text("{}")
         mock_creds = MagicMock(expired=False)
         mock_creds_cls.from_authorized_user_file.return_value = mock_creds
 

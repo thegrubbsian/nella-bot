@@ -11,7 +11,7 @@ from src.config import settings
 
 logger = logging.getLogger(__name__)
 
-TOKEN_PATH = Path("linkedin_token.json")
+TOKEN_PATH = Path("auth_tokens/linkedin_default_auth_token.json")
 TOKEN_ENDPOINT = "https://www.linkedin.com/oauth/v2/accessToken"
 
 
@@ -22,8 +22,8 @@ class LinkedInAuthError(Exception):
 class LinkedInAuth:
     """Single-account LinkedIn auth manager.
 
-    Loads ``linkedin_token.json``, refreshes if possible, and provides
-    headers for LinkedIn REST API calls.
+    Loads ``auth_tokens/linkedin_default_auth_token.json``, refreshes if
+    possible, and provides headers for LinkedIn REST API calls.
     """
 
     _instance: "LinkedInAuth | None" = None
@@ -124,6 +124,6 @@ class LinkedInAuth:
         token_data = self._ensure_token()
         person_id = token_data.get("person_id", "")
         if not person_id:
-            msg = "person_id not found in linkedin_token.json. Re-run the auth script."
+            msg = "person_id not found in LinkedIn token file. Re-run the auth script."
             raise LinkedInAuthError(msg)
         return f"urn:li:person:{person_id}"

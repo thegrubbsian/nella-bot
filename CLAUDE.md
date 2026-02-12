@@ -55,7 +55,7 @@ tests/            # pytest + pytest-asyncio
 - Google tools use `GoogleToolParams` (from `src/tools/base.py`) as their param
   base class. This adds an optional `account` parameter to every Google tool.
   Named accounts are configured via `GOOGLE_ACCOUNTS` in `.env`, with token
-  files named `token_{account}.json`. Claude picks the right account from
+  files at `auth_tokens/google_{account}_auth_token.json`. Claude picks the right account from
   conversational context; the system prompt lists available accounts.
 - Webhook handlers go in `src/webhooks/handlers/`, one file per integration.
   Register them with `@webhook_registry.handler("source_name")`. The HTTP

@@ -3,8 +3,8 @@
 .env.*
 !.env.example
 
-# Google OAuth
-token*.json
+# Auth tokens
+auth_tokens/
 credentials.json
 
 # Python

@@ -366,7 +366,7 @@ Then edit `.env` with your actual values:
 | `DEFAULT_CHAT_MODEL` | No | Friendly name: `haiku`, `sonnet`, or `opus`. Default: `sonnet` |
 | `DEFAULT_MEMORY_MODEL` | No | Model for memory extraction. Default: `haiku` |
 | `GOOGLE_CREDENTIALS_PATH` | No | Path to Google OAuth credentials file. Default: `credentials.json` |
-| `GOOGLE_ACCOUNTS` | No | Comma-separated named accounts (e.g. `work,personal`). Token files: `token_{name}.json`. Google tools are disabled when empty. |
+| `GOOGLE_ACCOUNTS` | No | Comma-separated named accounts (e.g. `work,personal`). Token files: `auth_tokens/google_{name}_auth_token.json`. Google tools are disabled when empty. |
 | `GOOGLE_DEFAULT_ACCOUNT` | No | Account used when a tool call omits `account`. Defaults to the first entry in `GOOGLE_ACCOUNTS`. |
 | `PLAUD_GOOGLE_ACCOUNT` | No | Which Google account to use for Plaud transcript access (webhook handler runs without Claude reasoning). |
 | `MEM0_API_KEY` | No | Mem0 API key from [app.mem0.ai](https://app.mem0.ai). If empty, memory features are disabled (Nella still works, just without long-term memory) |
@@ -404,7 +404,7 @@ uv run python scripts/google_auth.py --account work
 uv run python scripts/google_auth.py --account personal
 ```
 
-Each command opens a browser for you to authorize the corresponding Google account. Tokens are saved as `token_work.json`, `token_personal.json`, etc. Google tools automatically load when at least one token file exists.
+Each command opens a browser for you to authorize the corresponding Google account. Tokens are saved to `auth_tokens/google_work_auth_token.json`, `auth_tokens/google_personal_auth_token.json`, etc. Google tools automatically load when at least one token file exists.
 
 All 30 Google tools accept an optional `account` parameter. Claude picks the right account based on conversational context (the system prompt tells it which accounts are available). When `account` is omitted, the default from `GOOGLE_DEFAULT_ACCOUNT` is used.
 
@@ -464,13 +464,13 @@ The deploy script handles everything — system setup, code sync, secrets, depen
 
 ```bash
 # Full deploy (first time or after system changes)
-bash scripts/deploy.sh root@your-vps ~/nella-secrets
+bash scripts/deploy.sh root@your-vps
 
 # Quick deploy (code-only — skips system setup and deps)
-bash scripts/deploy.sh root@your-vps ~/nella-secrets --quick
+bash scripts/deploy.sh root@your-vps --quick
 ```
 
-The `secrets-dir` should contain your `.env` and optionally `credentials.json` and `token_*.json` files.
+The script reads `.env` and `auth_tokens/` from the project root.
 
 If `NGROK_AUTHTOKEN` and `NGROK_DOMAIN` are set in your `.env`, the script automatically configures ngrok as a systemd service to provide an HTTPS tunnel for webhooks (so external services like Zapier can reach the webhook server).
 
@@ -504,9 +504,9 @@ sudo systemctl restart nella
 ### Where secrets live on the server
 
 - `/home/nella/app/.env` — environment variables (loaded by systemd via `EnvironmentFile`)
-- `/home/nella/app/token_work.json` — Google OAuth token (work account)
-- `/home/nella/app/token_personal.json` — Google OAuth token (personal account)
-- `/home/nella/app/credentials.json` — Google OAuth client credentials (shared across accounts)
+- `/home/nella/app/auth_tokens/google_work_auth_token.json` — Google OAuth token (work account)
+- `/home/nella/app/auth_tokens/google_personal_auth_token.json` — Google OAuth token (personal account)
+- `/home/nella/app/auth_tokens/linkedin_default_auth_token.json` — LinkedIn OAuth token
 
 These are **not** in the git repo. If you're setting up a new server, you need to copy them manually.
 
@@ -632,7 +632,7 @@ If Google API calls start failing with auth errors, the token may have expired:
 uv run python scripts/google_auth.py --account work
 
 # Copy the new token to your VPS
-scp token_work.json your-vps:/home/nella/app/token_work.json
+scp auth_tokens/google_work_auth_token.json your-vps:/home/nella/app/auth_tokens/google_work_auth_token.json
 
 # Restart the bot
 ssh your-vps sudo systemctl restart nella
@@ -663,7 +663,7 @@ ssh your-vps sudo systemctl stop nella
 
 ### Google tools not showing up
 
-Google tools only load if `GOOGLE_ACCOUNTS` is set in `.env` and at least one `token_{name}.json` file exists. Run the auth flow first (see setup above). Check the logs — if `GOOGLE_ACCOUNTS` is empty you'll see a warning: "GOOGLE_ACCOUNTS is not configured — Google tools disabled".
+Google tools only load if `GOOGLE_ACCOUNTS` is set in `.env` and at least one `auth_tokens/google_{name}_auth_token.json` file exists. Run the auth flow first (see setup above). Check the logs — if `GOOGLE_ACCOUNTS` is empty you'll see a warning: "GOOGLE_ACCOUNTS is not configured — Google tools disabled".
 
 ### Google OAuth token expiry
 

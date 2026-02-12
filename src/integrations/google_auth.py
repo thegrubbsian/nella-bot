@@ -61,7 +61,7 @@ class GoogleAuthManager:
             raise ValueError(msg)
 
         if name not in cls._instances:
-            token_path = Path(f"token_{name}.json")
+            token_path = Path(f"auth_tokens/google_{name}_auth_token.json")
             cls._instances[name] = cls(name, token_path)
 
         return cls._instances[name]
@@ -76,7 +76,9 @@ class GoogleAuthManager:
         if not configured:
             logger.warning("GOOGLE_ACCOUNTS is not configured — Google tools disabled")
             return False
-        return any(Path(f"token_{name}.json").exists() for name in configured)
+        return any(
+            Path(f"auth_tokens/google_{name}_auth_token.json").exists() for name in configured
+        )
 
     @property
     def enabled(self) -> bool:
