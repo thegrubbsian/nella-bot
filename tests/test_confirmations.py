@@ -4,6 +4,9 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 from src.bot.confirmations import (
+    _action_label,
+    _humanize_cron,
+    _humanize_datetime,
     _pending,
     format_tool_summary,
     generate_confirmation_id,
@@ -71,13 +74,15 @@ def test_format_send_email() -> None:
 def test_format_reply_to_email() -> None:
     inp = {"message_id": "msg123", "body": "Thanks!"}
     text = format_tool_summary("reply_to_email", inp, "Reply")
-    assert "msg123" in text
+    assert "Reply to email" in text
+    assert "msg123" not in text
     assert "Thanks!" in text
 
 
 def test_format_archive_email() -> None:
     text = format_tool_summary("archive_email", {"message_id": "m1"}, "Archive")
-    assert "m1" in text
+    assert "Archive 1 email" in text
+    assert "m1" not in text
 
 
 def test_format_archive_emails() -> None:
@@ -86,10 +91,15 @@ def test_format_archive_emails() -> None:
 
 
 def test_format_create_event() -> None:
-    inp = {"title": "Standup", "start": "2025-01-01T09:00", "end": "2025-01-01T09:30"}
+    inp = {
+        "title": "Standup",
+        "start_time": "2025-01-01T09:00",
+        "end_time": "2025-01-01T09:30",
+    }
     text = format_tool_summary("create_event", inp, "Create event")
     assert "Standup" in text
-    assert "2025-01-01T09:00" in text
+    assert "Jan 1, 2025" in text
+    assert "9:00 AM" in text
 
 
 def test_format_delete_event() -> None:
@@ -99,23 +109,43 @@ def test_format_delete_event() -> None:
 
 def test_format_create_document() -> None:
     text = format_tool_summary("create_document", {"title": "Notes"}, "Create doc")
+    assert "Create Google Doc" in text
     assert "Notes" in text
 
 
 def test_format_delete_file() -> None:
     text = format_tool_summary("delete_file", {"file_id": "f1"}, "Delete file")
+    assert "Trash Drive file" in text
     assert "f1" in text
 
 
 def test_format_schedule_task() -> None:
-    inp = {"name": "Morning check", "task_type": "one_off", "action_type": "ai_task"}
+    inp = {
+        "name": "Morning check",
+        "task_type": "one_off",
+        "action_type": "ai_task",
+        "run_at": "2025-06-01T15:00:00-06:00",
+        "action_content": "Check my inbox",
+    }
     text = format_tool_summary("schedule_task", inp, "Schedule")
+    assert "Schedule one-time task" in text
     assert "Morning check" in text
+    assert "AI task (with tool access)" in text
+    assert "Jun 1, 2025" in text
+    assert "Check my inbox" in text
 
 
 def test_format_cancel_scheduled_task() -> None:
     text = format_tool_summary("cancel_scheduled_task", {"task_id": "t1"}, "Cancel")
+    assert "Cancel scheduled task" in text
     assert "t1" in text
+
+
+def test_format_cancel_scheduled_task_search() -> None:
+    text = format_tool_summary(
+        "cancel_scheduled_task", {"search_query": "morning"}, "Cancel"
+    )
+    assert "Search: morning" in text
 
 
 def test_format_unknown_tool_fallback() -> None:
@@ -132,6 +162,231 @@ def test_format_truncates_long_body() -> None:
     text = format_tool_summary("send_email", inp, "Send")
     assert "…" in text
     assert len(text) < 500
+
+
+# -- _humanize_cron --------------------------------------------------------
+
+
+def test_humanize_cron_daily() -> None:
+    assert _humanize_cron("0 8 * * *") == "Daily at 8:00 AM"
+
+
+def test_humanize_cron_daily_pm() -> None:
+    assert _humanize_cron("30 14 * * *") == "Daily at 2:30 PM"
+
+
+def test_humanize_cron_weekdays() -> None:
+    assert _humanize_cron("0 9 * * 1-5") == "Weekdays at 9:00 AM"
+
+
+def test_humanize_cron_weekends() -> None:
+    assert _humanize_cron("0 10 * * 0,6") == "Weekends at 10:00 AM"
+
+
+def test_humanize_cron_every_n_minutes() -> None:
+    assert _humanize_cron("*/15 * * * *") == "Every 15 minutes"
+
+
+def test_humanize_cron_every_n_hours() -> None:
+    assert _humanize_cron("0 */2 * * *") == "Every 2 hours"
+
+
+def test_humanize_cron_fallback() -> None:
+    expr = "0 8 1 * *"
+    assert _humanize_cron(expr) == expr
+
+
+def test_humanize_cron_invalid() -> None:
+    assert _humanize_cron("not a cron") == "not a cron"
+
+
+# -- _humanize_datetime ----------------------------------------------------
+
+
+def test_humanize_datetime_naive() -> None:
+    result = _humanize_datetime("2025-06-01T15:00:00")
+    assert "Jun 1, 2025" in result
+    assert "3:00 PM" in result
+
+
+def test_humanize_datetime_with_tz() -> None:
+    result = _humanize_datetime("2025-06-01T15:00:00-06:00")
+    assert "Jun 1, 2025" in result
+    assert "3:00 PM" in result
+
+
+def test_humanize_datetime_fallback() -> None:
+    assert _humanize_datetime("not-a-date") == "not-a-date"
+
+
+# -- _action_label ---------------------------------------------------------
+
+
+def test_action_label_ai_task() -> None:
+    assert _action_label("ai_task") == "AI task (with tool access)"
+
+
+def test_action_label_simple_message() -> None:
+    assert _action_label("simple_message") == "Reminder message"
+
+
+def test_action_label_unknown() -> None:
+    assert _action_label("custom_thing") == "custom_thing"
+
+
+# -- New formatter tests ---------------------------------------------------
+
+
+def test_format_send_email_with_cc_and_attachments() -> None:
+    inp = {
+        "to": "alice@example.com",
+        "cc": "bob@example.com",
+        "subject": "Hi",
+        "body": "Hello",
+        "attachments": ["report.pdf", "data.csv"],
+    }
+    text = format_tool_summary("send_email", inp, "Send")
+    assert "CC: bob@example.com" in text
+    assert "Attachments: 2 file(s)" in text
+
+
+def test_format_reply_to_email_with_attachments() -> None:
+    inp = {"message_id": "m1", "body": "Here you go", "attachments": ["file.pdf"]}
+    text = format_tool_summary("reply_to_email", inp, "Reply")
+    assert "Attachments: 1 file(s)" in text
+
+
+def test_format_create_event_with_location_and_attendees() -> None:
+    inp = {
+        "title": "Lunch",
+        "start_time": "2025-03-15T12:00",
+        "end_time": "2025-03-15T13:00",
+        "location": "Downtown Cafe",
+        "attendees": ["alice@example.com", "bob@example.com"],
+    }
+    text = format_tool_summary("create_event", inp, "Create")
+    assert "Location: Downtown Cafe" in text
+    assert "alice@example.com" in text
+
+
+def test_format_update_event_shows_changed_fields() -> None:
+    inp = {
+        "event_id": "ev1",
+        "title": "New Title",
+        "start_time": "2025-03-15T14:00",
+    }
+    text = format_tool_summary("update_event", inp, "Update")
+    assert "New Title" in text
+    assert "Mar 15, 2025" in text
+
+
+def test_format_update_document_header() -> None:
+    inp = {"document_id": "doc1", "content": "New content"}
+    text = format_tool_summary("update_document", inp, "Update")
+    assert "Replace document content" in text
+
+
+def test_format_schedule_task_recurring() -> None:
+    inp = {
+        "name": "Daily Email Triage",
+        "task_type": "recurring",
+        "cron": "0 8 * * *",
+        "action_type": "ai_task",
+        "action_content": "Check my inbox for urgent emails",
+    }
+    text = format_tool_summary("schedule_task", inp, "Schedule")
+    assert "Schedule recurring task" in text
+    assert "Daily at 8:00 AM" in text
+    assert "AI task (with tool access)" in text
+    assert "Check my inbox" in text
+
+
+def test_format_schedule_task_simple_message() -> None:
+    inp = {
+        "name": "Drink water",
+        "task_type": "recurring",
+        "cron": "0 */2 * * *",
+        "action_type": "simple_message",
+        "action_content": "Time to drink some water!",
+    }
+    text = format_tool_summary("schedule_task", inp, "Schedule")
+    assert "Reminder message" in text
+    assert "Every 2 hours" in text
+
+
+def test_format_linkedin_create_post_visibility() -> None:
+    inp = {"text": "Hello LinkedIn!", "visibility": "PUBLIC"}
+    text = format_tool_summary("linkedin_create_post", inp, "Post")
+    assert "Public (anyone)" in text
+
+
+def test_format_linkedin_create_post_connections() -> None:
+    inp = {"text": "Hello!", "visibility": "CONNECTIONS"}
+    text = format_tool_summary("linkedin_create_post", inp, "Post")
+    assert "Connections only" in text
+
+
+def test_format_upload_to_drive() -> None:
+    inp = {"path": "report.pdf", "folder_id": "folder123", "filename": "Q1 Report.pdf"}
+    text = format_tool_summary("upload_to_drive", inp, "Upload")
+    assert "Upload file to Google Drive" in text
+    assert "Q1 Report.pdf" in text
+    assert "folder123" in text
+
+
+def test_format_upload_to_drive_no_filename() -> None:
+    inp = {"path": "report.pdf"}
+    text = format_tool_summary("upload_to_drive", inp, "Upload")
+    assert "report.pdf" in text
+
+
+def test_format_create_contact() -> None:
+    inp = {
+        "given_name": "Alice",
+        "family_name": "Smith",
+        "email": "alice@example.com",
+        "phone": "+1234567890",
+        "organization": "Acme Corp",
+    }
+    text = format_tool_summary("create_contact", inp, "Create")
+    assert "Create contact" in text
+    assert "Alice Smith" in text
+    assert "alice@example.com" in text
+    assert "+1234567890" in text
+    assert "Acme Corp" in text
+
+
+def test_format_update_contact() -> None:
+    inp = {
+        "resource_name": "people/c123",
+        "email": "new@example.com",
+        "phone": "+1111111111",
+    }
+    text = format_tool_summary("update_contact", inp, "Update")
+    assert "Update contact" in text
+    assert "people/c123" in text
+    assert "email" in text
+    assert "phone" in text
+
+
+def test_format_scratch_wipe() -> None:
+    text = format_tool_summary("scratch_wipe", {}, "Wipe")
+    assert "Wipe scratch space" in text
+    assert "ALL temporary files" in text
+
+
+def test_format_browse_web() -> None:
+    inp = {"url": "https://example.com", "task": "Find contact info"}
+    text = format_tool_summary("browse_web", inp, "Browse")
+    assert "Browse website" in text
+    assert "https://example.com" in text
+    assert "Find contact info" in text
+
+
+def test_format_delete_note() -> None:
+    text = format_tool_summary("delete_note", {"note_id": 42}, "Delete")
+    assert "Delete note" in text
+    assert "42" in text
 
 
 # -- resolve_confirmation ---------------------------------------------------

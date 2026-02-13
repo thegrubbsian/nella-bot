@@ -10,9 +10,11 @@ from __future__ import annotations
 import asyncio
 import html
 import logging
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -61,6 +63,77 @@ def generate_confirmation_id() -> str:
 
 
 # ---------------------------------------------------------------------------
+# Formatting helpers
+# ---------------------------------------------------------------------------
+
+
+def _humanize_cron(expr: str) -> str:
+    """Convert common cron expressions to plain English, fallback to raw."""
+    parts = expr.strip().split()
+    if len(parts) != 5:
+        return expr
+
+    minute, hour, dom, month, dow = parts
+
+    # "0 8 * * *" → "Daily at 8:00 AM"
+    if dom == "*" and month == "*" and dow == "*" and minute.isdigit() and hour.isdigit():
+        return f"Daily at {_fmt_time(int(hour), int(minute))}"
+
+    # "0 9 * * 1-5" → "Weekdays at 9:00 AM"
+    if dom == "*" and month == "*" and dow == "1-5" and minute.isdigit() and hour.isdigit():
+        return f"Weekdays at {_fmt_time(int(hour), int(minute))}"
+
+    # "0 9 * * 0,6" → "Weekends at 9:00 AM"
+    if (
+        dom == "*" and month == "*" and dow in ("0,6", "6,0")
+        and minute.isdigit() and hour.isdigit()
+    ):
+        return f"Weekends at {_fmt_time(int(hour), int(minute))}"
+
+    # "*/N * * * *" → "Every N minutes"
+    m = re.match(r"^\*/(\d+)$", minute)
+    if m and hour == "*" and dom == "*" and month == "*" and dow == "*":
+        n = int(m.group(1))
+        return f"Every {n} minute{'s' if n != 1 else ''}"
+
+    # "0 */N * * *" → "Every N hours"
+    m = re.match(r"^\*/(\d+)$", hour)
+    if m and minute == "0" and dom == "*" and month == "*" and dow == "*":
+        n = int(m.group(1))
+        return f"Every {n} hour{'s' if n != 1 else ''}"
+
+    return expr
+
+
+def _fmt_time(hour: int, minute: int) -> str:
+    """Format hour/minute as 12-hour time like '8:00 AM'."""
+    period = "AM" if hour < 12 else "PM"
+    display_hour = hour % 12 or 12
+    return f"{display_hour}:{minute:02d} {period}"
+
+
+def _humanize_datetime(iso: str) -> str:
+    """Parse ISO 8601 string to 'Feb 13, 2026 at 2:00 PM' (with tz if present)."""
+    try:
+        dt = datetime.fromisoformat(iso)
+        formatted = dt.strftime("%b %-d, %Y at %-I:%M %p")
+        if dt.tzinfo is not None:
+            formatted += f" {dt.strftime('%Z') or dt.strftime('%z')}"
+        return formatted
+    except (ValueError, TypeError):
+        return iso
+
+
+def _action_label(action_type: str) -> str:
+    """Translate action_type to a human-friendly label."""
+    labels = {
+        "ai_task": "AI task (with tool access)",
+        "simple_message": "Reminder message",
+    }
+    return labels.get(action_type, action_type)
+
+
+# ---------------------------------------------------------------------------
 # Tool-specific formatters
 # ---------------------------------------------------------------------------
 
@@ -77,47 +150,64 @@ def _fmt_send_email(inp: dict[str, Any]) -> str:
     lines = ["Send email"]
     if inp.get("to"):
         lines.append(f"To: {inp['to']}")
+    if inp.get("cc"):
+        lines.append(f"CC: {inp['cc']}")
     if inp.get("subject"):
         lines.append(f"Subject: {inp['subject']}")
     if inp.get("body"):
         lines.append(f"Body: {_trunc(inp['body'])}")
+    attachments = inp.get("attachments") or []
+    if attachments:
+        lines.append(f"Attachments: {len(attachments)} file(s)")
     return "\n".join(lines)
 
 
 def _fmt_reply_to_email(inp: dict[str, Any]) -> str:
     lines = ["Reply to email"]
-    if inp.get("message_id"):
-        lines.append(f"Message ID: {inp['message_id']}")
     if inp.get("body"):
         lines.append(f"Body: {_trunc(inp['body'])}")
+    attachments = inp.get("attachments") or []
+    if attachments:
+        lines.append(f"Attachments: {len(attachments)} file(s)")
     return "\n".join(lines)
 
 
 def _fmt_archive_email(inp: dict[str, Any]) -> str:
-    mid = inp.get("message_id", "?")
-    return f"Archive email\nMessage ID: {mid}"
+    return "Archive 1 email"
 
 
 def _fmt_archive_emails(inp: dict[str, Any]) -> str:
     ids = inp.get("message_ids", [])
-    return f"Archive {len(ids)} email(s)\nMessage IDs: {', '.join(str(i) for i in ids)}"
+    return f"Archive {len(ids)} email(s)"
 
 
 def _fmt_create_event(inp: dict[str, Any]) -> str:
     lines = ["Create calendar event"]
     if inp.get("title"):
         lines.append(f"Title: {inp['title']}")
-    if inp.get("start"):
-        lines.append(f"Start: {inp['start']}")
-    if inp.get("end"):
-        lines.append(f"End: {inp['end']}")
+    if inp.get("start_time"):
+        lines.append(f"Start: {_humanize_datetime(inp['start_time'])}")
+    if inp.get("end_time"):
+        lines.append(f"End: {_humanize_datetime(inp['end_time'])}")
+    if inp.get("location"):
+        lines.append(f"Location: {inp['location']}")
+    if inp.get("attendees"):
+        lines.append(f"Attendees: {', '.join(inp['attendees'])}")
     return "\n".join(lines)
 
 
 def _fmt_update_event(inp: dict[str, Any]) -> str:
     lines = ["Update calendar event"]
-    if inp.get("event_id"):
-        lines.append(f"Event ID: {inp['event_id']}")
+    if inp.get("title"):
+        lines.append(f"Title: {inp['title']}")
+    if inp.get("start_time"):
+        lines.append(f"Start: {_humanize_datetime(inp['start_time'])}")
+    if inp.get("end_time"):
+        lines.append(f"End: {_humanize_datetime(inp['end_time'])}")
+    if inp.get("location"):
+        lines.append(f"Location: {inp['location']}")
+    if inp.get("attendees"):
+        lines.append(f"Attendees: {', '.join(inp['attendees'])}")
     return "\n".join(lines)
 
 
@@ -127,12 +217,16 @@ def _fmt_delete_event(inp: dict[str, Any]) -> str:
 
 
 def _fmt_create_document(inp: dict[str, Any]) -> str:
+    lines = ["Create Google Doc"]
     title = inp.get("title", "?")
-    return f"Create document\nTitle: {title}"
+    lines.append(f"Title: {title}")
+    if inp.get("content"):
+        lines.append(f"Content: {_trunc(inp['content'])}")
+    return "\n".join(lines)
 
 
 def _fmt_update_document(inp: dict[str, Any]) -> str:
-    lines = ["Update document"]
+    lines = ["Replace document content"]
     if inp.get("document_id"):
         lines.append(f"Document ID: {inp['document_id']}")
     if inp.get("content"):
@@ -151,17 +245,26 @@ def _fmt_append_to_document(inp: dict[str, Any]) -> str:
 
 def _fmt_delete_file(inp: dict[str, Any]) -> str:
     fid = inp.get("file_id", "?")
-    return f"Delete file\nFile ID: {fid}"
+    return f"Trash Drive file\nFile ID: {fid}"
 
 
 def _fmt_schedule_task(inp: dict[str, Any]) -> str:
-    lines = ["Schedule task"]
+    task_type = inp.get("task_type", "")
+    header = "Schedule recurring task" if task_type == "recurring" else "Schedule one-time task"
+    lines = [header]
     if inp.get("name"):
         lines.append(f"Name: {inp['name']}")
-    if inp.get("task_type"):
-        lines.append(f"Type: {inp['task_type']}")
+    # Build a human-readable schedule line
+    if task_type == "recurring" and inp.get("cron"):
+        lines.append(f"Schedule: {_humanize_cron(inp['cron'])}")
+    elif task_type == "one_off" and inp.get("run_at"):
+        lines.append(f"Run at: {_humanize_datetime(inp['run_at'])}")
     if inp.get("action_type"):
-        lines.append(f"Action: {inp['action_type']}")
+        lines.append(f"Action: {_action_label(inp['action_type'])}")
+    if inp.get("action_content"):
+        lines.append(f"Instructions: {_trunc(inp['action_content'], 150)}")
+    if inp.get("description"):
+        lines.append(f"Description: {_trunc(inp['description'], 100)}")
     return "\n".join(lines)
 
 
@@ -169,15 +272,21 @@ def _fmt_cancel_scheduled_task(inp: dict[str, Any]) -> str:
     lines = ["Cancel scheduled task"]
     if inp.get("task_id"):
         lines.append(f"Task ID: {inp['task_id']}")
-    if inp.get("search"):
-        lines.append(f"Search: {inp['search']}")
+    if inp.get("search_query"):
+        lines.append(f"Search: {inp['search_query']}")
     return "\n".join(lines)
+
+
+_VISIBILITY_LABELS = {
+    "PUBLIC": "Public (anyone)",
+    "CONNECTIONS": "Connections only",
+}
 
 
 def _fmt_linkedin_create_post(inp: dict[str, Any]) -> str:
     lines = ["Create LinkedIn post"]
     vis = inp.get("visibility", "PUBLIC")
-    lines.append(f"Visibility: {vis}")
+    lines.append(f"Visibility: {_VISIBILITY_LABELS.get(vis, vis)}")
     if inp.get("text"):
         lines.append(f"Text: {_trunc(inp['text'])}")
     return "\n".join(lines)
@@ -190,6 +299,61 @@ def _fmt_linkedin_post_comment(inp: dict[str, Any]) -> str:
     if inp.get("text"):
         lines.append(f"Comment: {_trunc(inp['text'])}")
     return "\n".join(lines)
+
+
+def _fmt_upload_to_drive(inp: dict[str, Any]) -> str:
+    lines = ["Upload file to Google Drive"]
+    filename = inp.get("filename") or inp.get("path", "?")
+    lines.append(f"File: {filename}")
+    if inp.get("folder_id"):
+        lines.append(f"Destination folder: {inp['folder_id']}")
+    return "\n".join(lines)
+
+
+def _fmt_create_contact(inp: dict[str, Any]) -> str:
+    lines = ["Create contact"]
+    name_parts = [inp.get("given_name", ""), inp.get("family_name", "")]
+    name = " ".join(p for p in name_parts if p).strip()
+    if name:
+        lines.append(f"Name: {name}")
+    if inp.get("email"):
+        lines.append(f"Email: {inp['email']}")
+    if inp.get("phone"):
+        lines.append(f"Phone: {inp['phone']}")
+    if inp.get("organization"):
+        lines.append(f"Company: {inp['organization']}")
+    return "\n".join(lines)
+
+
+def _fmt_update_contact(inp: dict[str, Any]) -> str:
+    lines = ["Update contact"]
+    if inp.get("resource_name"):
+        lines.append(f"Contact: {inp['resource_name']}")
+    changed: list[str] = []
+    for fld in ("given_name", "family_name", "email", "phone", "organization", "title"):
+        if inp.get(fld) is not None:
+            changed.append(fld.replace("_", " "))
+    if changed:
+        lines.append(f"Updating: {', '.join(changed)}")
+    return "\n".join(lines)
+
+
+def _fmt_scratch_wipe(inp: dict[str, Any]) -> str:
+    return "Wipe scratch space\nThis will delete ALL temporary files"
+
+
+def _fmt_browse_web(inp: dict[str, Any]) -> str:
+    lines = ["Browse website"]
+    if inp.get("url"):
+        lines.append(f"URL: {inp['url']}")
+    if inp.get("task"):
+        lines.append(f"Task: {_trunc(inp['task'], 150)}")
+    return "\n".join(lines)
+
+
+def _fmt_delete_note(inp: dict[str, Any]) -> str:
+    note_id = inp.get("note_id", "?")
+    return f"Delete note\nNote ID: {note_id}"
 
 
 _TOOL_FORMATTERS: dict[str, Any] = {
@@ -208,6 +372,12 @@ _TOOL_FORMATTERS: dict[str, Any] = {
     "cancel_scheduled_task": _fmt_cancel_scheduled_task,
     "linkedin_create_post": _fmt_linkedin_create_post,
     "linkedin_post_comment": _fmt_linkedin_post_comment,
+    "upload_to_drive": _fmt_upload_to_drive,
+    "create_contact": _fmt_create_contact,
+    "update_contact": _fmt_update_contact,
+    "scratch_wipe": _fmt_scratch_wipe,
+    "browse_web": _fmt_browse_web,
+    "delete_note": _fmt_delete_note,
 }
 
 
