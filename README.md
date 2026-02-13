@@ -1,6 +1,6 @@
 # Nella
 
-Nella is an always-on personal AI assistant that interfaces through Telegram. She uses Claude as her brain, Mem0 for persistent memory, has a task scheduling system, supports webhooks for Zapier integrations, and wires up a number of tools (Gmail, Calendar, Drive, Docs, LinkedIn, Github, etc) so she can actually do things in the real world — not just talk about them. She's single-user by design: one owner, one bot, full context.
+Nella is an always-on personal AI assistant that interfaces through Telegram or Slack. She uses Claude as her brain, Mem0 for persistent memory, has a task scheduling system, supports webhooks for Zapier integrations, and wires up a number of tools (Gmail, Calendar, Drive, Docs, LinkedIn, Github, etc) so she can actually do things in the real world — not just talk about them. She's single-user by design: one owner, one bot, full context.
 
 She also has access to her own logs and source code so she can help fix issues when things go awry. All you need is a VPS :)
 
@@ -18,7 +18,7 @@ She also has access to her own logs and source code so she can help fix issues w
                                     │              │
 ┌──────────┐   messages   ┌────────┴──────────────┴───────────┐
 │ Telegram ├─────────────►│           LLM Client              │
-│  User    │◄─────────────┤  (prompt assembly, tool loop,     │
+│ or Slack │◄─────────────┤  (prompt assembly, tool loop,     │
 └──────────┘  streaming   │   message context forwarding)     │
               edits       └────────┬──────────────┬───────────┘
                                    │              │
@@ -43,7 +43,7 @@ She also has access to her own logs and source code so she can help fix issues w
                     │  Auto-extract   │    │ Notification Router  │
                     └─────────────────┘    │                     │
                                            │  TelegramChannel    │
-                    ┌─────────────────┐    │  (future: SMS, etc.)│
+                    ┌─────────────────┐    │  SlackChannel       │
                     │    Scheduler    │    └─────────────────────┘
                     │                 │
                     │  APScheduler    │    ┌─────────────────────┐
@@ -63,22 +63,22 @@ She also has access to her own logs and source code so she can help fix issues w
 
 | Module | What it does | When to look here |
 |--------|-------------|-------------------|
-| `src/bot/` | Telegram bot setup, message handlers, session management, user security | You want to change how messages are received or how the bot responds |
+| `src/bot/` | Chat platform entry point, session management. `telegram/` and `slack/` sub-packages handle platform-specific handlers, commands, and confirmations | You want to change how messages are received or how the bot responds |
 | `src/llm/` | Claude API client, system prompt assembly, model switching | You want to change how Claude is called, what it sees, or the tool-calling loop |
 | `src/memory/` | Mem0 integration, automatic memory extraction, data models | You want to change how Nella remembers things |
 | `src/browser/` | Playwright browser automation — headless Chromium agent for JS-heavy sites | You want to change how interactive browsing works |
 | `src/tools/` | Tool registry, all 63 tool implementations, base classes | You want to add a new tool or modify an existing one |
 | `src/integrations/` | Google OAuth multi-account manager, LinkedIn OAuth | You want to add a new Google API, add an account, or fix auth issues |
-| `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
+| `src/notifications/` | Channel protocol, message routing, Telegram + Slack channels | You want to add a new delivery channel |
 | `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
 | `src/webhooks/` | Inbound HTTP server, handler registry, per-integration handlers | You want to receive webhooks from external services (Zapier, Plaud, etc.) |
 | `config/` | Markdown files that define personality, user profile, memory rules. `.md.EXAMPLE` files are templates checked into git; actual `.md` files are gitignored. | You want to change how Nella behaves or what she knows about you |
 
 ### How a Message Flows
 
-Here's what happens when you send "What's on my calendar today?" in Telegram:
+Here's what happens when you send "What's on my calendar today?" (using Telegram as the example; the Slack flow is analogous):
 
-1. **Telegram delivers the update** to `python-telegram-bot`, which routes it to `handle_message()` in `src/bot/handlers.py`.
+1. **Telegram delivers the update** to `python-telegram-bot`, which routes it to `handle_message()` in `src/bot/telegram/handlers.py`.
 
 2. **Security check.** `is_allowed()` verifies your Telegram user ID is in `ALLOWED_USER_IDS`. If not, the message is silently ignored.
 
@@ -232,12 +232,17 @@ These are just markdown files. Edit them in any text editor. Changes take effect
 nellabot/
 ├── src/
 │   ├── bot/
-│   │   ├── main.py                  # Entry point — starts the bot
-│   │   ├── app.py                   # Telegram Application factory, handler registration
-│   │   ├── handlers.py              # /start, /clear, /status, /model, message handler
-│   │   ├── confirmations.py         # Inline keyboard tool confirmation (Approve/Deny)
+│   │   ├── main.py                  # Entry point — platform switch (Telegram or Slack)
 │   │   ├── session.py               # In-memory conversation history (sliding window)
-│   │   └── security.py              # User allowlist check
+│   │   ├── telegram/
+│   │   │   ├── app.py               # Telegram Application factory, handler registration
+│   │   │   ├── handlers.py          # /start, /clear, /status, /model, message handler
+│   │   │   ├── confirmations.py     # Inline keyboard tool confirmation (Approve/Deny)
+│   │   │   └── security.py          # User allowlist check
+│   │   └── slack/
+│   │       ├── app.py               # Slack Bolt app factory, Socket Mode launcher
+│   │       ├── handlers.py          # Message and command handlers
+│   │       └── confirmations.py     # Interactive button confirmations
 │   ├── llm/
 │   │   ├── client.py                # Claude API: generate_response() (full pipeline) + complete_text() (bare call)
 │   │   ├── prompt.py                # System prompt builder (SOUL + USER + current time + memories)
@@ -282,7 +287,8 @@ nellabot/
 │   │   ├── channels.py              # NotificationChannel protocol
 │   │   ├── context.py               # MessageContext dataclass
 │   │   ├── router.py                # NotificationRouter singleton
-│   │   └── telegram_channel.py      # Telegram implementation
+│   │   ├── telegram_channel.py      # Telegram implementation
+│   │   └── slack_channel.py         # Slack implementation
 │   ├── scheduler/
 │   │   ├── __init__.py              # Package exports
 │   │   ├── models.py                # ScheduledTask dataclass, make_task_id()
@@ -393,8 +399,11 @@ Then edit `.env` with your actual values:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `TELEGRAM_BOT_TOKEN` | Yes | Get this from [@BotFather](https://t.me/BotFather) on Telegram |
-| `ALLOWED_USER_IDS` | Yes | Comma-separated Telegram user IDs. Only these users can talk to Nella. Find yours by messaging [@userinfobot](https://t.me/userinfobot) |
+| `CHAT_PLATFORM` | No | `telegram` (default) or `slack`. Selects the chat interface at startup. |
+| `TELEGRAM_BOT_TOKEN` | Yes* | Get this from [@BotFather](https://t.me/BotFather) on Telegram. *Required when `CHAT_PLATFORM=telegram`. |
+| `ALLOWED_USER_IDS` | Yes* | Comma-separated Telegram user IDs. Only these users can talk to Nella. *Required when `CHAT_PLATFORM=telegram`. Find yours by messaging [@userinfobot](https://t.me/userinfobot) |
+| `SLACK_BOT_TOKEN` | No | Slack bot token (`xoxb-...`). Required when `CHAT_PLATFORM=slack`. |
+| `SLACK_APP_TOKEN` | No | Slack app-level token (`xapp-...`) for Socket Mode. Required when `CHAT_PLATFORM=slack`. |
 | `ANTHROPIC_API_KEY` | Yes | Your Claude API key from [console.anthropic.com](https://console.anthropic.com) |
 | `CLAUDE_MODEL` | No | Full model ID. Default: `claude-sonnet-4-5-20250929` |
 | `DEFAULT_CHAT_MODEL` | No | Friendly name: `haiku`, `sonnet`, or `opus`. Default: `sonnet` |
@@ -453,7 +462,25 @@ All 32 Google tools accept an optional `account` parameter. Claude picks the rig
 
 If you skip this step, Nella works fine — she just won't have Google tools available.
 
-### 4. Run the bot
+### 4. Set up Slack (alternative to Telegram)
+
+If you prefer Slack over Telegram as your chat interface:
+
+1. **Create a Slack app** at [api.slack.com/apps](https://api.slack.com/apps) → "Create New App" → "From scratch".
+2. **Enable Socket Mode** under Settings → Socket Mode. Create an app-level token with the `connections:write` scope — this gives you a token starting with `xapp-`.
+3. **Add OAuth scopes** under OAuth & Permissions → Bot Token Scopes: `chat:write`, `im:history`, `im:read`, `im:write`, `commands`.
+4. **Install the app** to your workspace. Copy the Bot User OAuth Token (`xoxb-...`).
+5. **Subscribe to events** under Event Subscriptions → Subscribe to bot events: `message.im` (messages in DMs).
+6. **Set environment variables** in `.env`:
+   ```
+   CHAT_PLATFORM=slack
+   SLACK_BOT_TOKEN=xoxb-your-bot-token
+   SLACK_APP_TOKEN=xapp-your-app-token
+   ```
+
+The bot uses Socket Mode (outbound WebSocket), so no public URL or webhook configuration is needed. Start the bot normally with `uv run python -m src.bot.main` — it will connect to Slack instead of Telegram.
+
+### 5. Run the bot
 
 ```bash
 uv run python -m src.bot.main
@@ -461,9 +488,9 @@ uv run python -m src.bot.main
 
 The `-m` flag tells Python to run `src.bot.main` as a module. This matters because of how Python resolves imports — without it, the `src.` prefix in imports wouldn't work. Think of it like `bundle exec` in Ruby.
 
-You should see log output confirming the bot started. Send it a message on Telegram.
+You should see log output confirming the bot started. Send it a message on Telegram (or Slack, if `CHAT_PLATFORM=slack`).
 
-### 5. Run tests
+### 6. Run tests
 
 ```bash
 uv run pytest
@@ -483,7 +510,7 @@ uv run pytest tests/test_registry.py
 
 Tests use `pytest-asyncio` with `asyncio_mode = "auto"`, which means async test functions are automatically detected and run with an event loop. You don't need to decorate them.
 
-### 6. Functional testing
+### 7. Functional testing
 
 After major code changes (especially tool changes), you can run a live functional test by sending Nella the prompt in `scripts/functional_test_prompt.md`. Copy everything below the `---` line and paste it into Telegram.
 
@@ -491,7 +518,7 @@ The prompt exercises all 73 tools one at a time, cleaning up after itself (delet
 
 LinkedIn tools are skipped (posts are public and can't be undone). `scratch_wipe` is also skipped to avoid deleting real working files.
 
-### 7. Lint
+### 8. Lint
 
 ```bash
 uv run ruff check src/ tests/

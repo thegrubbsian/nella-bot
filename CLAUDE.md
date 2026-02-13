@@ -2,7 +2,7 @@
 
 ## Overview
 
-Nella is an always-on personal AI assistant with Telegram as the primary chat interface.
+Nella is an always-on personal AI assistant that interfaces through Telegram or Slack.
 She uses Claude as the reasoning engine, Mem0 for persistent memory, and integrates
 with Google APIs (Calendar, Gmail, Drive, Docs) for real-world actions.
 
@@ -17,7 +17,11 @@ with Google APIs (Calendar, Gmail, Drive, Docs) for real-world actions.
 
 ```
 src/
-├── bot/          # Telegram bot handlers, command routing, message lifecycle
+├── bot/
+│   ├── main.py       # Entry point — platform switch
+│   ├── session.py    # Shared conversation history
+│   ├── telegram/     # Telegram bot handlers, commands, confirmations
+│   └── slack/        # Slack Bolt handlers, commands, confirmations
 ├── llm/          # Claude API client, prompt assembly, tool dispatch
 ├── memory/       # Mem0 integration, SQLite conversation store, file-based memory
 ├── integrations/ # Google OAuth multi-account manager
@@ -43,6 +47,9 @@ tests/            # pytest + pytest-asyncio
    the owner can edit directly. `.md.EXAMPLE` files are checked into git as
    templates; the actual `.md` files are gitignored (personal data).
 5. **Graceful degradation** — If an integration is down, Nella says so instead of crashing.
+6. **Platform-agnostic** — Chat platform is selected via `CHAT_PLATFORM` env var
+   (`telegram` or `slack`). Core logic (LLM, memory, tools) is shared; only the
+   bot interface layer differs.
 
 ## Conventions
 
@@ -52,8 +59,9 @@ tests/            # pytest + pytest-asyncio
 - All database access through `libsql` (wrapped async in `src/db.py`).
 - Pydantic models for all structured data crossing boundaries.
 - Tools that perform destructive or externally-visible actions should set
-  `requires_confirmation=True`. This triggers an inline keyboard confirmation
-  prompt in Telegram before execution. See `src/bot/confirmations.py`.
+  `requires_confirmation=True`. This triggers a confirmation prompt before
+  execution. See `src/bot/telegram/confirmations.py` (inline keyboard) or
+  `src/bot/slack/confirmations.py` (interactive buttons).
 - Google tools use `GoogleToolParams` (from `src/tools/base.py`) as their param
   base class. This adds an optional `account` parameter to every Google tool.
   Named accounts are configured via `GOOGLE_ACCOUNTS` in `.env`, with token
