@@ -236,6 +236,24 @@ async def test_cancel_by_id(engine: SchedulerEngine) -> None:
     assert result.data["cancelled"] is True
 
 
+async def test_cancel_by_dashed_uuid(engine: SchedulerEngine) -> None:
+    """Claude sometimes reformats hex IDs as dashed UUIDs — cancel must still work."""
+    created = await schedule_task(
+        name="To cancel",
+        task_type="one_off",
+        action_type="simple_message",
+        action_content="hi",
+        run_at="2099-01-01T00:00:00",
+    )
+    raw_id = created.data["task_id"]  # e.g. "6e79f4b7c1dc4ce080c6eaa496b13dca"
+    # Simulate Claude adding dashes: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    dashed_id = f"{raw_id[:8]}-{raw_id[8:12]}-{raw_id[12:16]}-{raw_id[16:20]}-{raw_id[20:]}"
+
+    result = await cancel_scheduled_task(task_id=dashed_id)
+    assert result.success
+    assert result.data["cancelled"] is True
+
+
 async def test_cancel_by_id_not_found(engine: SchedulerEngine) -> None:
     result = await cancel_scheduled_task(task_id="nonexistent")
     assert not result.success

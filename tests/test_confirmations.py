@@ -215,6 +215,28 @@ async def test_enrich_cancel_task_missing() -> None:
     assert result["task_id"] == "nonexistent"
 
 
+async def test_enrich_cancel_task_dashed_uuid() -> None:
+    """Enricher strips dashes from UUIDs that Claude reformats."""
+    task = ScheduledTask(
+        id="6e79f4b7c1dc4ce080c6eaa496b13dca",
+        name="Morning check",
+        task_type="recurring",
+        schedule={"cron": "0 8 * * *"},
+        action={"type": "ai_task", "prompt": "Check inbox"},
+    )
+    mock_store = AsyncMock()
+    mock_store.get_task = AsyncMock(return_value=task)
+
+    with patch("src.scheduler.store.TaskStore.get", return_value=mock_store):
+        result = await _enrich_cancel_task(
+            {"task_id": "6e79f4b7-c1dc-4ce0-80c6-eaa496b13dca"}
+        )
+
+    assert result["_task_name"] == "Morning check"
+    # Verify the store was called with the normalized (dashless) ID
+    mock_store.get_task.assert_awaited_once_with("6e79f4b7c1dc4ce080c6eaa496b13dca")
+
+
 async def test_enrich_cancel_task_no_id() -> None:
     result = await _enrich_cancel_task({"search_query": "morning"})
     assert result == {"search_query": "morning"}

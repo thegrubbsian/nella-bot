@@ -228,6 +228,8 @@ async def cancel_scheduled_task(
 
     # Direct cancel by ID
     if task_id:
+        # Normalize: Claude sometimes reformats hex IDs as dashed UUIDs
+        task_id = task_id.replace("-", "")
         cancelled = await engine.cancel_task(task_id)
         if cancelled:
             return ToolResult(data={"cancelled": True, "task_id": task_id})

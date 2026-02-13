@@ -403,6 +403,8 @@ async def _enrich_cancel_task(inp: dict[str, Any]) -> dict[str, Any]:
     task_id = inp.get("task_id")
     if not task_id:
         return inp
+    # Normalize: Claude sometimes reformats hex IDs as dashed UUIDs
+    task_id = task_id.replace("-", "")
     try:
         from src.scheduler.store import TaskStore
 
