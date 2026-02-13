@@ -317,6 +317,7 @@ nellabot/
 ├── scripts/
 │   ├── google_auth.py               # One-time OAuth browser flow (--account flag required)
 │   ├── linkedin_auth.py             # One-time OAuth browser flow for LinkedIn
+│   ├── functional_test_prompt.md    # Live functional test — paste into Telegram after code changes
 │   ├── init_mem0_dir.py             # Pre-create Mem0 config dir for systemd
 │   ├── deploy.sh                    # Automated deploy to VPS (full or --quick)
 │   ├── logs.py                      # Query production logs via SolarWinds Observability API
@@ -454,7 +455,15 @@ uv run pytest tests/test_registry.py
 
 Tests use `pytest-asyncio` with `asyncio_mode = "auto"`, which means async test functions are automatically detected and run with an event loop. You don't need to decorate them.
 
-### 6. Lint
+### 6. Functional testing
+
+After major code changes (especially tool changes), you can run a live functional test by sending Nella the prompt in `scripts/functional_test_prompt.md`. Copy everything below the `---` line and paste it into Telegram.
+
+The prompt exercises all 62 tools one at a time, cleaning up after itself (deleting test notes, events, files, etc.). Tools that require confirmation will pop up Approve/Deny buttons — approve them all. If a tool is disabled (missing API key or token), Nella reports "DISABLED" and moves on. At the end she produces a summary table with PASS/FAIL/DISABLED for each scenario.
+
+LinkedIn tools are skipped (posts are public and can't be undone). `scratch_wipe` is also skipped to avoid deleting real working files.
+
+### 7. Lint
 
 ```bash
 uv run ruff check src/ tests/
