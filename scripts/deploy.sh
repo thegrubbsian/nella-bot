@@ -229,8 +229,12 @@ sudo -u nella bash -c 'cd /home/nella/app && /home/nella/.local/bin/uv sync --fr
 
 # Install Playwright Chromium if browser automation is enabled
 if grep -q '^BROWSER_ENABLED=true' /home/nella/app/.env 2>/dev/null; then
-    echo "  Installing Playwright Chromium..."
-    sudo -u nella bash -c 'cd /home/nella/app && /home/nella/.local/bin/uv run playwright install --with-deps chromium'
+    # System deps (libnss3, libatk, etc.) require root — this script runs as root
+    echo "  Installing Playwright system dependencies..."
+    cd /home/nella/app && /home/nella/.local/bin/uv run playwright install-deps chromium
+    # Browser binary downloads as nella (stored in ~/.cache/ms-playwright)
+    echo "  Downloading Playwright Chromium..."
+    sudo -u nella bash -c 'cd /home/nella/app && /home/nella/.local/bin/uv run playwright install chromium'
     echo "  Playwright Chromium installed"
 fi
 REMOTE_SCRIPT

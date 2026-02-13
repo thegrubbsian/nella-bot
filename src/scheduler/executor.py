@@ -48,12 +48,19 @@ class TaskExecutor:
             logger.info("Skipping inactive task: %s (%s)", task.name, task_id)
             return
 
-        logger.info("Executing scheduled task: %s (%s)", task.name, task_id)
+        logger.info(
+            "Executing task: '%s' (%s) action=%s channel=%s",
+            task.name,
+            task_id,
+            task.action_type,
+            task.notification_channel,
+        )
         try:
             await self._dispatch(task)
             await self._store.update_last_run(task_id)
+            logger.info("Task executed successfully: '%s' (%s)", task.name, task_id)
         except Exception:
-            logger.exception("Scheduled task failed: %s (%s)", task.name, task_id)
+            logger.exception("Task execution failed: '%s' (%s)", task.name, task_id)
             await self._send_error(task, task_id)
 
     async def _dispatch(self, task: ScheduledTask) -> None:
@@ -73,6 +80,7 @@ class TaskExecutor:
         if not message:
             logger.warning("simple_message task has empty message: %s", task.id)
             return
+        logger.info("Sending simple_message for task '%s' (%d chars)", task.name, len(message))
         await self._router.send(
             self._owner_user_id,
             message,
@@ -85,8 +93,14 @@ class TaskExecutor:
         if not prompt:
             logger.warning("ai_task has empty prompt: %s", task.id)
             return
+        logger.info(
+            "Running ai_task for '%s' (prompt: %d chars)", task.name, len(prompt)
+        )
         messages = [{"role": "user", "content": prompt}]
         response = await self._generate_response(messages)
+        logger.info(
+            "ai_task LLM response for '%s' (%d chars)", task.name, len(response)
+        )
         await self._router.send(
             self._owner_user_id,
             response,

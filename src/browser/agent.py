@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from src.config import settings
-from src.llm.client import complete_text
 from src.llm.models import _resolve
 
 if TYPE_CHECKING:
@@ -235,6 +234,9 @@ class BrowserAgent:
 
     async def _ask_claude(self, screenshot_b64: str, element_text: str) -> dict[str, Any]:
         """Send screenshot + element list to Claude, get back an action."""
+        # Lazy import to avoid circular dependency:
+        # src.llm.client → src.tools → browser_tools → agent → src.llm.client
+        from src.llm.client import complete_text
         messages = [
             {
                 "role": "user",

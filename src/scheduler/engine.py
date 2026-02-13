@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import TYPE_CHECKING
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -50,7 +51,15 @@ class SchedulerEngine:
         """Load active tasks from the store, create jobs, and start the scheduler."""
         tasks = await self._store.list_active_tasks()
         for task in tasks:
-            self._add_job(task)
+            job = self._add_job(task)
+            next_run = getattr(job, "next_run_time", None) if job else None
+            logger.info(
+                "Loaded task: %s (%s) type=%s next_run=%s",
+                task.name,
+                task.id,
+                task.action_type,
+                next_run,
+            )
         self._scheduler.start()
         self._running = True
         logger.info(
@@ -117,7 +126,20 @@ class SchedulerEngine:
 
     async def _run_task(self, task_id: str) -> None:
         """Callback invoked by APScheduler. Delegates to the executor."""
-        await self._executor.execute(task_id)
+        t0 = time.monotonic()
+        logger.info("Scheduler firing task_id=%s", task_id)
+
+        try:
+            await self._executor.execute(task_id)
+        except Exception:
+            elapsed = time.monotonic() - t0
+            logger.exception(
+                "Scheduler task_id=%s crashed after %.1fs", task_id, elapsed
+            )
+            return
+
+        elapsed = time.monotonic() - t0
+        logger.info("Scheduler task_id=%s completed in %.1fs", task_id, elapsed)
 
         # Post-execution bookkeeping
         task = await self._store.get_task(task_id)
@@ -127,10 +149,14 @@ class SchedulerEngine:
         if task.is_one_off:
             await self._store.deactivate_task(task_id)
             await self._store.update_next_run(task_id, None)
+            logger.info("Deactivated one-off task: %s (%s)", task.name, task_id)
         else:
             job = self._scheduler.get_job(task_id)
             if job and job.next_run_time:
                 await self._store.update_next_run(task_id, job.next_run_time.isoformat())
+                logger.info(
+                    "Next run for '%s': %s", task.name, job.next_run_time
+                )
 
     def _build_trigger(self, task: ScheduledTask):
         """Convert a task's schedule dict into an APScheduler trigger."""

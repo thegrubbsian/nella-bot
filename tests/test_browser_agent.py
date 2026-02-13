@@ -26,7 +26,7 @@ def mock_page():
 @pytest.fixture
 def _mock_complete_text():
     """Patch complete_text used by BrowserAgent."""
-    with patch("src.browser.agent.complete_text", new_callable=AsyncMock) as mock:
+    with patch("src.llm.client.complete_text", new_callable=AsyncMock) as mock:
         yield mock
 
 
