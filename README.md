@@ -1,6 +1,10 @@
 # Nella
 
-Nella is an always-on personal AI assistant that interfaces through Telegram. She uses Claude as her brain, Mem0 for persistent memory, has a task scheduling system, supports webhooks for Zapier integrations, and wires up a number of tools (Gmail, Calendar, Drive, Docs, LinkedIn, Github, etc) so she can actually do things in the real world — not just talk about them. She's single-user by design: one owner, one bot, full context. She also has access to her own logs and source code so she can help fix issues when things go awry.
+Nella is an always-on personal AI assistant that interfaces through Telegram. She uses Claude as her brain, Mem0 for persistent memory, has a task scheduling system, supports webhooks for Zapier integrations, and wires up a number of tools (Gmail, Calendar, Drive, Docs, LinkedIn, Github, etc) so she can actually do things in the real world — not just talk about them. She's single-user by design: one owner, one bot, full context.
+
+She also has access to her own logs and source code so she can help fix issues when things go awry. All you need is a VPS :)
+
+**New here?** See [GETTING_STARTED.md](GETTING_STARTED.md) for a step-by-step guide to setting up all the services, getting your API keys, and deploying.
 
 ## Architecture
 
