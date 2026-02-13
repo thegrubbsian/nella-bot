@@ -25,10 +25,12 @@ src/
 └── webhooks/     # Inbound webhook HTTP server + handler registry
 
 config/
-├── SOUL.md       # Nella's personality, tone, behavioral rules
-├── USER.md       # Owner profile — preferences, context, routines
-├── TOOLS.md      # Tool catalog with descriptions and schemas
-└── MEMORY.md     # Long-term memory notes (file-based, human-editable)
+├── SOUL.md.EXAMPLE       # Nella's personality, tone, behavioral rules (template)
+├── USER.md.EXAMPLE       # Owner profile — preferences, context, routines (template)
+├── TOOLS.md.EXAMPLE      # Tool catalog with descriptions and schemas (template)
+├── MEMORY.md.EXAMPLE     # Long-term memory notes (template)
+└── MEMORY_RULES.md.EXAMPLE  # Auto-extraction rules (template)
+# Actual .md files are gitignored — copy .EXAMPLE to .md and customize
 
 tests/            # pytest + pytest-asyncio
 ```
@@ -39,7 +41,8 @@ tests/            # pytest + pytest-asyncio
 2. **Memory-first** — Every conversation is stored. Mem0 handles semantic retrieval.
 3. **Tool-augmented** — Claude sees tool definitions and can call them via function calling.
 4. **Config as markdown** — Personality, user profile, and memory are `.md` files that
-   the owner can edit directly.
+   the owner can edit directly. `.md.EXAMPLE` files are checked into git as
+   templates; the actual `.md` files are gitignored (personal data).
 5. **Graceful degradation** — If an integration is down, Nella says so instead of crashing.
 
 ## Conventions
@@ -74,8 +77,8 @@ tests/            # pytest + pytest-asyncio
 ## Maintenance Rules
 
 - **Tool changes** — When adding, updating, or removing tools, always update
-  `config/TOOLS.md` to match the codebase. Nella uses this file for tool
-  discovery at runtime.
+  `config/TOOLS.md.EXAMPLE` to match the codebase. This is the checked-in
+  template for the tool catalog.
 - **Functional tests** — When adding, updating, or removing tools OR making
   significant behavioral changes, update `scripts/functional_test_prompt.md`
   so the functional test suite stays current.

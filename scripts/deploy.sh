@@ -19,6 +19,7 @@ RSYNC_EXCLUDES=(
     .git/ __pycache__/ "*.pyc" .venv/ .env ".env.*"
     auth_tokens/ credentials.json data/ .DS_Store .ruff_cache/
     .pytest_cache/ "*.db" "*.db-journal" .claude/
+    "config/*.md" "!config/*.md.EXAMPLE"
 )
 
 # ---------------------------------------------------------------------------
@@ -242,6 +243,16 @@ chown nella:nella /home/nella/app/data
 
 mkdir -p /home/nella/app/data/scratch
 chown nella:nella /home/nella/app/data/scratch
+
+# Create config files from .EXAMPLE templates if they don't exist
+for example in /home/nella/app/config/*.md.EXAMPLE; do
+    target="${example%.EXAMPLE}"
+    if [[ ! -f "$target" ]]; then
+        cp "$example" "$target"
+        chown nella:nella "$target"
+        echo "  Created $(basename "$target") from template"
+    fi
+done
 
 # Run Mem0 dir init
 sudo -u nella bash -c 'cd /home/nella/app && MEM0_DIR=/home/nella/app/data/.mem0 /home/nella/.local/bin/uv run python scripts/init_mem0_dir.py'

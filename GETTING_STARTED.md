@@ -23,6 +23,9 @@ git clone <your-fork-url> nellabot
 cd nellabot
 uv sync --all-extras
 cp .env.example .env
+
+# Create config files from templates
+for f in config/*.md.EXAMPLE; do cp "$f" "${f%.EXAMPLE}"; done
 ```
 
 Now open `.env` in your editor. The rest of this guide tells you where to get
@@ -270,7 +273,8 @@ automatically.
 
 ## 4. Customize Nella
 
-Edit the markdown files in `config/`:
+The repo ships `.md.EXAMPLE` templates in `config/`. The clone step above
+already copied them to the actual `.md` files. Now edit them:
 
 | File | What to edit |
 |------|-------------|
@@ -279,7 +283,9 @@ Edit the markdown files in `config/`:
 | `config/MEMORY.md` | Facts you want Nella to always know (loaded into every prompt). |
 | `config/MEMORY_RULES.md` | Rules for automatic memory extraction. Controls what she remembers. |
 
-These are read fresh on every message — no restart needed after editing.
+The actual `.md` files are gitignored so your personal data stays out of source
+control. The `.EXAMPLE` templates are what's checked in. These are read fresh on
+every message — no restart needed after editing.
 
 ---
 

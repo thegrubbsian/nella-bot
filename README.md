@@ -71,7 +71,7 @@ She also has access to her own logs and source code so she can help fix issues w
 | `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
 | `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
 | `src/webhooks/` | Inbound HTTP server, handler registry, per-integration handlers | You want to receive webhooks from external services (Zapier, Plaud, etc.) |
-| `config/` | Markdown files that define personality, user profile, memory rules | You want to change how Nella behaves or what she knows about you |
+| `config/` | Markdown files that define personality, user profile, memory rules. `.md.EXAMPLE` files are templates checked into git; actual `.md` files are gitignored. | You want to change how Nella behaves or what she knows about you |
 
 ### How a Message Flows
 
@@ -218,6 +218,12 @@ The `config/` directory contains markdown files that shape Nella's behavior:
 | `MEMORY.md` | Explicit long-term facts you want Nella to always know | Human-editable memory store. Edit directly when you want to add/remove persistent facts. |
 | `MEMORY_RULES.md` | Rules for the automatic memory extraction system | Controls what the background extraction picks up. Change this if Nella is remembering too much or too little. |
 
+The actual `.md` files are gitignored (they contain personal data). The repo ships `.md.EXAMPLE` templates — copy them to get started:
+
+```bash
+for f in config/*.md.EXAMPLE; do cp "$f" "${f%.EXAMPLE}"; done
+```
+
 These are just markdown files. Edit them in any text editor. Changes take effect on the next message (no restart needed for `SOUL.md`, `USER.md`, `MEMORY_RULES.md`; the bot reads them fresh each time).
 
 ## Project Structure
@@ -288,11 +294,12 @@ nellabot/
 │   └── config.py                    # Settings class (pydantic-settings, loads .env)
 │
 ├── config/
-│   ├── SOUL.md                      # Nella's personality
-│   ├── USER.md                      # Owner profile (fill this in)
-│   ├── TOOLS.md                     # Tool catalog (reference)
-│   ├── MEMORY.md                    # Explicit long-term facts
-│   └── MEMORY_RULES.md              # Auto-extraction rules
+│   ├── SOUL.md.EXAMPLE              # Nella's personality (template)
+│   ├── USER.md.EXAMPLE              # Owner profile (template — fill this in)
+│   ├── TOOLS.md.EXAMPLE             # Tool catalog (template)
+│   ├── MEMORY.md.EXAMPLE            # Explicit long-term facts (template)
+│   └── MEMORY_RULES.md.EXAMPLE      # Auto-extraction rules (template)
+│   # Copy .EXAMPLE → .md and customize. Actual .md files are gitignored.
 │
 ├── tests/                           # 492+ tests
 │   ├── test_google_*.py             # Google auth + integrations (6 files)
