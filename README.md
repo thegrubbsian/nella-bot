@@ -205,7 +205,7 @@ Claude has access to 63 tools organized into categories. When Claude decides it 
 
 Tools opt into receiving `MessageContext` by adding it to their function signature — the registry uses introspection to detect this. Existing tools don't need any changes.
 
-**Tool confirmation.** Tools that perform destructive or externally-visible actions (sending email, deleting files, creating calendar events, etc.) set `requires_confirmation=True`. When Claude calls one of these tools, the bot sends a separate Telegram message with an inline keyboard showing **Approve** and **Deny** buttons. The user has 120 seconds to tap; if they don't, the action is automatically denied. This prevents accidental side effects while keeping the conversational flow intact — Claude's streamed text stays visible, and the confirmation prompt appears as a new message below it.
+**Tool confirmation.** Tools that perform destructive or externally-visible actions (sending email, deleting files, creating calendar events, etc.) set `requires_confirmation=True`. When Claude calls one of these tools, the bot sends a separate Telegram message with an inline keyboard showing **Approve** and **Deny** buttons. The user has 120 seconds to tap; if they don't, the action is automatically denied. Any text Claude generated alongside the tool call is retracted from the final response — since Claude writes that text before knowing the outcome, it often claims premature success. After the tool executes, Claude generates a fresh response reflecting the actual result.
 
 ### Configuration Files
 
@@ -306,7 +306,7 @@ nellabot/
 │   └── MEMORY_RULES.md.EXAMPLE      # Auto-extraction rules (template)
 │   # Copy .EXAMPLE → .md and customize. Actual .md files are gitignored.
 │
-├── tests/                           # 566 tests
+├── tests/                           # 606 tests
 │   ├── test_google_*.py             # Google auth + integrations (6 files)
 │   ├── test_linkedin_*.py           # LinkedIn tools
 │   ├── test_github_*.py             # GitHub tools
@@ -314,7 +314,11 @@ nellabot/
 │   ├── test_notification_*.py       # Notification system (3 files)
 │   ├── test_memory_*.py             # Memory system (2 files)
 │   ├── test_scheduler_*.py          # Scheduler system (7 files, includes missed tasks)
-│   ├── test_confirmations.py        # Tool confirmation flow
+│   ├── test_complete_text.py         # Bare LLM call (complete_text)
+│   ├── test_generate_response.py    # Full LLM pipeline (text retraction, confirmation rounds)
+│   ├── test_config.py               # Settings (pydantic-settings)
+│   ├── test_db.py                   # Database connection wrapper
+│   ├── test_confirmations.py        # Tool confirmation flow + enrichers
 │   ├── test_callback_query.py       # Inline keyboard callbacks
 │   ├── test_webhook_*.py            # Webhook registry + server (2 files)
 │   ├── test_plaud_handler.py        # Plaud transcript processing

@@ -99,13 +99,20 @@ async def generate_response(
     first; if the callback returns False (or is not provided), the tool
     call is denied.
 
+    Text from rounds that contain confirmation-requiring tools is
+    retracted from the return value (since Claude writes it before
+    knowing the outcome). The text is still streamed via
+    ``on_text_delta`` for real-time display, but the caller's final
+    ``edit_text(result)`` replaces it with accurate post-execution text.
+
     Args:
         messages: Conversation history in Claude API message format.
         on_text_delta: Async callback receiving each text chunk.
         on_confirm: Async callback for tool confirmation; return True to allow.
 
     Returns:
-        The complete assistant text across all rounds.
+        The complete assistant text across all rounds (excluding
+        retracted confirmation-round text).
     """
     client = _get_client()
     tool_schemas = registry.get_schemas()
