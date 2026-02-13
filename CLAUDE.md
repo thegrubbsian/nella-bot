@@ -73,7 +73,7 @@ tests/            # pytest + pytest-asyncio
   Claude should use one of these — do not create standalone `AsyncAnthropic`
   instances elsewhere.
 
-## Maintenance Rules
+## Maintenance and Housekeeping
 
 - **Tool changes** — When adding, updating, or removing tools, always update
   the tool catalog in `README.md` and `scripts/functional_test_prompt.md`.

@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING, Any
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from telegram import Bot
 
     from src.llm.client import PendingToolCall
@@ -270,7 +272,17 @@ def _fmt_schedule_task(inp: dict[str, Any]) -> str:
 
 def _fmt_cancel_scheduled_task(inp: dict[str, Any]) -> str:
     lines = ["Cancel scheduled task"]
-    if inp.get("task_id"):
+    if inp.get("_task_name"):
+        lines.append(f"Name: {inp['_task_name']}")
+        task_type = inp.get("_task_type", "")
+        schedule = inp.get("_task_schedule", {})
+        if task_type == "recurring" and schedule.get("cron"):
+            lines.append(f"Schedule: {_humanize_cron(schedule['cron'])}")
+        elif task_type == "one_off" and schedule.get("run_at"):
+            lines.append(f"Run at: {_humanize_datetime(schedule['run_at'])}")
+        if inp.get("_task_action_type"):
+            lines.append(f"Action: {_action_label(inp['_task_action_type'])}")
+    elif inp.get("task_id"):
         lines.append(f"Task ID: {inp['task_id']}")
     if inp.get("search_query"):
         lines.append(f"Search: {inp['search_query']}")
@@ -381,6 +393,39 @@ _TOOL_FORMATTERS: dict[str, Any] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Async enrichers — augment tool_input with display fields before formatting
+# ---------------------------------------------------------------------------
+
+
+async def _enrich_cancel_task(inp: dict[str, Any]) -> dict[str, Any]:
+    """Look up task details by ID for display in confirmation."""
+    task_id = inp.get("task_id")
+    if not task_id:
+        return inp
+    try:
+        from src.scheduler.store import TaskStore
+
+        store = TaskStore.get()
+        task = await store.get_task(task_id)
+    except Exception:
+        return inp
+    if task is None:
+        return inp
+    return {
+        **inp,
+        "_task_name": task.name,
+        "_task_type": task.task_type,
+        "_task_schedule": task.schedule,
+        "_task_action_type": task.action_type,
+    }
+
+
+_ENRICHERS: dict[str, Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]] = {
+    "cancel_scheduled_task": _enrich_cancel_task,
+}
+
+
 def format_tool_summary(tool_name: str, tool_input: dict[str, Any], description: str) -> str:
     """Return a human-readable summary for a pending tool call."""
     formatter = _TOOL_FORMATTERS.get(tool_name)
@@ -430,9 +475,15 @@ async def request_confirmation(
     Returns True if the user approved, False on deny or timeout.
     """
     conf_id = generate_confirmation_id()
+
+    tool_input = pending_tool.tool_input
+    enricher = _ENRICHERS.get(pending_tool.tool_name)
+    if enricher:
+        tool_input = await enricher(tool_input)
+
     summary = format_tool_summary(
         pending_tool.tool_name,
-        pending_tool.tool_input,
+        tool_input,
         pending_tool.description,
     )
 

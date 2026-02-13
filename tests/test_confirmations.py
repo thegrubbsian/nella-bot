@@ -1,10 +1,11 @@
 """Tests for src/bot/confirmations."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.bot.confirmations import (
     _action_label,
+    _enrich_cancel_task,
     _humanize_cron,
     _humanize_datetime,
     _pending,
@@ -15,6 +16,7 @@ from src.bot.confirmations import (
     resolve_confirmation,
 )
 from src.llm.client import PendingToolCall
+from src.scheduler.models import ScheduledTask
 
 # -- Helpers -----------------------------------------------------------------
 
@@ -146,6 +148,76 @@ def test_format_cancel_scheduled_task_search() -> None:
         "cancel_scheduled_task", {"search_query": "morning"}, "Cancel"
     )
     assert "Search: morning" in text
+
+
+def test_format_cancel_scheduled_task_enriched() -> None:
+    inp = {
+        "task_id": "abc123",
+        "_task_name": "Morning check",
+        "_task_type": "recurring",
+        "_task_schedule": {"cron": "0 8 * * *"},
+        "_task_action_type": "ai_task",
+    }
+    text = format_tool_summary("cancel_scheduled_task", inp, "Cancel")
+    assert "Name: Morning check" in text
+    assert "Daily at 8:00 AM" in text
+    assert "AI task (with tool access)" in text
+    # Raw ID should NOT appear when enriched
+    assert "abc123" not in text
+
+
+def test_format_cancel_scheduled_task_enriched_one_off() -> None:
+    inp = {
+        "task_id": "abc123",
+        "_task_name": "Reminder",
+        "_task_type": "one_off",
+        "_task_schedule": {"run_at": "2025-06-01T15:00:00"},
+        "_task_action_type": "simple_message",
+    }
+    text = format_tool_summary("cancel_scheduled_task", inp, "Cancel")
+    assert "Name: Reminder" in text
+    assert "Jun 1, 2025" in text
+    assert "Reminder message" in text
+
+
+# -- _enrich_cancel_task ---------------------------------------------------
+
+
+async def test_enrich_cancel_task() -> None:
+    task = ScheduledTask(
+        id="task123",
+        name="Daily triage",
+        task_type="recurring",
+        schedule={"cron": "0 9 * * 1-5"},
+        action={"type": "ai_task", "prompt": "Check inbox"},
+    )
+    mock_store = AsyncMock()
+    mock_store.get_task = AsyncMock(return_value=task)
+
+    with patch("src.scheduler.store.TaskStore.get", return_value=mock_store):
+        result = await _enrich_cancel_task({"task_id": "task123"})
+
+    assert result["_task_name"] == "Daily triage"
+    assert result["_task_type"] == "recurring"
+    assert result["_task_schedule"] == {"cron": "0 9 * * 1-5"}
+    assert result["_task_action_type"] == "ai_task"
+    assert result["task_id"] == "task123"
+
+
+async def test_enrich_cancel_task_missing() -> None:
+    mock_store = AsyncMock()
+    mock_store.get_task = AsyncMock(return_value=None)
+
+    with patch("src.scheduler.store.TaskStore.get", return_value=mock_store):
+        result = await _enrich_cancel_task({"task_id": "nonexistent"})
+
+    assert "_task_name" not in result
+    assert result["task_id"] == "nonexistent"
+
+
+async def test_enrich_cancel_task_no_id() -> None:
+    result = await _enrich_cancel_task({"search_query": "morning"})
+    assert result == {"search_query": "morning"}
 
 
 def test_format_unknown_tool_fallback() -> None:
