@@ -1,7 +1,13 @@
 """System prompt assembly with memory retrieval."""
 
 import logging
+from datetime import datetime
 from pathlib import Path
+
+try:
+    import zoneinfo
+except ImportError:  # pragma: no cover
+    from backports import zoneinfo  # type: ignore[no-redef]
 
 from src.config import settings
 from src.memory.models import MemoryEntry
@@ -105,28 +111,32 @@ async def build_system_prompt(user_message: str = "") -> list[dict]:
 
     static_text = "\n\n---\n\n".join(sections)
 
+    # Current time — injected on every call (not cached)
+    tz = zoneinfo.ZoneInfo(settings.scheduler_timezone)
+    now = datetime.now(tz)
+    time_text = (
+        f"Current time: {now.strftime('%A, %B %d, %Y %I:%M %p %Z')} "
+        f"({settings.scheduler_timezone})"
+    )
+
     # Retrieve relevant memories
     memory_text = ""
     if user_message:
         memory_text = await _retrieve_memories(user_message)
 
-    if memory_text:
-        return [
-            {
-                "type": "text",
-                "text": static_text,
-                "cache_control": {"type": "ephemeral"},
-            },
-            {
-                "type": "text",
-                "text": memory_text,
-            },
-        ]
-
-    return [
+    blocks: list[dict] = [
         {
             "type": "text",
             "text": static_text,
             "cache_control": {"type": "ephemeral"},
         },
+        {
+            "type": "text",
+            "text": time_text,
+        },
     ]
+
+    if memory_text:
+        blocks.append({"type": "text", "text": memory_text})
+
+    return blocks

@@ -27,9 +27,9 @@ She also has access to her own logs and source code so she can help fix issues w
                     │                 │    │                     │
                     │  SOUL.md        │    │  Google Gmail (8)   │
                     │  USER.md        │    │  Google Calendar (7)│
-                    │  + Mem0 recall  │    │  Google Drive (7)   │
-                    └─────────────────┘    │  Google Docs (4)    │
-                                           │  Google People (6)  │
+                    │  + current time │    │  Google Drive (7)   │
+                    │  + Mem0 recall  │    │  Google Docs (4)    │
+                    └─────────────────┘    │  Google People (6)  │
                                            │  Memory (4)         │
                     ┌─────────────────┐    │  Scheduler (3)      │
                     │  Memory System  │    │  Utility (4)        │
@@ -91,7 +91,7 @@ Here's what happens when you send "What's on my calendar today?" in Telegram:
 6. **A `MessageContext` is created** with your user ID, `source_channel="telegram"`, and `conversation_id`. This travels through the entire call chain so any component knows where to send output.
 
 7. **`generate_response()` is called** in `src/llm/client.py`. This is where the real work happens:
-   - **System prompt assembly** (`src/llm/prompt.py`): reads `SOUL.md` and `USER.md`, then searches Mem0 for memories related to your message. These are combined into a system prompt with caching so the static parts aren't re-processed on every tool-calling round.
+   - **System prompt assembly** (`src/llm/prompt.py`): reads `SOUL.md` and `USER.md`, injects the current time and timezone, then searches Mem0 for memories related to your message. These are combined into a system prompt with caching so the static parts aren't re-processed on every tool-calling round.
    - **Claude API call**: sends your conversation history + system prompt + all 63 tool schemas to Claude via streaming.
    - **Streaming**: as text chunks arrive, the `on_text_delta` callback edits the placeholder message in Telegram (throttled to every 0.5 seconds to stay under rate limits).
 
@@ -240,7 +240,7 @@ nellabot/
 │   │   └── security.py              # User allowlist check
 │   ├── llm/
 │   │   ├── client.py                # Claude API: generate_response() (full pipeline) + complete_text() (bare call)
-│   │   ├── prompt.py                # System prompt builder (SOUL + USER + memories)
+│   │   ├── prompt.py                # System prompt builder (SOUL + USER + current time + memories)
 │   │   └── models.py                # ModelManager — runtime model switching
 │   ├── memory/
 │   │   ├── store.py                 # MemoryStore singleton (Mem0 client wrapper)
@@ -256,6 +256,7 @@ nellabot/
 │   │   ├── __init__.py              # Package init
 │   │   ├── session.py               # BrowserSession — Playwright lifecycle (headless Chromium)
 │   │   └── agent.py                 # BrowserAgent — autonomous vision-based navigation loop
+│   ├── watchdog.py                      # Systemd watchdog integration (sd_notify, READY, WATCHDOG pings)
 │   ├── db.py                            # Async wrapper over libsql (local SQLite or remote Turso)
 │   ├── scratch.py                       # ScratchSpace — sandboxed local filesystem for temp files
 │   ├── tools/
@@ -305,7 +306,7 @@ nellabot/
 │   └── MEMORY_RULES.md.EXAMPLE      # Auto-extraction rules (template)
 │   # Copy .EXAMPLE → .md and customize. Actual .md files are gitignored.
 │
-├── tests/                           # 492+ tests
+├── tests/                           # 566 tests
 │   ├── test_google_*.py             # Google auth + integrations (6 files)
 │   ├── test_linkedin_*.py           # LinkedIn tools
 │   ├── test_github_*.py             # GitHub tools
@@ -319,7 +320,7 @@ nellabot/
 │   ├── test_plaud_handler.py        # Plaud transcript processing
 │   ├── test_registry.py             # Tool registry
 │   ├── test_automatic.py            # Memory extraction
-│   ├── test_prompt.py               # System prompt
+│   ├── test_prompt.py               # System prompt + current time injection
 │   ├── test_session.py              # Conversation sessions
 │   ├── test_security.py             # User allowlist
 │   ├── test_models.py               # Model switching
@@ -327,6 +328,7 @@ nellabot/
 │   ├── test_browser_session.py       # Browser session lifecycle
 │   ├── test_browser_agent.py        # Browser agent navigation loop
 │   ├── test_browser_tools.py        # Browser automation tool
+│   ├── test_watchdog.py             # Systemd watchdog integration
 │   ├── test_web_tools.py            # Web research tools
 │   ├── test_scratch.py              # ScratchSpace filesystem
 │   ├── test_scratch_tools.py        # Scratch space tools
@@ -574,7 +576,9 @@ The service file includes several restrictions:
 - Runs as a dedicated `nella` user (not root)
 - Read-only home directory except for the app directory and cache
 - Private /tmp, restricted system access
-- Auto-restarts on crash (up to 5 times per minute)
+- `Type=notify` — systemd waits for the bot to signal readiness before considering it healthy
+- `WatchdogSec=60` — if the bot hangs (no watchdog ping for 60s), systemd kills and restarts it
+- Auto-restarts on crash (up to 5 times per 10 minutes)
 
 ## Adding New Tools
 

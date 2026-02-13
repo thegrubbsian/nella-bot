@@ -31,8 +31,18 @@ async def test_build_system_prompt_contains_user_profile() -> None:
     assert "Owner Profile" in text
 
 
+async def test_build_system_prompt_contains_current_time() -> None:
+    """The second block should contain the current time and timezone."""
+    blocks = await build_system_prompt()
+    time_block = blocks[1]["text"]
+    assert "Current time:" in time_block
+    assert "America/Chicago" in time_block
+    # Should NOT have cache_control (changes every call)
+    assert "cache_control" not in blocks[1]
+
+
 async def test_build_system_prompt_with_memories() -> None:
-    """When memories exist, they should appear as a second content block."""
+    """When memories exist, they should appear as the third content block."""
     mock_store = AsyncMock()
     mock_store.enabled = True
     mock_store.search.return_value = [
@@ -47,13 +57,13 @@ async def test_build_system_prompt_with_memories() -> None:
     with patch("src.memory.store.MemoryStore.get", return_value=mock_store):
         blocks = await build_system_prompt(user_message="coffee")
 
-    assert len(blocks) == 2
-    assert "User likes coffee" in blocks[1]["text"]
-    assert "[automatic/fact]" in blocks[1]["text"]
+    assert len(blocks) == 3
+    assert "User likes coffee" in blocks[2]["text"]
+    assert "[automatic/fact]" in blocks[2]["text"]
 
 
-async def test_build_system_prompt_no_memories_single_block() -> None:
-    """Without memories, only one content block should be returned."""
+async def test_build_system_prompt_no_memories_has_time_block() -> None:
+    """Without memories, static + time blocks should be returned."""
     mock_store = AsyncMock()
     mock_store.enabled = True
     mock_store.search.return_value = []
@@ -61,7 +71,7 @@ async def test_build_system_prompt_no_memories_single_block() -> None:
     with patch("src.memory.store.MemoryStore.get", return_value=mock_store):
         blocks = await build_system_prompt(user_message="test")
 
-    assert len(blocks) == 1
+    assert len(blocks) == 2
 
 
 def test_format_memories_empty() -> None:
