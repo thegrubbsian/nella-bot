@@ -5,6 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=notify
+NotifyAccess=all
 User=nella
 Group=nella
 WorkingDirectory=/home/nella/app
