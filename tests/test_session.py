@@ -46,3 +46,10 @@ def test_get_session_creates_and_reuses() -> None:
 
     s3 = get_session(88888)
     assert s3 is not s1
+
+
+def test_get_session_string_key() -> None:
+    """Slack DM channel IDs are strings."""
+    s = get_session("D01ABC123")
+    assert isinstance(s, Session)
+    assert get_session("D01ABC123") is s
