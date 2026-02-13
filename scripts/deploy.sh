@@ -396,11 +396,11 @@ REMOTE_SCRIPT
 # ---------------------------------------------------------------------------
 phase_restart_service() {
     log "Phase 9: Restarting service"
-    run_remote systemctl restart nella
+    run_remote systemctl restart --no-block nella
 
-    # Poll until active (up to 15s)
+    # Poll until active (up to 30s)
     local attempts=0
-    local max_attempts=8
+    local max_attempts=15
     while [[ $attempts -lt $max_attempts ]]; do
         sleep 2
         if run_remote systemctl is-active nella &>/dev/null; then
