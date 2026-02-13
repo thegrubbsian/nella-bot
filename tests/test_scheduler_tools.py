@@ -213,6 +213,7 @@ async def test_list_task_fields(engine: SchedulerEngine) -> None:
     assert task["description"] == "A test task"
     assert task["task_type"] == "recurring"
     assert task["action_type"] == "simple_message"
+    assert task["action"] == {"type": "simple_message", "message": "hi"}
     assert task["schedule"] == {"cron": "0 8 * * *"}
     assert task["next_run_at"] is not None
 

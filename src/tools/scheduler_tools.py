@@ -184,6 +184,7 @@ async def list_scheduled_tasks() -> ToolResult:
             "task_type": t.task_type,
             "schedule": t.schedule,
             "action_type": t.action_type,
+            "action": t.action,
             "notification_channel": t.notification_channel,
             "next_run_at": t.next_run_at,
             "last_run_at": t.last_run_at,

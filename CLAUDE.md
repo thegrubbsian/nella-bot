@@ -83,6 +83,9 @@ tests/            # pytest + pytest-asyncio
 - **Test suite** - It's good to occasionally run through the test suite to see
   if there are any tests for dead code and to at least do some sampling on 'is
   this test still needed'.
+- **Code comments** - Comments are a great place to stash context but comments
+  also become stale. When you touch a file, it's good to review comments from
+  time-to-time.
 - **README accuracy** — At the end of every coding session, review `README.md`
   for anything that needs updating. It serves as context for future development
   sessions and must always reflect the current state of the code.
