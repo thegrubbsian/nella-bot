@@ -106,6 +106,12 @@ async def _post_init(app: Application) -> None:
     _webhook_server = WebhookServer()
     await _webhook_server.start()
 
+    # Signal systemd that we're fully ready and start the watchdog ping loop
+    from src.watchdog import notify_ready, start_watchdog
+
+    notify_ready()
+    start_watchdog()
+
 
 async def _post_shutdown(app: Application) -> None:
     """Called during graceful shutdown."""

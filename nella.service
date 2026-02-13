@@ -4,7 +4,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=simple
+Type=notify
 User=nella
 Group=nella
 WorkingDirectory=/home/nella/app
@@ -12,9 +12,10 @@ EnvironmentFile=/home/nella/app/.env
 Environment=MEM0_DIR=/home/nella/app/data/.mem0
 ExecStart=/home/nella/.local/bin/uv run python -m src.bot.main
 Restart=always
-RestartSec=5
+RestartSec=10
 StartLimitBurst=5
-StartLimitIntervalSec=60
+StartLimitIntervalSec=600
+WatchdogSec=60
 
 # Security hardening
 NoNewPrivileges=yes
