@@ -73,7 +73,7 @@ tests/            # pytest + pytest-asyncio
   Claude should use one of these — do not create standalone `AsyncAnthropic`
   instances elsewhere.
 
-## Maintenance and Housekeeping
+## Maintenance, Housekeeping, Code Health
 
 - **Tool changes** — When adding, updating, or removing tools, always update
   the tool catalog in `README.md` and `scripts/functional_test_prompt.md`.
@@ -92,6 +92,9 @@ tests/            # pytest + pytest-asyncio
 - **Open source** - This is an open source project, at the end of every codiing
   session, review the changes and consider anything we might be sending to
   source control that violates basic open source best practices.
+- **Cross-cutting concerns** - Whenever touching cross-cutting concerns like LLM
+  interactions, or messages/notifications, or memory, do a review and make sure
+  we're not breaking something somewhere else.
 
 ## Running
 

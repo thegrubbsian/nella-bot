@@ -282,6 +282,8 @@ def _fmt_cancel_scheduled_task(inp: dict[str, Any]) -> str:
             lines.append(f"Run at: {_humanize_datetime(schedule['run_at'])}")
         if inp.get("_task_action_type"):
             lines.append(f"Action: {_action_label(inp['_task_action_type'])}")
+        if inp.get("_task_next_run_at"):
+            lines.append(f"Next run: {_humanize_datetime(inp['_task_next_run_at'])}")
     elif inp.get("task_id"):
         lines.append(f"Task ID: {inp['task_id']}")
     if inp.get("search_query"):
@@ -420,6 +422,7 @@ async def _enrich_cancel_task(inp: dict[str, Any]) -> dict[str, Any]:
         "_task_type": task.task_type,
         "_task_schedule": task.schedule,
         "_task_action_type": task.action_type,
+        "_task_next_run_at": task.next_run_at,
     }
 
 

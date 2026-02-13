@@ -132,6 +132,9 @@ async def generate_response(
         if tool_schemas:
             kwargs["tools"] = tool_schemas
 
+        # Save length so we can retract text if this round has confirmation tools.
+        pre_round_len = len(full_text)
+
         async with client.messages.stream(**kwargs) as stream:
             first_chunk = True
             async for text in stream.text_stream:
@@ -154,6 +157,19 @@ async def generate_response(
 
         if not tool_use_blocks:
             return full_text
+
+        # When confirmation is needed, Claude's text was generated before
+        # knowing the outcome — it often claims success prematurely.
+        # Retract that text from full_text so the final result is accurate.
+        # The next round will produce correct text based on actual results.
+        # (The text was already streamed to on_text_delta, but the handler's
+        # final edit_text(result_text) will replace it with the clean version.)
+        has_confirmation = any(
+            (td := registry.get(b.name)) and td.requires_confirmation
+            for b in tool_use_blocks
+        )
+        if has_confirmation:
+            full_text = full_text[:pre_round_len]
 
         logger.info(
             "Round %d: %d tool call(s): %s",

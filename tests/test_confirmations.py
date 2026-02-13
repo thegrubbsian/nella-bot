@@ -157,11 +157,14 @@ def test_format_cancel_scheduled_task_enriched() -> None:
         "_task_type": "recurring",
         "_task_schedule": {"cron": "0 8 * * *"},
         "_task_action_type": "ai_task",
+        "_task_next_run_at": "2025-06-02T08:00:00-06:00",
     }
     text = format_tool_summary("cancel_scheduled_task", inp, "Cancel")
     assert "Name: Morning check" in text
     assert "Daily at 8:00 AM" in text
     assert "AI task (with tool access)" in text
+    assert "Next run:" in text
+    assert "Jun 2, 2025" in text
     # Raw ID should NOT appear when enriched
     assert "abc123" not in text
 
@@ -190,6 +193,7 @@ async def test_enrich_cancel_task() -> None:
         task_type="recurring",
         schedule={"cron": "0 9 * * 1-5"},
         action={"type": "ai_task", "prompt": "Check inbox"},
+        next_run_at="2025-06-02T09:00:00-06:00",
     )
     mock_store = AsyncMock()
     mock_store.get_task = AsyncMock(return_value=task)
@@ -201,6 +205,7 @@ async def test_enrich_cancel_task() -> None:
     assert result["_task_type"] == "recurring"
     assert result["_task_schedule"] == {"cron": "0 9 * * 1-5"}
     assert result["_task_action_type"] == "ai_task"
+    assert result["_task_next_run_at"] == "2025-06-02T09:00:00-06:00"
     assert result["task_id"] == "task123"
 
 
