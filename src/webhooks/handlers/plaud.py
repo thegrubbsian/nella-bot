@@ -67,9 +67,11 @@ async def _search_transcript(file_name: str) -> str | None:
     q = " and ".join(parts)
 
     result = await asyncio.to_thread(
-        lambda: service.files()
-        .list(q=q, pageSize=1, orderBy="createdTime desc", fields="files(id)")
-        .execute()
+        lambda: (
+            service.files()
+            .list(q=q, pageSize=1, orderBy="createdTime desc", fields="files(id)")
+            .execute()
+        )
     )
 
     files = result.get("files", [])
@@ -95,7 +97,10 @@ async def _fetch_transcript(payload: dict[str, Any]) -> str | None:
     for attempt in range(1, RETRY_ATTEMPTS + 1):
         logger.info(
             "Fetching transcript (attempt %d/%d): file_id=%s, file_name=%s",
-            attempt, RETRY_ATTEMPTS, file_id, file_name,
+            attempt,
+            RETRY_ATTEMPTS,
+            file_id,
+            file_name,
         )
 
         content = None
@@ -164,7 +169,8 @@ async def handle_plaud(payload: dict[str, Any]) -> None:
     meeting_date = payload.get("meeting_date", "")
     logger.info(
         "Plaud transcript received: file_name=%s, meeting_date=%s",
-        file_name, meeting_date,
+        file_name,
+        meeting_date,
     )
 
     transcript = await _fetch_transcript(payload)

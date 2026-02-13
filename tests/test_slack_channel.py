@@ -1,6 +1,6 @@
 """Tests for SlackChannel and protocol conformance."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 from src.notifications.channels import NotificationChannel
 from src.notifications.slack_channel import SlackChannel
@@ -9,9 +9,7 @@ from src.notifications.slack_channel import SlackChannel
 def _make_mock_client() -> AsyncMock:
     """Create a mock slack_sdk.web.async_client.AsyncWebClient."""
     client = AsyncMock()
-    client.conversations_open = AsyncMock(
-        return_value={"channel": {"id": "D01ABC123"}}
-    )
+    client.conversations_open = AsyncMock(return_value={"channel": {"id": "D01ABC123"}})
     client.chat_postMessage = AsyncMock(return_value={"ok": True})
     return client
 
@@ -35,9 +33,7 @@ async def test_send_opens_dm_and_posts() -> None:
     ok = await ch.send("U01XYZ", "Hello there")
     assert ok is True
     client.conversations_open.assert_awaited_once_with(users=["U01XYZ"])
-    client.chat_postMessage.assert_awaited_once_with(
-        channel="D01ABC123", text="Hello there"
-    )
+    client.chat_postMessage.assert_awaited_once_with(channel="D01ABC123", text="Hello there")
 
 
 async def test_send_returns_false_on_error() -> None:

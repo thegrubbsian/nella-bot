@@ -250,9 +250,7 @@ class TestReplyWithAttachments:
 
         scratch.write("data.csv", "col1,col2\na,b")
         original = _make_message()
-        original["payload"]["headers"].append(
-            {"name": "Message-ID", "value": "<orig@test.com>"}
-        )
+        original["payload"]["headers"].append({"name": "Message-ID", "value": "<orig@test.com>"})
         gmail_mock.users().messages().get().execute.return_value = original
         gmail_mock.users().messages().send().execute.return_value = {"id": "reply1"}
 

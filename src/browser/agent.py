@@ -265,9 +265,7 @@ class BrowserAgent:
         raw = await complete_text(messages, system=system, model=self._model, max_tokens=1024)
         return self._parse_action(raw)
 
-    async def _execute_action(
-        self, action: dict[str, Any], elements: list[dict[str, Any]]
-    ) -> None:
+    async def _execute_action(self, action: dict[str, Any], elements: list[dict[str, Any]]) -> None:
         """Execute a single action on the page."""
         act = action.get("action", "")
         logger.info("Executing action: %s", action)
@@ -313,9 +311,7 @@ class BrowserAgent:
             logger.warning("Unknown action: %s", act)
 
     @staticmethod
-    def _find_element(
-        elements: list[dict[str, Any]], index: int
-    ) -> dict[str, Any] | None:
+    def _find_element(elements: list[dict[str, Any]], index: int) -> dict[str, Any] | None:
         """Find an element by its overlay index."""
         for el in elements:
             if el.get("index") == index:

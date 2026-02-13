@@ -7,8 +7,8 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
-from slack_bolt.app.async_app import AsyncApp as App
 from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
+from slack_bolt.app.async_app import AsyncApp as App
 from slack_sdk.web.async_client import AsyncWebClient
 
 from src.bot.slack.confirmations import get_pending, resolve_confirmation
@@ -72,6 +72,7 @@ def _init_scheduler() -> SchedulerEngine:
     engine = SchedulerEngine(store=store, executor=executor)
 
     from src.tools.scheduler_tools import init_scheduler_tools
+
     init_scheduler_tools(engine)
 
     init_missed_task_recovery(engine, executor, owner_user_id)
@@ -103,13 +104,13 @@ def create_slack_app() -> App:
     app.command("/nella-model")(handle_model_command)
 
     # Confirmation button handler
-    _CONFIRM_RE = re.compile(r"^cfm:([a-f0-9]+):(y|n)$")
+    confirm_re = re.compile(r"^cfm:([a-f0-9]+):(y|n)$")
 
-    @app.action(_CONFIRM_RE)
+    @app.action(confirm_re)
     async def _on_confirm_action(ack, action, say):
         await ack()
         action_id = action["action_id"]
-        m = _CONFIRM_RE.match(action_id)
+        m = confirm_re.match(action_id)
         if not m:
             return
         conf_id, choice = m.group(1), m.group(2)
@@ -137,10 +138,12 @@ def run_slack() -> None:
         await _scheduler_engine.start()
 
         from src.scheduler.missed import check_and_notify_missed_tasks
+
         asyncio.create_task(check_and_notify_missed_tasks())
 
         # Start webhook server
         from src.webhooks.server import WebhookServer
+
         _webhook_server = WebhookServer()
         await _webhook_server.start()
 

@@ -57,9 +57,7 @@ async def _read_document_content(document_id: str, account: str | None = None) -
     """Read document text — shared by read_document and Drive's read_file."""
     service = _auth(account).docs()
 
-    doc = await asyncio.to_thread(
-        lambda: service.documents().get(documentId=document_id).execute()
-    )
+    doc = await asyncio.to_thread(lambda: service.documents().get(documentId=document_id).execute())
 
     return _extract_text(doc)
 
@@ -80,19 +78,19 @@ class ReadDocumentParams(GoogleToolParams):
 async def read_document(document_id: str, account: str | None = None) -> ToolResult:
     service = _auth(account).docs()
 
-    doc = await asyncio.to_thread(
-        lambda: service.documents().get(documentId=document_id).execute()
-    )
+    doc = await asyncio.to_thread(lambda: service.documents().get(documentId=document_id).execute())
 
     content = _extract_text(doc)
     doc_url = f"https://docs.google.com/document/d/{document_id}/edit"
 
-    return ToolResult(data={
-        "document_id": document_id,
-        "title": doc.get("title", ""),
-        "content": content,
-        "web_link": doc_url,
-    })
+    return ToolResult(
+        data={
+            "document_id": document_id,
+            "title": doc.get("title", ""),
+            "content": content,
+            "web_link": doc_url,
+        }
+    )
 
 
 # -- create_document ---------------------------------------------------------
@@ -121,26 +119,28 @@ async def create_document(title: str, content: str = "", account: str | None = N
 
     if content:
         await asyncio.to_thread(
-            lambda: service.documents()
-            .batchUpdate(
-                documentId=document_id,
-                body={
-                    "requests": [
-                        {"insertText": {"location": {"index": 1}, "text": content}}
-                    ]
-                },
+            lambda: (
+                service.documents()
+                .batchUpdate(
+                    documentId=document_id,
+                    body={
+                        "requests": [{"insertText": {"location": {"index": 1}, "text": content}}]
+                    },
+                )
+                .execute()
             )
-            .execute()
         )
 
     doc_url = f"https://docs.google.com/document/d/{document_id}/edit"
     logger.info("Created document: %s", document_id)
 
-    return ToolResult(data={
-        "document_id": document_id,
-        "title": title,
-        "web_link": doc_url,
-    })
+    return ToolResult(
+        data={
+            "document_id": document_id,
+            "title": title,
+            "web_link": doc_url,
+        }
+    )
 
 
 # -- update_document ---------------------------------------------------------
@@ -162,9 +162,7 @@ async def update_document(document_id: str, content: str, account: str | None = 
     service = _auth(account).docs()
 
     # Get current document to find end index
-    doc = await asyncio.to_thread(
-        lambda: service.documents().get(documentId=document_id).execute()
-    )
+    doc = await asyncio.to_thread(lambda: service.documents().get(documentId=document_id).execute())
 
     body_content = doc.get("body", {}).get("content", [])
     end_index = body_content[-1].get("endIndex", 1) if body_content else 1
@@ -172,26 +170,28 @@ async def update_document(document_id: str, content: str, account: str | None = 
     requests: list[dict] = []
     # Delete existing content (if any beyond the initial newline)
     if end_index > 2:
-        requests.append({
-            "deleteContentRange": {
-                "range": {"startIndex": 1, "endIndex": end_index - 1}
-            }
-        })
+        requests.append(
+            {"deleteContentRange": {"range": {"startIndex": 1, "endIndex": end_index - 1}}}
+        )
     # Insert new content
     requests.append({"insertText": {"location": {"index": 1}, "text": content}})
 
     await asyncio.to_thread(
-        lambda: service.documents()
-        .batchUpdate(documentId=document_id, body={"requests": requests})
-        .execute()
+        lambda: (
+            service.documents()
+            .batchUpdate(documentId=document_id, body={"requests": requests})
+            .execute()
+        )
     )
 
     doc_url = f"https://docs.google.com/document/d/{document_id}/edit"
-    return ToolResult(data={
-        "document_id": document_id,
-        "title": doc.get("title", ""),
-        "web_link": doc_url,
-    })
+    return ToolResult(
+        data={
+            "document_id": document_id,
+            "title": doc.get("title", ""),
+            "web_link": doc_url,
+        }
+    )
 
 
 # -- append_to_document ------------------------------------------------------
@@ -215,34 +215,36 @@ async def append_to_document(
     service = _auth(account).docs()
 
     # Get current document to find end index
-    doc = await asyncio.to_thread(
-        lambda: service.documents().get(documentId=document_id).execute()
-    )
+    doc = await asyncio.to_thread(lambda: service.documents().get(documentId=document_id).execute())
 
     body_content = doc.get("body", {}).get("content", [])
     end_index = body_content[-1].get("endIndex", 1) if body_content else 1
 
     await asyncio.to_thread(
-        lambda: service.documents()
-        .batchUpdate(
-            documentId=document_id,
-            body={
-                "requests": [
-                    {
-                        "insertText": {
-                            "location": {"index": end_index - 1},
-                            "text": content,
+        lambda: (
+            service.documents()
+            .batchUpdate(
+                documentId=document_id,
+                body={
+                    "requests": [
+                        {
+                            "insertText": {
+                                "location": {"index": end_index - 1},
+                                "text": content,
+                            }
                         }
-                    }
-                ]
-            },
+                    ]
+                },
+            )
+            .execute()
         )
-        .execute()
     )
 
     doc_url = f"https://docs.google.com/document/d/{document_id}/edit"
-    return ToolResult(data={
-        "document_id": document_id,
-        "title": doc.get("title", ""),
-        "web_link": doc_url,
-    })
+    return ToolResult(
+        data={
+            "document_id": document_id,
+            "title": doc.get("title", ""),
+            "web_link": doc_url,
+        }
+    )

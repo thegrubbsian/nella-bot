@@ -60,12 +60,14 @@ class SlackChannel:
                 elements = []
                 for row in buttons:
                     for btn in row:
-                        elements.append({
-                            "type": "button",
-                            "text": {"type": "plain_text", "text": btn["text"]},
-                            "action_id": btn.get("callback_data", btn["text"]),
-                            "value": btn.get("callback_data", ""),
-                        })
+                        elements.append(
+                            {
+                                "type": "button",
+                                "text": {"type": "plain_text", "text": btn["text"]},
+                                "action_id": btn.get("callback_data", btn["text"]),
+                                "value": btn.get("callback_data", ""),
+                            }
+                        )
                 kwargs["blocks"] = [
                     {"type": "section", "text": {"type": "mrkdwn", "text": message}},
                     {"type": "actions", "elements": elements},

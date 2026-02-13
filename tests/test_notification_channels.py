@@ -86,8 +86,10 @@ async def test_send_rich_with_buttons() -> None:
         [{"text": "Help", "url": "https://example.com"}],
     ]
 
-    with patch("src.notifications.telegram_channel.InlineKeyboardMarkup") as mock_markup, \
-         patch("src.notifications.telegram_channel.InlineKeyboardButton") as mock_button:
+    with (
+        patch("src.notifications.telegram_channel.InlineKeyboardMarkup") as mock_markup,
+        patch("src.notifications.telegram_channel.InlineKeyboardButton") as mock_button,
+    ):
         mock_button.side_effect = lambda **kw: kw
         mock_markup.return_value = "MARKUP"
 

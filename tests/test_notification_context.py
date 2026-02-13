@@ -24,17 +24,13 @@ def test_metadata_defaults_to_empty_dict() -> None:
 
 
 def test_explicit_reply_channel() -> None:
-    ctx = MessageContext(
-        user_id="1", source_channel="sms", reply_channel="telegram"
-    )
+    ctx = MessageContext(user_id="1", source_channel="sms", reply_channel="telegram")
     assert ctx.source_channel == "sms"
     assert ctx.reply_channel == "telegram"
 
 
 def test_explicit_conversation_id() -> None:
-    ctx = MessageContext(
-        user_id="1", source_channel="telegram", conversation_id="conv-99"
-    )
+    ctx = MessageContext(user_id="1", source_channel="telegram", conversation_id="conv-99")
     assert ctx.conversation_id == "conv-99"
 
 

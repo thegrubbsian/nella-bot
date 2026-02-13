@@ -130,7 +130,10 @@ async def test_request_timeout_returns_false() -> None:
     pending_tool = _make_pending_tool()
 
     result = await request_confirmation(
-        client, channel_id="D01ABC123", pending_tool=pending_tool, timeout=0.05,
+        client,
+        channel_id="D01ABC123",
+        pending_tool=pending_tool,
+        timeout=0.05,
     )
     assert result is False
     client.chat_update.assert_awaited_once()

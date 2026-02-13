@@ -33,10 +33,7 @@ def _auth(account: str | None = None) -> GoogleAuthManager:
 
 def _extract_headers(msg: dict) -> dict[str, str]:
     """Extract headers from a Gmail message into a flat dict."""
-    return {
-        h["name"]: h["value"]
-        for h in msg.get("payload", {}).get("headers", [])
-    }
+    return {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
 
 
 def _extract_body(payload: dict) -> str:
@@ -87,11 +84,13 @@ def _extract_attachments(payload: dict) -> list[dict[str, str]]:
             body = part.get("body", {})
             size = body.get("size", 0)
             attachment_id = body.get("attachmentId", "")
-            attachments.append({
-                "name": filename,
-                "size": str(size),
-                "attachment_id": attachment_id,
-            })
+            attachments.append(
+                {
+                    "name": filename,
+                    "size": str(size),
+                    "attachment_id": attachment_id,
+                }
+            )
     return attachments
 
 
@@ -152,30 +151,30 @@ async def search_emails(
     service = _auth(account).gmail()
 
     result = await asyncio.to_thread(
-        lambda: service.users()
-        .messages()
-        .list(userId="me", maxResults=max_results, q=query)
-        .execute()
+        lambda: (
+            service.users().messages().list(userId="me", maxResults=max_results, q=query).execute()
+        )
     )
 
     messages = []
     for msg_ref in result.get("messages", []):
         msg = await asyncio.to_thread(
-            lambda mid=msg_ref["id"]: service.users()
-            .messages()
-            .get(userId="me", id=mid, format="metadata")
-            .execute()
+            lambda mid=msg_ref["id"]: (
+                service.users().messages().get(userId="me", id=mid, format="metadata").execute()
+            )
         )
         headers = _extract_headers(msg)
-        messages.append({
-            "id": msg["id"],
-            "thread_id": msg.get("threadId", ""),
-            "subject": headers.get("Subject", ""),
-            "from": headers.get("From", ""),
-            "to": headers.get("To", ""),
-            "date": headers.get("Date", ""),
-            "snippet": msg.get("snippet", ""),
-        })
+        messages.append(
+            {
+                "id": msg["id"],
+                "thread_id": msg.get("threadId", ""),
+                "subject": headers.get("Subject", ""),
+                "from": headers.get("From", ""),
+                "to": headers.get("To", ""),
+                "date": headers.get("Date", ""),
+                "snippet": msg.get("snippet", ""),
+            }
+        )
 
     return ToolResult(data={"emails": messages, "count": len(messages)})
 
@@ -197,26 +196,25 @@ async def read_email(message_id: str, account: str | None = None) -> ToolResult:
     service = _auth(account).gmail()
 
     msg = await asyncio.to_thread(
-        lambda: service.users()
-        .messages()
-        .get(userId="me", id=message_id, format="full")
-        .execute()
+        lambda: service.users().messages().get(userId="me", id=message_id, format="full").execute()
     )
 
     headers = _extract_headers(msg)
     payload = msg.get("payload", {})
 
-    return ToolResult(data={
-        "id": msg["id"],
-        "thread_id": msg.get("threadId", ""),
-        "subject": headers.get("Subject", ""),
-        "from": headers.get("From", ""),
-        "to": headers.get("To", ""),
-        "cc": headers.get("Cc", ""),
-        "date": headers.get("Date", ""),
-        "body": _extract_body(payload),
-        "attachments": _extract_attachments(payload),
-    })
+    return ToolResult(
+        data={
+            "id": msg["id"],
+            "thread_id": msg.get("threadId", ""),
+            "subject": headers.get("Subject", ""),
+            "from": headers.get("From", ""),
+            "to": headers.get("To", ""),
+            "cc": headers.get("Cc", ""),
+            "date": headers.get("Date", ""),
+            "body": _extract_body(payload),
+            "attachments": _extract_attachments(payload),
+        }
+    )
 
 
 # -- read_thread -------------------------------------------------------------
@@ -236,10 +234,7 @@ async def read_thread(thread_id: str, account: str | None = None) -> ToolResult:
     service = _auth(account).gmail()
 
     thread = await asyncio.to_thread(
-        lambda: service.users()
-        .threads()
-        .get(userId="me", id=thread_id, format="full")
-        .execute()
+        lambda: service.users().threads().get(userId="me", id=thread_id, format="full").execute()
     )
 
     messages = []
@@ -249,20 +244,24 @@ async def read_thread(thread_id: str, account: str | None = None) -> ToolResult:
         payload = msg.get("payload", {})
         if not subject:
             subject = headers.get("Subject", "")
-        messages.append({
-            "id": msg["id"],
-            "from": headers.get("From", ""),
-            "to": headers.get("To", ""),
-            "date": headers.get("Date", ""),
-            "body": _extract_body(payload),
-        })
+        messages.append(
+            {
+                "id": msg["id"],
+                "from": headers.get("From", ""),
+                "to": headers.get("To", ""),
+                "date": headers.get("Date", ""),
+                "body": _extract_body(payload),
+            }
+        )
 
-    return ToolResult(data={
-        "thread_id": thread_id,
-        "subject": subject,
-        "message_count": len(messages),
-        "messages": messages,
-    })
+    return ToolResult(
+        data={
+            "thread_id": thread_id,
+            "subject": subject,
+            "message_count": len(messages),
+            "messages": messages,
+        }
+    )
 
 
 # -- send_email --------------------------------------------------------------
@@ -313,10 +312,7 @@ async def send_email(
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
     result = await asyncio.to_thread(
-        lambda: service.users()
-        .messages()
-        .send(userId="me", body={"raw": raw})
-        .execute()
+        lambda: service.users().messages().send(userId="me", body={"raw": raw}).execute()
     )
 
     logger.info("Sent email to %s: %s", to, result["id"])
@@ -352,10 +348,9 @@ async def reply_to_email(
 
     # Fetch original for threading headers
     original = await asyncio.to_thread(
-        lambda: service.users()
-        .messages()
-        .get(userId="me", id=message_id, format="metadata")
-        .execute()
+        lambda: (
+            service.users().messages().get(userId="me", id=message_id, format="metadata").execute()
+        )
     )
 
     headers = _extract_headers(original)
@@ -377,10 +372,12 @@ async def reply_to_email(
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
     result = await asyncio.to_thread(
-        lambda: service.users()
-        .messages()
-        .send(userId="me", body={"raw": raw, "threadId": thread_id})
-        .execute()
+        lambda: (
+            service.users()
+            .messages()
+            .send(userId="me", body={"raw": raw, "threadId": thread_id})
+            .execute()
+        )
     )
 
     logger.info("Replied to %s in thread %s", message_id, thread_id)
@@ -405,10 +402,12 @@ async def archive_email(message_id: str, account: str | None = None) -> ToolResu
     service = _auth(account).gmail()
 
     await asyncio.to_thread(
-        lambda: service.users()
-        .messages()
-        .modify(userId="me", id=message_id, body={"removeLabelIds": ["INBOX"]})
-        .execute()
+        lambda: (
+            service.users()
+            .messages()
+            .modify(userId="me", id=message_id, body={"removeLabelIds": ["INBOX"]})
+            .execute()
+        )
     )
 
     return ToolResult(data={"archived": True, "message_id": message_id})
@@ -432,13 +431,15 @@ async def archive_emails(message_ids: list[str], account: str | None = None) -> 
     service = _auth(account).gmail()
 
     await asyncio.to_thread(
-        lambda: service.users()
-        .messages()
-        .batchModify(
-            userId="me",
-            body={"ids": message_ids, "removeLabelIds": ["INBOX"]},
+        lambda: (
+            service.users()
+            .messages()
+            .batchModify(
+                userId="me",
+                body={"ids": message_ids, "removeLabelIds": ["INBOX"]},
+            )
+            .execute()
         )
-        .execute()
     )
 
     return ToolResult(data={"archived": True, "count": len(message_ids)})
@@ -832,11 +833,13 @@ async def download_email_attachment(
     service = _auth(account).gmail()
 
     result = await asyncio.to_thread(
-        lambda: service.users()
-        .messages()
-        .attachments()
-        .get(userId="me", messageId=message_id, id=attachment_id)
-        .execute()
+        lambda: (
+            service.users()
+            .messages()
+            .attachments()
+            .get(userId="me", messageId=message_id, id=attachment_id)
+            .execute()
+        )
     )
 
     data = base64.urlsafe_b64decode(result["data"])
@@ -849,9 +852,11 @@ async def download_email_attachment(
 
     mime_type, _ = mimetypes.guess_type(filename)
 
-    return ToolResult(data={
-        "downloaded": True,
-        "path": filename,
-        "size": len(data),
-        "mime_type": mime_type or "application/octet-stream",
-    })
+    return ToolResult(
+        data={
+            "downloaded": True,
+            "path": filename,
+            "size": len(data),
+            "mime_type": mime_type or "application/octet-stream",
+        }
+    )

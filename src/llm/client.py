@@ -76,12 +76,14 @@ def _serialize_content(content: list[Any]) -> list[dict[str, Any]]:
         if block.type == "text":
             result.append({"type": "text", "text": block.text})
         elif block.type == "tool_use":
-            result.append({
-                "type": "tool_use",
-                "id": block.id,
-                "name": block.name,
-                "input": block.input,
-            })
+            result.append(
+                {
+                    "type": "tool_use",
+                    "id": block.id,
+                    "name": block.name,
+                    "input": block.input,
+                }
+            )
     return result
 
 
@@ -186,10 +188,12 @@ async def generate_response(
         )
 
         # Append the assistant turn (with tool_use blocks) to the loop
-        loop_messages.append({
-            "role": "assistant",
-            "content": _serialize_content(response.content),
-        })
+        loop_messages.append(
+            {
+                "role": "assistant",
+                "content": _serialize_content(response.content),
+            }
+        )
 
         # Execute each tool call
         tool_results: list[dict[str, Any]] = []
@@ -209,24 +213,26 @@ async def generate_response(
                     approved = await on_confirm(pending)
 
                 if not approved:
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": json.dumps({"error": "User denied this action."}),
-                        "is_error": True,
-                    })
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": json.dumps({"error": "User denied this action."}),
+                            "is_error": True,
+                        }
+                    )
                     continue
 
-            result = await registry.execute(
-                block.name, block.input, msg_context=msg_context
-            )
+            result = await registry.execute(block.name, block.input, msg_context=msg_context)
 
-            tool_results.append({
-                "type": "tool_result",
-                "tool_use_id": block.id,
-                "content": result.to_content(),
-                "is_error": not result.success,
-            })
+            tool_results.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": result.to_content(),
+                    "is_error": not result.success,
+                }
+            )
 
         loop_messages.append({"role": "user", "content": tool_results})
 

@@ -91,9 +91,7 @@ class TaskStore:
         """Fetch a task by ID, or None if not found."""
         db = await self._connect()
         try:
-            cursor = await db.execute(
-                "SELECT * FROM scheduled_tasks WHERE id = ?", (task_id,)
-            )
+            cursor = await db.execute("SELECT * FROM scheduled_tasks WHERE id = ?", (task_id,))
             row = await cursor.fetchone()
             return ScheduledTask.from_row(row) if row else None
         finally:

@@ -33,9 +33,7 @@ def _format_event(event: dict) -> dict:
                 meeting_link = ep.get("uri", "")
                 break
 
-    attendees = [
-        a.get("email", "") for a in event.get("attendees", [])
-    ]
+    attendees = [a.get("email", "") for a in event.get("attendees", [])]
 
     return {
         "id": event["id"],
@@ -73,15 +71,17 @@ async def list_events(
     time_max = now + timedelta(days=days_ahead)
 
     result = await asyncio.to_thread(
-        lambda: service.events()
-        .list(
-            calendarId=calendar_id,
-            timeMin=now.isoformat(),
-            timeMax=time_max.isoformat(),
-            singleEvents=True,
-            orderBy="startTime",
+        lambda: (
+            service.events()
+            .list(
+                calendarId=calendar_id,
+                timeMin=now.isoformat(),
+                timeMax=time_max.isoformat(),
+                singleEvents=True,
+                orderBy="startTime",
+            )
+            .execute()
         )
-        .execute()
     )
 
     events = [_format_event(e) for e in result.get("items", [])]
@@ -110,15 +110,17 @@ async def get_todays_schedule(
     end_of_day = start_of_day + timedelta(days=1)
 
     result = await asyncio.to_thread(
-        lambda: service.events()
-        .list(
-            calendarId=calendar_id,
-            timeMin=start_of_day.isoformat(),
-            timeMax=end_of_day.isoformat(),
-            singleEvents=True,
-            orderBy="startTime",
+        lambda: (
+            service.events()
+            .list(
+                calendarId=calendar_id,
+                timeMin=start_of_day.isoformat(),
+                timeMax=end_of_day.isoformat(),
+                singleEvents=True,
+                orderBy="startTime",
+            )
+            .execute()
         )
-        .execute()
     )
 
     events = [_format_event(e) for e in result.get("items", [])]
@@ -170,17 +172,17 @@ async def create_event(
         body["attendees"] = [{"email": e} for e in attendees]
 
     event = await asyncio.to_thread(
-        lambda: service.events()
-        .insert(calendarId=calendar_id, body=body)
-        .execute()
+        lambda: service.events().insert(calendarId=calendar_id, body=body).execute()
     )
 
     logger.info("Created event: %s", event["id"])
-    return ToolResult(data={
-        "id": event["id"],
-        "title": title,
-        "link": event.get("htmlLink", ""),
-    })
+    return ToolResult(
+        data={
+            "id": event["id"],
+            "title": title,
+            "link": event.get("htmlLink", ""),
+        }
+    )
 
 
 # -- update_event ------------------------------------------------------------
@@ -219,9 +221,7 @@ async def update_event(
 
     # Fetch existing event
     existing = await asyncio.to_thread(
-        lambda: service.events()
-        .get(calendarId=calendar_id, eventId=event_id)
-        .execute()
+        lambda: service.events().get(calendarId=calendar_id, eventId=event_id).execute()
     )
 
     # Merge only non-None fields
@@ -239,16 +239,20 @@ async def update_event(
         existing["attendees"] = [{"email": e} for e in attendees]
 
     updated = await asyncio.to_thread(
-        lambda: service.events()
-        .patch(calendarId=calendar_id, eventId=event_id, body=existing)
-        .execute()
+        lambda: (
+            service.events()
+            .patch(calendarId=calendar_id, eventId=event_id, body=existing)
+            .execute()
+        )
     )
 
-    return ToolResult(data={
-        "id": updated["id"],
-        "title": updated.get("summary", ""),
-        "link": updated.get("htmlLink", ""),
-    })
+    return ToolResult(
+        data={
+            "id": updated["id"],
+            "title": updated.get("summary", ""),
+            "link": updated.get("htmlLink", ""),
+        }
+    )
 
 
 # -- delete_event ------------------------------------------------------------
@@ -274,9 +278,7 @@ async def delete_event(
     service = _auth(account).calendar()
 
     await asyncio.to_thread(
-        lambda: service.events()
-        .delete(calendarId=calendar_id, eventId=event_id)
-        .execute()
+        lambda: service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
     )
 
     return ToolResult(data={"deleted": True, "event_id": event_id})
@@ -322,15 +324,17 @@ async def get_events_by_date_range(
     service = _auth(account).calendar()
 
     result = await asyncio.to_thread(
-        lambda: service.events()
-        .list(
-            calendarId=calendar_id,
-            timeMin=start.isoformat(),
-            timeMax=end.isoformat(),
-            singleEvents=True,
-            orderBy="startTime",
+        lambda: (
+            service.events()
+            .list(
+                calendarId=calendar_id,
+                timeMin=start.isoformat(),
+                timeMax=end.isoformat(),
+                singleEvents=True,
+                orderBy="startTime",
+            )
+            .execute()
         )
-        .execute()
     )
 
     events = [_format_event(e) for e in result.get("items", [])]
@@ -363,15 +367,17 @@ async def check_availability(
     day_end = day + timedelta(days=1)
 
     result = await asyncio.to_thread(
-        lambda: service.freebusy()
-        .query(
-            body={
-                "timeMin": day.isoformat(),
-                "timeMax": day_end.isoformat(),
-                "items": [{"id": calendar_id}],
-            }
+        lambda: (
+            service.freebusy()
+            .query(
+                body={
+                    "timeMin": day.isoformat(),
+                    "timeMax": day_end.isoformat(),
+                    "items": [{"id": calendar_id}],
+                }
+            )
+            .execute()
         )
-        .execute()
     )
 
     busy_periods = result.get("calendars", {}).get(calendar_id, {}).get("busy", [])
@@ -382,19 +388,25 @@ async def check_availability(
     for period in busy_periods:
         busy_start = datetime.fromisoformat(period["start"])
         if current < busy_start:
-            free_periods.append({
-                "start": current.isoformat(),
-                "end": busy_start.isoformat(),
-            })
+            free_periods.append(
+                {
+                    "start": current.isoformat(),
+                    "end": busy_start.isoformat(),
+                }
+            )
         current = datetime.fromisoformat(period["end"])
     if current < day_end:
-        free_periods.append({
-            "start": current.isoformat(),
-            "end": day_end.isoformat(),
-        })
+        free_periods.append(
+            {
+                "start": current.isoformat(),
+                "end": day_end.isoformat(),
+            }
+        )
 
-    return ToolResult(data={
-        "date": date,
-        "busy_periods": busy_periods,
-        "free_periods": free_periods,
-    })
+    return ToolResult(
+        data={
+            "date": date,
+            "busy_periods": busy_periods,
+            "free_periods": free_periods,
+        }
+    )

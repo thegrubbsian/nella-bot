@@ -1,6 +1,6 @@
 """Tests for Slack message handlers."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from src.bot.slack.handlers import handle_message
 
@@ -22,8 +22,10 @@ async def test_handle_message_calls_generate_response() -> None:
     say = _make_say()
     client = _make_client()
 
-    with patch("src.bot.slack.handlers.generate_response", new_callable=AsyncMock) as mock_gen, \
-         patch("src.bot.slack.handlers.extract_and_save", new_callable=AsyncMock):
+    with (
+        patch("src.bot.slack.handlers.generate_response", new_callable=AsyncMock) as mock_gen,
+        patch("src.bot.slack.handlers.extract_and_save", new_callable=AsyncMock),
+    ):
         mock_gen.return_value = "Hi there!"
         await handle_message(event=event, say=say, client=client)
 
@@ -36,8 +38,10 @@ async def test_handle_message_updates_placeholder() -> None:
     say = _make_say()
     client = _make_client()
 
-    with patch("src.bot.slack.handlers.generate_response", new_callable=AsyncMock) as mock_gen, \
-         patch("src.bot.slack.handlers.extract_and_save", new_callable=AsyncMock):
+    with (
+        patch("src.bot.slack.handlers.generate_response", new_callable=AsyncMock) as mock_gen,
+        patch("src.bot.slack.handlers.extract_and_save", new_callable=AsyncMock),
+    ):
         mock_gen.return_value = "Final response"
         await handle_message(event=event, say=say, client=client)
 
@@ -50,8 +54,10 @@ async def test_handle_message_creates_message_context() -> None:
     say = _make_say()
     client = _make_client()
 
-    with patch("src.bot.slack.handlers.generate_response", new_callable=AsyncMock) as mock_gen, \
-         patch("src.bot.slack.handlers.extract_and_save", new_callable=AsyncMock):
+    with (
+        patch("src.bot.slack.handlers.generate_response", new_callable=AsyncMock) as mock_gen,
+        patch("src.bot.slack.handlers.extract_and_save", new_callable=AsyncMock),
+    ):
         mock_gen.return_value = "Hi"
         await handle_message(event=event, say=say, client=client)
 

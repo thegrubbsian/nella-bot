@@ -22,8 +22,7 @@ DEFAULT_USER_AGENT = "NellaBot/1.0"
 class WriteFileParams(ToolParams):
     path: str = Field(
         description=(
-            "File path relative to scratch space"
-            " (e.g. 'notes.txt' or 'research/summary.md')"
+            "File path relative to scratch space (e.g. 'notes.txt' or 'research/summary.md')"
         ),
     )
     content: str = Field(description="Text content to write to the file")
@@ -66,11 +65,13 @@ async def write_file(path: str, content: str) -> ToolResult:
     scratch = ScratchSpace.get()
     try:
         abs_path = scratch.write(path, content)
-        return ToolResult(data={
-            "written": True,
-            "path": path,
-            "size": abs_path.stat().st_size,
-        })
+        return ToolResult(
+            data={
+                "written": True,
+                "path": path,
+                "size": abs_path.stat().st_size,
+            }
+        )
     except ValueError as exc:
         return ToolResult(error=str(exc))
     except OSError as exc:
@@ -92,31 +93,34 @@ async def read_file(path: str) -> ToolResult:
     try:
         content = scratch.read(path)
         target = scratch.resolve(path)
-        return ToolResult(data={
-            "path": path,
-            "content": content,
-            "size": target.stat().st_size,
-        })
+        return ToolResult(
+            data={
+                "path": path,
+                "content": content,
+                "size": target.stat().st_size,
+            }
+        )
     except FileNotFoundError:
         return ToolResult(error=f"File not found: {path}")
     except ValueError:
         # Binary file — return metadata instead
         target = scratch.resolve(path)
         mime_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
-        return ToolResult(data={
-            "path": path,
-            "binary": True,
-            "size": target.stat().st_size,
-            "mime_type": mime_type,
-            "message": f"Binary file ({mime_type}). Reference this file by path in other tools.",
-        })
+        return ToolResult(
+            data={
+                "path": path,
+                "binary": True,
+                "size": target.stat().st_size,
+                "mime_type": mime_type,
+                "message": f"Binary file ({mime_type}). Reference this file by path in other tools.",
+            }
+        )
 
 
 @registry.tool(
     name="scratch_list",
     description=(
-        "List all files in the local scratch space with size, age, "
-        "and modification time."
+        "List all files in the local scratch space with size, age, and modification time."
     ),
     category="files",
     params_model=ListFilesParams,
@@ -124,11 +128,13 @@ async def read_file(path: str) -> ToolResult:
 async def list_files() -> ToolResult:
     scratch = ScratchSpace.get()
     files = scratch.list_files()
-    return ToolResult(data={
-        "files": files,
-        "count": len(files),
-        "total_size": scratch.total_size(),
-    })
+    return ToolResult(
+        data={
+            "files": files,
+            "count": len(files),
+            "total_size": scratch.total_size(),
+        }
+    )
 
 
 @registry.tool(
@@ -208,10 +214,7 @@ async def download_file(url: str, filename: str | None = None) -> ToolResult:
                 content_length = resp.headers.get("content-length")
                 if content_length and int(content_length) > MAX_FILE_SIZE:
                     return ToolResult(
-                        error=(
-                            f"File too large: {content_length} bytes"
-                            f" (max {MAX_FILE_SIZE})"
-                        ),
+                        error=(f"File too large: {content_length} bytes (max {MAX_FILE_SIZE})"),
                     )
 
                 # Stream to disk, enforcing size limit
@@ -223,21 +226,20 @@ async def download_file(url: str, filename: str | None = None) -> ToolResult:
                         if total_bytes > MAX_FILE_SIZE:
                             f.close()
                             target.unlink(missing_ok=True)
-                            msg = (
-                                "File too large: exceeded"
-                                f" {MAX_FILE_SIZE} bytes"
-                            )
+                            msg = f"File too large: exceeded {MAX_FILE_SIZE} bytes"
                             return ToolResult(error=msg)
                         f.write(chunk)
 
         mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
-        return ToolResult(data={
-            "downloaded": True,
-            "path": filename,
-            "size": total_bytes,
-            "mime_type": mime_type,
-            "source_url": url,
-        })
+        return ToolResult(
+            data={
+                "downloaded": True,
+                "path": filename,
+                "size": total_bytes,
+                "mime_type": mime_type,
+                "source_url": url,
+            }
+        )
 
     except httpx.TimeoutException:
         target.unlink(missing_ok=True)

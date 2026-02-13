@@ -216,9 +216,7 @@ async def test_callback_run_executes_and_deactivates(
     assert "Executed" in query.edit_message_text.call_args.kwargs["text"]
 
 
-async def test_callback_delete_deactivates(
-    engine: SchedulerEngine, store: TaskStore
-) -> None:
+async def test_callback_delete_deactivates(engine: SchedulerEngine, store: TaskStore) -> None:
     """Pressing 'Delete' should deactivate the task without executing."""
     past = (datetime.now(zoneinfo.ZoneInfo(TZ)) - timedelta(hours=1)).isoformat()
     task = _make_task(run_at=past)

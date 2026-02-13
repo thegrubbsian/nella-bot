@@ -51,24 +51,33 @@ def test_default_values() -> None:
 
 def test_action_type() -> None:
     task = ScheduledTask(
-        id="1", name="t", task_type="one_off",
-        schedule={}, action={"type": "ai_task", "prompt": "do stuff"},
+        id="1",
+        name="t",
+        task_type="one_off",
+        schedule={},
+        action={"type": "ai_task", "prompt": "do stuff"},
     )
     assert task.action_type == "ai_task"
 
 
 def test_action_type_missing_key() -> None:
     task = ScheduledTask(
-        id="1", name="t", task_type="one_off",
-        schedule={}, action={},
+        id="1",
+        name="t",
+        task_type="one_off",
+        schedule={},
+        action={},
     )
     assert task.action_type == ""
 
 
 def test_is_one_off() -> None:
     task = ScheduledTask(
-        id="1", name="t", task_type="one_off",
-        schedule={}, action={},
+        id="1",
+        name="t",
+        task_type="one_off",
+        schedule={},
+        action={},
     )
     assert task.is_one_off is True
     assert task.is_recurring is False
@@ -76,8 +85,11 @@ def test_is_one_off() -> None:
 
 def test_is_recurring() -> None:
     task = ScheduledTask(
-        id="1", name="t", task_type="recurring",
-        schedule={"cron": "0 9 * * *"}, action={},
+        id="1",
+        name="t",
+        task_type="recurring",
+        schedule={"cron": "0 9 * * *"},
+        action={},
     )
     assert task.is_recurring is True
     assert task.is_one_off is False
@@ -118,7 +130,9 @@ def test_to_row_and_from_row_roundtrip() -> None:
 
 def test_to_row_json_fields() -> None:
     task = ScheduledTask(
-        id="1", name="t", task_type="one_off",
+        id="1",
+        name="t",
+        task_type="one_off",
         schedule={"run_at": "2025-06-01T09:00:00"},
         action={"type": "simple_message", "message": "hello"},
     )
@@ -130,11 +144,17 @@ def test_to_row_json_fields() -> None:
 
 def test_from_row_inactive_task() -> None:
     row = (
-        "id1", "name", "one_off",
+        "id1",
+        "name",
+        "one_off",
         '{"run_at": "2025-01-01"}',
         '{"type": "simple_message", "message": "hi"}',
-        "", None, 0,  # active = 0
-        "2025-01-01T00:00:00", None, None,
+        "",
+        None,
+        0,  # active = 0
+        "2025-01-01T00:00:00",
+        None,
+        None,
     )
     task = ScheduledTask.from_row(row)
     assert task.active is False
@@ -142,10 +162,17 @@ def test_from_row_inactive_task() -> None:
 
 def test_from_row_null_description() -> None:
     row = (
-        "id1", "name", "one_off",
-        '{}', '{}',
-        None, None, 1,
-        "2025-01-01T00:00:00", None, None,
+        "id1",
+        "name",
+        "one_off",
+        "{}",
+        "{}",
+        None,
+        None,
+        1,
+        "2025-01-01T00:00:00",
+        None,
+        None,
     )
     task = ScheduledTask.from_row(row)
     assert task.description == ""

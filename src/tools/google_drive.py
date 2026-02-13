@@ -52,8 +52,7 @@ class SearchFilesParams(GoogleToolParams):
 @registry.tool(
     name="search_files",
     description=(
-        "Search Google Drive for files by name or content. "
-        "Optionally scope to a specific folder."
+        "Search Google Drive for files by name or content. Optionally scope to a specific folder."
     ),
     category=_CATEGORY,
     params_model=SearchFilesParams,
@@ -73,9 +72,7 @@ async def search_files(
         q = f"'{folder_id}' in parents and ({q})"
 
     result = await asyncio.to_thread(
-        lambda: service.files()
-        .list(q=q, pageSize=max_results, fields=_FILE_FIELDS)
-        .execute()
+        lambda: service.files().list(q=q, pageSize=max_results, fields=_FILE_FIELDS).execute()
     )
 
     files = [
@@ -109,13 +106,15 @@ async def list_recent_files(max_results: int = 10, account: str | None = None) -
     service = _auth(account).drive()
 
     result = await asyncio.to_thread(
-        lambda: service.files()
-        .list(
-            orderBy="modifiedTime desc",
-            pageSize=max_results,
-            fields=_FILE_FIELDS,
+        lambda: (
+            service.files()
+            .list(
+                orderBy="modifiedTime desc",
+                pageSize=max_results,
+                fields=_FILE_FIELDS,
+            )
+            .execute()
         )
-        .execute()
     )
 
     files = [
@@ -157,14 +156,16 @@ async def list_folder(
     q = f"'{folder_id}' in parents"
 
     result = await asyncio.to_thread(
-        lambda: service.files()
-        .list(
-            q=q,
-            orderBy="modifiedTime desc",
-            pageSize=max_results,
-            fields=_FILE_FIELDS,
+        lambda: (
+            service.files()
+            .list(
+                q=q,
+                orderBy="modifiedTime desc",
+                pageSize=max_results,
+                fields=_FILE_FIELDS,
+            )
+            .execute()
         )
-        .execute()
     )
 
     files = [
@@ -202,9 +203,11 @@ async def read_file(file_id: str, account: str | None = None) -> ToolResult:
 
     # Get file metadata
     meta = await asyncio.to_thread(
-        lambda: service.files()
-        .get(fileId=file_id, fields="id,name,mimeType,modifiedTime,webViewLink,size")
-        .execute()
+        lambda: (
+            service.files()
+            .get(fileId=file_id, fields="id,name,mimeType,modifiedTime,webViewLink,size")
+            .execute()
+        )
     )
 
     mime_type = meta.get("mimeType", "")
@@ -229,10 +232,12 @@ async def read_file(file_id: str, account: str | None = None) -> ToolResult:
         "application/vnd.google-apps.spreadsheet",
         "application/vnd.google-apps.presentation",
     ):
-        return ToolResult(data={
-            **base_info,
-            "content": f"[{mime_type} — open in browser: {base_info['web_link']}]",
-        })
+        return ToolResult(
+            data={
+                **base_info,
+                "content": f"[{mime_type} — open in browser: {base_info['web_link']}]",
+            }
+        )
 
     # Text-based files: plain text, CSV, JSON, markdown, etc.
     text_types = {"text/plain", "text/csv", "text/markdown", "application/json"}
@@ -249,11 +254,13 @@ async def read_file(file_id: str, account: str | None = None) -> ToolResult:
         return ToolResult(data={**base_info, "content": content})
 
     # Images, PDFs, and other binary files → metadata only
-    return ToolResult(data={
-        **base_info,
-        "size": meta.get("size", "unknown"),
-        "content": f"[Binary file: {mime_type} — open in browser: {base_info['web_link']}]",
-    })
+    return ToolResult(
+        data={
+            **base_info,
+            "size": meta.get("size", "unknown"),
+            "content": f"[Binary file: {mime_type} — open in browser: {base_info['web_link']}]",
+        }
+    )
 
 
 # -- delete_file -------------------------------------------------------------
@@ -274,9 +281,7 @@ async def delete_file(file_id: str, account: str | None = None) -> ToolResult:
     service = _auth(account).drive()
 
     await asyncio.to_thread(
-        lambda: service.files()
-        .update(fileId=file_id, body={"trashed": True})
-        .execute()
+        lambda: service.files().update(fileId=file_id, body={"trashed": True}).execute()
     )
 
     return ToolResult(data={"trashed": True, "file_id": file_id})
@@ -308,9 +313,7 @@ async def download_drive_file(
     service = _auth(account).drive()
 
     meta = await asyncio.to_thread(
-        lambda: service.files()
-        .get(fileId=file_id, fields="id,name,mimeType,webViewLink")
-        .execute()
+        lambda: service.files().get(fileId=file_id, fields="id,name,mimeType,webViewLink").execute()
     )
 
     drive_name = meta.get("name", "file")
@@ -321,18 +324,14 @@ async def download_drive_file(
     if export_fmt:
         export_mime, ext = export_fmt
         data = await asyncio.to_thread(
-            lambda: service.files()
-            .export(fileId=file_id, mimeType=export_mime)
-            .execute()
+            lambda: service.files().export(fileId=file_id, mimeType=export_mime).execute()
         )
         # Add extension if the drive name doesn't already have one
         if filename is None:
             filename = drive_name + ext if not drive_name.endswith(ext) else drive_name
         mime_type = export_mime
     else:
-        data = await asyncio.to_thread(
-            lambda: service.files().get_media(fileId=file_id).execute()
-        )
+        data = await asyncio.to_thread(lambda: service.files().get_media(fileId=file_id).execute())
         if filename is None:
             filename = drive_name
 
@@ -342,14 +341,16 @@ async def download_drive_file(
     except (ValueError, OSError) as exc:
         return ToolResult(error=str(exc))
 
-    return ToolResult(data={
-        "downloaded": True,
-        "path": filename,
-        "size": len(data),
-        "mime_type": mime_type,
-        "drive_file_id": meta["id"],
-        "drive_file_name": drive_name,
-    })
+    return ToolResult(
+        data={
+            "downloaded": True,
+            "path": filename,
+            "size": len(data),
+            "mime_type": mime_type,
+            "drive_file_id": meta["id"],
+            "drive_file_name": drive_name,
+        }
+    )
 
 
 # -- upload_to_drive ---------------------------------------------------------
@@ -398,16 +399,20 @@ async def upload_to_drive(
     service = _auth(account).drive()
 
     result = await asyncio.to_thread(
-        lambda: service.files()
-        .create(body=file_metadata, media_body=media, fields="id,name,webViewLink")
-        .execute()
+        lambda: (
+            service.files()
+            .create(body=file_metadata, media_body=media, fields="id,name,webViewLink")
+            .execute()
+        )
     )
 
     logger.info("Uploaded %s to Drive: %s", name, result["id"])
-    return ToolResult(data={
-        "uploaded": True,
-        "file_id": result["id"],
-        "name": result.get("name", name),
-        "web_link": result.get("webViewLink", ""),
-        "size": len(data),
-    })
+    return ToolResult(
+        data={
+            "uploaded": True,
+            "file_id": result["id"],
+            "name": result.get("name", name),
+            "web_link": result.get("webViewLink", ""),
+            "size": len(data),
+        }
+    )

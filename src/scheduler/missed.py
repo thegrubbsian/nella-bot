@@ -85,14 +85,13 @@ async def check_and_notify_missed_tasks() -> int:
         _pending_missed[key] = task.id
 
         formatted_time = run_at.strftime("%Y-%m-%d %H:%M %Z")
-        message = (
-            f"*Missed scheduled task:* {task.name}\n"
-            f"Was scheduled for: {formatted_time}"
-        )
-        buttons = [[
-            {"text": "Run Now", "callback_data": f"mst:{key}:run"},
-            {"text": "Delete", "callback_data": f"mst:{key}:del"},
-        ]]
+        message = f"*Missed scheduled task:* {task.name}\nWas scheduled for: {formatted_time}"
+        buttons = [
+            [
+                {"text": "Run Now", "callback_data": f"mst:{key}:run"},
+                {"text": "Delete", "callback_data": f"mst:{key}:del"},
+            ]
+        ]
 
         router = NotificationRouter.get()
         await router.send_rich(

@@ -53,7 +53,9 @@ async def handle_message(
         if now - last_edit >= STREAM_UPDATE_INTERVAL:
             with contextlib.suppress(Exception):
                 await client.chat_update(
-                    channel=msg_channel, ts=msg_ts, text=streamed_text,
+                    channel=msg_channel,
+                    ts=msg_ts,
+                    text=streamed_text,
                 )
             last_edit = now
 
@@ -65,7 +67,9 @@ async def handle_message(
 
     async def on_confirm(pending_tool: Any) -> bool:
         return await request_confirmation(
-            client, channel_id=channel_id, pending_tool=pending_tool,
+            client,
+            channel_id=channel_id,
+            pending_tool=pending_tool,
         )
 
     try:
@@ -79,7 +83,9 @@ async def handle_message(
         if result_text:
             with contextlib.suppress(Exception):
                 await client.chat_update(
-                    channel=msg_channel, ts=msg_ts, text=result_text,
+                    channel=msg_channel,
+                    ts=msg_ts,
+                    text=result_text,
                 )
             session.add("assistant", result_text)
 
@@ -94,14 +100,18 @@ async def handle_message(
             )
         else:
             await client.chat_update(
-                channel=msg_channel, ts=msg_ts, text="I got an empty response. Try again?",
+                channel=msg_channel,
+                ts=msg_ts,
+                text="I got an empty response. Try again?",
             )
 
     except Exception:
         logger.exception("Error generating response")
         with contextlib.suppress(Exception):
             await client.chat_update(
-                channel=msg_channel, ts=msg_ts, text="Something went wrong. Check the logs.",
+                channel=msg_channel,
+                ts=msg_ts,
+                text="Something went wrong. Check the logs.",
             )
 
 

@@ -54,10 +54,7 @@ class GoogleAuthManager:
             name = configured[0]
 
         if name not in configured:
-            msg = (
-                f"Google account '{name}' is not in GOOGLE_ACCOUNTS "
-                f"({', '.join(configured)})"
-            )
+            msg = f"Google account '{name}' is not in GOOGLE_ACCOUNTS ({', '.join(configured)})"
             raise ValueError(msg)
 
         if name not in cls._instances:

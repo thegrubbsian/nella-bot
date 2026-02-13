@@ -44,11 +44,13 @@ async def browse_web(url: str, task: str) -> ToolResult:
             result = await agent.run(url)
 
         if result.success:
-            return ToolResult(data={
-                "summary": result.summary,
-                "final_url": result.url,
-                "steps_taken": result.steps_taken,
-            })
+            return ToolResult(
+                data={
+                    "summary": result.summary,
+                    "final_url": result.url,
+                    "steps_taken": result.steps_taken,
+                }
+            )
         else:
             error_msg = f"Browsing failed after {result.steps_taken} steps"
             if result.error:

@@ -615,7 +615,10 @@ async def test_request_timeout_returns_false() -> None:
     pending_tool = _make_pending_tool()
 
     result = await request_confirmation(
-        bot, chat_id=123, pending_tool=pending_tool, timeout=0.05,
+        bot,
+        chat_id=123,
+        pending_tool=pending_tool,
+        timeout=0.05,
     )
     assert result is False
     # Timed out confirmation should have been edited
@@ -628,6 +631,9 @@ async def test_request_cleans_up_after_timeout() -> None:
     before = len(_pending)
 
     await request_confirmation(
-        bot, chat_id=123, pending_tool=pending_tool, timeout=0.05,
+        bot,
+        chat_id=123,
+        pending_tool=pending_tool,
+        timeout=0.05,
     )
     assert len(_pending) == before  # Cleaned up

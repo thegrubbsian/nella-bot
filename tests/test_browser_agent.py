@@ -48,8 +48,14 @@ class TestBrowserAgent:
         """Agent clicks an element, then completes."""
         mock_page.evaluate.return_value = [
             {
-                "index": 0, "tag": "a", "type": "", "text": "Click me",
-                "href": "/next", "name": "", "x": 100, "y": 200,
+                "index": 0,
+                "tag": "a",
+                "type": "",
+                "text": "Click me",
+                "href": "/next",
+                "name": "",
+                "x": 100,
+                "y": 200,
             },
         ]
 
@@ -69,8 +75,14 @@ class TestBrowserAgent:
         """Agent fills a text input."""
         mock_page.evaluate.return_value = [
             {
-                "index": 0, "tag": "input", "type": "text", "text": "",
-                "href": "", "name": "search", "x": 300, "y": 100,
+                "index": 0,
+                "tag": "input",
+                "type": "text",
+                "text": "",
+                "href": "",
+                "name": "search",
+                "x": 300,
+                "y": 100,
             },
         ]
 
@@ -162,8 +174,14 @@ class TestBrowserAgent:
         """Agent selects a dropdown option."""
         mock_page.evaluate.return_value = [
             {
-                "index": 0, "tag": "select", "type": "", "text": "Option A",
-                "href": "", "name": "color", "x": 200, "y": 150,
+                "index": 0,
+                "tag": "select",
+                "type": "",
+                "text": "Option A",
+                "href": "",
+                "name": "color",
+                "x": 200,
+                "y": 150,
             },
         ]
 
@@ -194,9 +212,9 @@ class TestParseAction:
 
     def test_json_in_freeform_text(self):
         raw = (
-            'I think the best action is: '
+            "I think the best action is: "
             '{"action": "scroll", "direction": "down"} '
-            'because we need to see more.'
+            "because we need to see more."
         )
         result = BrowserAgent._parse_action(raw)
         assert result == {"action": "scroll", "direction": "down"}

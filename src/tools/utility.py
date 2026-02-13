@@ -24,13 +24,15 @@ logger = logging.getLogger(__name__)
 )
 async def get_current_datetime() -> ToolResult:
     now = datetime.now(UTC)
-    return ToolResult(data={
-        "datetime": now.isoformat(),
-        "date": now.strftime("%Y-%m-%d"),
-        "time": now.strftime("%H:%M:%S"),
-        "day_of_week": now.strftime("%A"),
-        "timezone": "UTC",
-    })
+    return ToolResult(
+        data={
+            "datetime": now.isoformat(),
+            "date": now.strftime("%Y-%m-%d"),
+            "time": now.strftime("%H:%M:%S"),
+            "day_of_week": now.strftime("%A"),
+            "timezone": "UTC",
+        }
+    )
 
 
 # ---------------------------------------------------------------------------

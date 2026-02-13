@@ -100,6 +100,4 @@ class NotificationRouter:
         if ch is None:
             logger.warning("No channel resolved for send_rich (requested=%s)", channel)
             return False
-        return await ch.send_rich(
-            user_id, message, buttons=buttons, parse_mode=parse_mode
-        )
+        return await ch.send_rich(user_id, message, buttons=buttons, parse_mode=parse_mode)
