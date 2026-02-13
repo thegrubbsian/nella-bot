@@ -19,7 +19,6 @@ RSYNC_EXCLUDES=(
     .git/ __pycache__/ "*.pyc" .venv/ .env ".env.*"
     auth_tokens/ credentials.json data/ .DS_Store .ruff_cache/
     .pytest_cache/ "*.db" "*.db-journal" .claude/
-    "config/*.md" "!config/*.md.EXAMPLE"
 )
 
 # ---------------------------------------------------------------------------
