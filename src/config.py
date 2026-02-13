@@ -12,9 +12,16 @@ load_dotenv()
 class Settings(BaseSettings):
     """Nella configuration. All values come from environment variables."""
 
+    # Platform
+    chat_platform: str = Field(default="telegram")
+
     # Telegram
     telegram_bot_token: str = Field(default="")
     allowed_user_ids: str = Field(default="")
+
+    # Slack
+    slack_bot_token: str = Field(default="")
+    slack_app_token: str = Field(default="")
 
     # Anthropic
     anthropic_api_key: str = Field(default="")
