@@ -33,7 +33,7 @@ Here are the scenarios:
 
 2.1. **remember_this** — Remember: "Nella functional test marker — safe to forget."
 
-2.2. **recall** — Search memory for "functional test marker". Confirm it appears.
+2.2. **recall** — Search memory for "functional test marker". Confirm it appears. (Note: Mem0 indexing can take a moment — if nothing comes back, wait a few seconds and retry once before marking as FAIL.)
 
 2.3. **forget_this** — Forget memories matching "functional test marker".
 
