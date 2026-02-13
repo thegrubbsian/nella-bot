@@ -2,6 +2,7 @@
 name = "nellabot"
 version = "0.1.0"
 description = "Nella — always-on personal AI assistant with Telegram interface"
+license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
     "python-telegram-bot[job-queue]>=22.0",
