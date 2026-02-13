@@ -33,13 +33,13 @@ def test_init_scheduler_creates_engine() -> None:
     router.register_channel(fake_channel)
     router.set_default_channel("telegram")
 
-    with patch("src.bot.app.settings") as mock_settings:
+    with patch("src.bot.telegram.app.settings") as mock_settings:
         mock_settings.get_allowed_user_ids.return_value = {12345}
         mock_settings.scheduler_timezone = "America/Chicago"
         mock_settings.database_path = "data/nella.db"
         mock_settings.default_notification_channel = "telegram"
 
-        from src.bot.app import _init_scheduler
+        from src.bot.telegram.app import _init_scheduler
 
         engine = _init_scheduler()
 
@@ -59,13 +59,13 @@ def test_init_scheduler_tools_wired() -> None:
     router.register_channel(fake_channel)
     router.set_default_channel("telegram")
 
-    with patch("src.bot.app.settings") as mock_settings:
+    with patch("src.bot.telegram.app.settings") as mock_settings:
         mock_settings.get_allowed_user_ids.return_value = {12345}
         mock_settings.scheduler_timezone = "America/Chicago"
         mock_settings.database_path = "data/nella.db"
         mock_settings.default_notification_channel = "telegram"
 
-        from src.bot.app import _init_scheduler
+        from src.bot.telegram.app import _init_scheduler
 
         engine = _init_scheduler()
 
@@ -87,7 +87,7 @@ async def test_post_init_starts_engine() -> None:
     mock_app = AsyncMock()
 
     with (
-        patch("src.bot.app.settings") as mock_settings,
+        patch("src.bot.telegram.app.settings") as mock_settings,
         patch("src.webhooks.server.WebhookServer") as mock_webhook_cls,
     ):
         mock_settings.get_allowed_user_ids.return_value = {12345}
@@ -96,7 +96,7 @@ async def test_post_init_starts_engine() -> None:
         mock_settings.default_notification_channel = "telegram"
         mock_webhook_cls.return_value = AsyncMock()
 
-        import src.bot.app as app_module
+        import src.bot.telegram.app as app_module
 
         await app_module._post_init(mock_app)
 
@@ -122,7 +122,7 @@ async def test_post_shutdown_stops_engine() -> None:
     mock_app = AsyncMock()
 
     with (
-        patch("src.bot.app.settings") as mock_settings,
+        patch("src.bot.telegram.app.settings") as mock_settings,
         patch("src.webhooks.server.WebhookServer") as mock_webhook_cls,
     ):
         mock_settings.get_allowed_user_ids.return_value = {12345}
@@ -131,7 +131,7 @@ async def test_post_shutdown_stops_engine() -> None:
         mock_settings.default_notification_channel = "telegram"
         mock_webhook_cls.return_value = AsyncMock()
 
-        import src.bot.app as app_module
+        import src.bot.telegram.app as app_module
 
         await app_module._post_init(mock_app)
 
@@ -148,7 +148,7 @@ async def test_post_shutdown_stops_engine() -> None:
 
 async def test_post_shutdown_noop_when_no_engine() -> None:
     """_post_shutdown should not raise when no engine exists."""
-    import src.bot.app as app_module
+    import src.bot.telegram.app as app_module
 
     app_module._scheduler_engine = None
     await app_module._post_shutdown(AsyncMock())  # Should not raise

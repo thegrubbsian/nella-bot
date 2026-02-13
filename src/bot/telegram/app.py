@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters
 
-from src.bot.handlers import (
+from src.bot.telegram.handlers import (
     handle_callback_query,
     handle_clear,
     handle_message,

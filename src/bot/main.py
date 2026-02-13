@@ -2,7 +2,7 @@
 
 import logging
 
-from src.bot.app import create_app
+from src.bot.telegram.app import create_app
 from src.config import settings
 
 logging.basicConfig(

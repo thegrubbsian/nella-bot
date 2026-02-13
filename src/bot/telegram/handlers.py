@@ -8,8 +8,8 @@ import time
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from src.bot.confirmations import get_pending, request_confirmation, resolve_confirmation
-from src.bot.security import is_allowed
+from src.bot.telegram.confirmations import get_pending, request_confirmation, resolve_confirmation
+from src.bot.telegram.security import is_allowed
 from src.bot.session import get_session
 from src.llm.client import generate_response
 from src.llm.models import MODEL_MAP, ModelManager, friendly

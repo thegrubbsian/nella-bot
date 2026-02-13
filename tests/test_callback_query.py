@@ -3,8 +3,8 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, PropertyMock
 
-from src.bot.confirmations import PendingConfirmation, _pending
-from src.bot.handlers import handle_callback_query
+from src.bot.telegram.confirmations import PendingConfirmation, _pending
+from src.bot.telegram.handlers import handle_callback_query
 
 # -- Helpers -----------------------------------------------------------------
 
