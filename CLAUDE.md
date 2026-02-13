@@ -71,6 +71,18 @@ tests/            # pytest + pytest-asyncio
   Claude should use one of these — do not create standalone `AsyncAnthropic`
   instances elsewhere.
 
+## Maintenance Rules
+
+- **Tool changes** — When adding, updating, or removing tools, always update
+  `config/TOOLS.md` to match the codebase. Nella uses this file for tool
+  discovery at runtime.
+- **Functional tests** — When adding, updating, or removing tools OR making
+  significant behavioral changes, update `scripts/functional_test_prompt.md`
+  so the functional test suite stays current.
+- **README accuracy** — At the end of every coding session, review `README.md`
+  for anything that needs updating. It serves as context for future development
+  sessions and must always reflect the current state of the code.
+
 ## Running
 
 ```bash
