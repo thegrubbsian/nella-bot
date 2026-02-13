@@ -27,10 +27,9 @@ src/
 config/
 ├── SOUL.md.EXAMPLE       # Nella's personality, tone, behavioral rules (template)
 ├── USER.md.EXAMPLE       # Owner profile — preferences, context, routines (template)
-├── TOOLS.md.EXAMPLE      # Tool catalog with descriptions and schemas (template)
 ├── MEMORY.md.EXAMPLE     # Long-term memory notes (template)
 └── MEMORY_RULES.md.EXAMPLE  # Auto-extraction rules (template)
-# Actual .md files are gitignored — copy .EXAMPLE to .md and customize
+# .md files are gitignored — copy .EXAMPLE to .md and customize
 
 tests/            # pytest + pytest-asyncio
 ```
@@ -77,8 +76,7 @@ tests/            # pytest + pytest-asyncio
 ## Maintenance Rules
 
 - **Tool changes** — When adding, updating, or removing tools, always update
-  `config/TOOLS.md.EXAMPLE` to match the codebase. This is the checked-in
-  template for the tool catalog.
+  the tool catalog in `README.md` and `scripts/functional_test_prompt.md`.
 - **Functional tests** — When adding, updating, or removing tools OR making
   significant behavioral changes, update `scripts/functional_test_prompt.md`
   so the functional test suite stays current.

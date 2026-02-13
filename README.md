@@ -214,7 +214,6 @@ The `config/` directory contains markdown files that shape Nella's behavior:
 |------|---------|--------|
 | `SOUL.md` | Nella's personality, tone, and behavioral rules | Loaded into every system prompt. Changing this changes how Nella talks and acts. |
 | `USER.md` | Owner profile — your name, timezone, preferences, work info | Loaded into every system prompt. Fill this in so Nella knows about you. |
-| `TOOLS.md` | Human-readable tool catalog | Reference documentation. Not loaded programmatically. |
 | `MEMORY.md` | Explicit long-term facts you want Nella to always know | Human-editable memory store. Edit directly when you want to add/remove persistent facts. |
 | `MEMORY_RULES.md` | Rules for the automatic memory extraction system | Controls what the background extraction picks up. Change this if Nella is remembering too much or too little. |
 
@@ -296,7 +295,6 @@ nellabot/
 ├── config/
 │   ├── SOUL.md.EXAMPLE              # Nella's personality (template)
 │   ├── USER.md.EXAMPLE              # Owner profile (template — fill this in)
-│   ├── TOOLS.md.EXAMPLE             # Tool catalog (template)
 │   ├── MEMORY.md.EXAMPLE            # Explicit long-term facts (template)
 │   └── MEMORY_RULES.md.EXAMPLE      # Auto-extraction rules (template)
 │   # Copy .EXAMPLE → .md and customize. Actual .md files are gitignored.
