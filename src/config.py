@@ -73,6 +73,12 @@ class Settings(BaseSettings):
     github_token: str = Field(default="")
     nella_source_repo: str = Field(default="")
 
+    # Browser automation (Playwright)
+    browser_enabled: bool = Field(default=False)
+    browser_model: str = Field(default="sonnet")
+    browser_timeout_ms: int = Field(default=30000)
+    browser_max_steps: int = Field(default=15)
+
     # LinkedIn
     linkedin_client_id: str = Field(default="")
     linkedin_client_secret: str = Field(default="")

@@ -165,9 +165,15 @@ Skip create_contact and update_contact — we don't want to create or modify rea
 
 12.8. **github_get_issue** — If 12.7 returned results, get details of the first issue. If no issues exist, report that and move on.
 
-## 13. LinkedIn
+## 13. Browser
+
+13.1. **browse_web** — Browse https://example.com with task "Read the page title and main content." (Requires confirmation.) This is a safe, stable URL that should return quickly.
+
+## 14. LinkedIn
 
 Skip linkedin_create_post and linkedin_post_comment — these post publicly and can't be undone. Just confirm whether the LinkedIn integration is enabled or disabled, and report that.
+
+Note: If browser automation is disabled (BROWSER_ENABLED=false), report scenario 13.1 as "DISABLED" and move on.
 
 ---
 

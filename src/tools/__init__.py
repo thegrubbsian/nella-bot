@@ -35,4 +35,8 @@ from src.integrations.linkedin_auth import LinkedInAuth
 if LinkedInAuth.enabled():
     from src.tools import linkedin_tools  # noqa: F401
 
+# Conditionally load browser automation tool when enabled.
+if settings.browser_enabled:
+    from src.tools import browser_tools  # noqa: F401
+
 __all__ = ["registry"]

@@ -226,6 +226,13 @@ phase_install_deps() {
     run_remote bash -s <<'REMOTE_SCRIPT'
 set -euo pipefail
 sudo -u nella bash -c 'cd /home/nella/app && /home/nella/.local/bin/uv sync --frozen --no-dev'
+
+# Install Playwright Chromium if browser automation is enabled
+if grep -q '^BROWSER_ENABLED=true' /home/nella/app/.env 2>/dev/null; then
+    echo "  Installing Playwright Chromium..."
+    sudo -u nella bash -c 'cd /home/nella/app && /home/nella/.local/bin/uv run playwright install --with-deps chromium'
+    echo "  Playwright Chromium installed"
+fi
 REMOTE_SCRIPT
     log "Dependencies installed"
 }

@@ -34,7 +34,7 @@ She also has access to her own logs and source code so she can help fix issues w
                     ┌─────────────────┐    │  Scheduler (3)      │
                     │  Memory System  │    │  Utility (4)        │
                     │                 │    │  Files (6)          │
-                    │  Mem0 (semantic) │    │  Research (2)       │
+                    │  Mem0 (semantic) │    │  Research (3)       │
                     │                 │    │  Observability (1)  │
                     │                 │    │  GitHub (8)         │
                     │                 │    │  LinkedIn (2)       │
@@ -66,7 +66,8 @@ She also has access to her own logs and source code so she can help fix issues w
 | `src/bot/` | Telegram bot setup, message handlers, session management, user security | You want to change how messages are received or how the bot responds |
 | `src/llm/` | Claude API client, system prompt assembly, model switching | You want to change how Claude is called, what it sees, or the tool-calling loop |
 | `src/memory/` | Mem0 integration, automatic memory extraction, data models | You want to change how Nella remembers things |
-| `src/tools/` | Tool registry, all 62 tool implementations, base classes | You want to add a new tool or modify an existing one |
+| `src/browser/` | Playwright browser automation — headless Chromium agent for JS-heavy sites | You want to change how interactive browsing works |
+| `src/tools/` | Tool registry, all 63 tool implementations, base classes | You want to add a new tool or modify an existing one |
 | `src/integrations/` | Google OAuth multi-account manager, LinkedIn OAuth | You want to add a new Google API, add an account, or fix auth issues |
 | `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
 | `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
@@ -91,7 +92,7 @@ Here's what happens when you send "What's on my calendar today?" in Telegram:
 
 7. **`generate_response()` is called** in `src/llm/client.py`. This is where the real work happens:
    - **System prompt assembly** (`src/llm/prompt.py`): reads `SOUL.md` and `USER.md`, then searches Mem0 for memories related to your message. These are combined into a system prompt with caching so the static parts aren't re-processed on every tool-calling round.
-   - **Claude API call**: sends your conversation history + system prompt + all 62 tool schemas to Claude via streaming.
+   - **Claude API call**: sends your conversation history + system prompt + all 63 tool schemas to Claude via streaming.
    - **Streaming**: as text chunks arrive, the `on_text_delta` callback edits the placeholder message in Telegram (throttled to every 0.5 seconds to stay under rate limits).
 
 8. **If Claude calls a tool** (in this case, probably `get_todays_schedule`):
@@ -194,7 +195,7 @@ If the transcript isn't found after all retries, the owner gets a notification e
 
 ### How Tool Calling Works
 
-Claude has access to 62 tools organized into categories. When Claude decides it needs to call a tool:
+Claude has access to 63 tools organized into categories. When Claude decides it needs to call a tool:
 
 1. Claude returns a `tool_use` content block with the tool name and arguments.
 2. The registry validates the arguments against a Pydantic model (if one is defined).
@@ -251,6 +252,10 @@ nellabot/
 │   ├── people/
 │   │   ├── __init__.py              # Package init
 │   │   └── store.py                 # PeopleStore — libsql CRUD for people_notes
+│   ├── browser/
+│   │   ├── __init__.py              # Package init
+│   │   ├── session.py               # BrowserSession — Playwright lifecycle (headless Chromium)
+│   │   └── agent.py                 # BrowserAgent — autonomous vision-based navigation loop
 │   ├── db.py                            # Async wrapper over libsql (local SQLite or remote Turso)
 │   ├── scratch.py                       # ScratchSpace — sandboxed local filesystem for temp files
 │   ├── tools/
@@ -268,6 +273,7 @@ nellabot/
 │   │   ├── github_tools.py          # 8 tools: get_repo, list_directory, read_file, search_code, list_commits, get_commit, list_issues, get_issue
 │   │   ├── linkedin_tools.py        # 2 tools: create_post, post_comment
 │   │   ├── log_tools.py             # 1 tool: query production logs (SolarWinds/Papertrail)
+│   │   ├── browser_tools.py          # 1 tool: browse_web (Playwright interactive browsing)
 │   │   ├── web_tools.py             # 2 tools: web_search (Brave), read_webpage (content extraction)
 │   │   └── utility.py               # 4 tools: get_current_datetime, save_note, search_notes, delete_note
 │   ├── notifications/
@@ -318,6 +324,9 @@ nellabot/
 │   ├── test_security.py             # User allowlist
 │   ├── test_models.py               # Model switching
 │   ├── test_log_tools.py            # Log query tool
+│   ├── test_browser_session.py       # Browser session lifecycle
+│   ├── test_browser_agent.py        # Browser agent navigation loop
+│   ├── test_browser_tools.py        # Browser automation tool
 │   ├── test_web_tools.py            # Web research tools
 │   ├── test_scratch.py              # ScratchSpace filesystem
 │   ├── test_scratch_tools.py        # Scratch space tools
@@ -410,6 +419,10 @@ Then edit `.env` with your actual values:
 | `NELLA_SOURCE_REPO` | No | Nella's own source code repo (`owner/repo` format). Injected into the system prompt for self-debugging. |
 | `LINKEDIN_CLIENT_ID` | No | LinkedIn OAuth client ID. Required for LinkedIn tools (`create_post`, `post_comment`). Create an app at [linkedin.com/developers](https://www.linkedin.com/developers/apps). |
 | `LINKEDIN_CLIENT_SECRET` | No | LinkedIn OAuth client secret. |
+| `BROWSER_ENABLED` | No | Enable the `browse_web` tool (Playwright). Requires Chromium: `uv run playwright install chromium`. Default: `false` |
+| `BROWSER_MODEL` | No | Claude model for browser vision agent (friendly name). Default: `sonnet` |
+| `BROWSER_TIMEOUT_MS` | No | Page navigation timeout in milliseconds. Default: `30000` |
+| `BROWSER_MAX_STEPS` | No | Max navigation steps per browse_web call. Default: `15` |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, or `ERROR`. Default: `INFO` |
 
 ### 3. Set up Google OAuth (optional)
@@ -468,7 +481,7 @@ Tests use `pytest-asyncio` with `asyncio_mode = "auto"`, which means async test 
 
 After major code changes (especially tool changes), you can run a live functional test by sending Nella the prompt in `scripts/functional_test_prompt.md`. Copy everything below the `---` line and paste it into Telegram.
 
-The prompt exercises all 62 tools one at a time, cleaning up after itself (deleting test notes, events, files, etc.). Tools that require confirmation will pop up Approve/Deny buttons — approve them all. If a tool is disabled (missing API key or token), Nella reports "DISABLED" and moves on. At the end she produces a summary table with PASS/FAIL/DISABLED for each scenario.
+The prompt exercises all 63 tools one at a time, cleaning up after itself (deleting test notes, events, files, etc.). Tools that require confirmation will pop up Approve/Deny buttons — approve them all. If a tool is disabled (missing API key or token), Nella reports "DISABLED" and moves on. At the end she produces a summary table with PASS/FAIL/DISABLED for each scenario.
 
 LinkedIn tools are skipped (posts are public and can't be undone). `scratch_wipe` is also skipped to avoid deleting real working files.
 
