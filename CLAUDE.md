@@ -82,6 +82,9 @@ tests/            # pytest + pytest-asyncio
 - **README accuracy** — At the end of every coding session, review `README.md`
   for anything that needs updating. It serves as context for future development
   sessions and must always reflect the current state of the code.
+- **Open source** - This is an open source project, at the end of every codiing
+  session, review the changes and consider anything we might be sending to
+  source control that violates basic open source best practices.
 
 ## Running
 
