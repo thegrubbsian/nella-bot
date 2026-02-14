@@ -1,0 +1,23 @@
+display_information:
+  name: Nella
+  description: Personal AI assistant bot
+
+features:
+  bot_user:
+    display_name: Nella
+    always_online: true
+
+settings:
+  socket_mode_enabled: true
+  event_subscriptions:
+    bot_events:
+      - message.im
+
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - commands
+      - im:history
+      - im:read
+      - im:write

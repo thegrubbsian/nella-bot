@@ -20,6 +20,7 @@ dependencies = [
     "trafilatura>=2.0.0",
     "PyGithub>=2.0.0",
     "playwright>=1.40.0",
+    "pyyaml>=6.0.3",
 ]
 
 [project.optional-dependencies]

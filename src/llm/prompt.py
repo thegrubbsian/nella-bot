@@ -109,6 +109,19 @@ async def build_system_prompt(user_message: str = "") -> list[dict]:
             "Both require confirmation before executing."
         )
 
+    # Inject Slack permissions awareness
+    if settings.chat_platform == "slack":
+        from src.bot.slack.manifest import get_slack_scopes
+
+        slack_scopes = get_slack_scopes()
+    else:
+        slack_scopes = []
+    if slack_scopes:
+        sections.append(
+            "# Slack Permissions\n\n"
+            f"Slack scopes available: {', '.join(slack_scopes)}"
+        )
+
     static_text = "\n\n---\n\n".join(sections)
 
     # Current time — injected on every call (not cached)

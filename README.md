@@ -468,7 +468,7 @@ If you prefer Slack over Telegram as your chat interface:
 
 1. **Create a Slack app** at [api.slack.com/apps](https://api.slack.com/apps) → "Create New App" → "From scratch".
 2. **Enable Socket Mode** under Settings → Socket Mode. Create an app-level token with the `connections:write` scope — this gives you a token starting with `xapp-`.
-3. **Add OAuth scopes** under OAuth & Permissions → Bot Token Scopes: `chat:write`, `im:history`, `im:read`, `im:write`, `commands`.
+3. **Add OAuth scopes** under OAuth & Permissions → Bot Token Scopes. See `slack_manifest.yaml` for the current list: `chat:write`, `commands`, `im:history`, `im:read`, `im:write`.
 4. **Install the app** to your workspace. Copy the Bot User OAuth Token (`xoxb-...`).
 5. **Subscribe to events** under Event Subscriptions → Subscribe to bot events: `message.im` (messages in DMs).
 6. **Set environment variables** in `.env`:
