@@ -71,6 +71,14 @@ Skip scratch_wipe — we don't want to nuke any real working files.
 
 4.6. **archive_email** — Archive the email from 4.5. (Requires confirmation.)
 
+4.7. **mark_as_unread** — Mark the archived email from 4.6 as unread.
+
+4.8. **mark_as_read** — Mark that same email as read again.
+
+4.9. **add_label** — Add the label "STARRED" to that email.
+
+4.10. **remove_label** — Remove the "STARRED" label from that email.
+
 Skip reply_to_email, archive_emails, and download_email_attachment — they're covered by the patterns above.
 
 ## 5. Calendar

@@ -1,4 +1,6 @@
-"""Gmail tools — search, read, send, reply, archive, download attachment."""
+"""Gmail tools — search, read, send, reply, archive, labels, download attachment."""
+
+from __future__ import annotations
 
 import asyncio
 import base64
@@ -8,6 +10,7 @@ from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from typing import Any
 
 from bs4 import BeautifulSoup
 from pydantic import Field
@@ -439,6 +442,163 @@ async def archive_emails(message_ids: list[str], account: str | None = None) -> 
     )
 
     return ToolResult(data={"archived": True, "count": len(message_ids)})
+
+
+# -- mark_as_read ------------------------------------------------------------
+
+
+class MarkAsReadParams(GoogleToolParams):
+    message_id: str = Field(description="Gmail message ID to mark as read")
+
+
+@registry.tool(
+    name="mark_as_read",
+    description="Mark an email as read.",
+    category=_CATEGORY,
+    params_model=MarkAsReadParams,
+)
+async def mark_as_read(message_id: str, account: str | None = None) -> ToolResult:
+    service = _auth(account).gmail()
+
+    await asyncio.to_thread(
+        lambda: service.users()
+        .messages()
+        .modify(userId="me", id=message_id, body={"removeLabelIds": ["UNREAD"]})
+        .execute()
+    )
+
+    return ToolResult(data={"marked_read": True, "message_id": message_id})
+
+
+# -- mark_as_unread ----------------------------------------------------------
+
+
+class MarkAsUnreadParams(GoogleToolParams):
+    message_id: str = Field(description="Gmail message ID to mark as unread")
+
+
+@registry.tool(
+    name="mark_as_unread",
+    description="Mark an email as unread.",
+    category=_CATEGORY,
+    params_model=MarkAsUnreadParams,
+)
+async def mark_as_unread(message_id: str, account: str | None = None) -> ToolResult:
+    service = _auth(account).gmail()
+
+    await asyncio.to_thread(
+        lambda: service.users()
+        .messages()
+        .modify(userId="me", id=message_id, body={"addLabelIds": ["UNREAD"]})
+        .execute()
+    )
+
+    return ToolResult(data={"marked_unread": True, "message_id": message_id})
+
+
+# -- add_label ---------------------------------------------------------------
+
+
+class AddLabelParams(GoogleToolParams):
+    message_id: str = Field(description="Gmail message ID")
+    label_name: str = Field(
+        description="Label name to add (e.g. 'STARRED', 'IMPORTANT', or a user-created label name)"
+    )
+
+
+async def _resolve_label_id(service: Any, label_name: str) -> str | None:
+    """Resolve a label name to its Gmail label ID.
+
+    System labels (INBOX, UNREAD, STARRED, etc.) use their name as the ID.
+    User-created labels require a lookup via labels.list().
+    """
+    # System labels use their name as the ID
+    system_labels = {
+        "INBOX", "UNREAD", "STARRED", "IMPORTANT", "SPAM", "TRASH",
+        "SENT", "DRAFT", "CATEGORY_PERSONAL", "CATEGORY_SOCIAL",
+        "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_FORUMS",
+    }
+    upper = label_name.upper()
+    if upper in system_labels:
+        return upper
+
+    # Look up user-created labels
+    result = await asyncio.to_thread(
+        lambda: service.users().labels().list(userId="me").execute()
+    )
+    for label in result.get("labels", []):
+        if label["name"].lower() == label_name.lower():
+            return label["id"]
+    return None
+
+
+@registry.tool(
+    name="add_label",
+    description=(
+        "Add a label to an email. Works with system labels "
+        "(STARRED, IMPORTANT) and user-created labels."
+    ),
+    category=_CATEGORY,
+    params_model=AddLabelParams,
+)
+async def add_label(
+    message_id: str, label_name: str, account: str | None = None
+) -> ToolResult:
+    service = _auth(account).gmail()
+
+    label_id = await _resolve_label_id(service, label_name)
+    if not label_id:
+        return ToolResult(error=f"Label not found: {label_name}")
+
+    await asyncio.to_thread(
+        lambda: service.users()
+        .messages()
+        .modify(userId="me", id=message_id, body={"addLabelIds": [label_id]})
+        .execute()
+    )
+
+    return ToolResult(data={"label_added": True, "message_id": message_id, "label": label_name})
+
+
+# -- remove_label ------------------------------------------------------------
+
+
+class RemoveLabelParams(GoogleToolParams):
+    message_id: str = Field(description="Gmail message ID")
+    label_name: str = Field(
+        description=(
+            "Label name to remove (e.g. 'STARRED', 'IMPORTANT', "
+            "or a user-created label name)"
+        ),
+    )
+
+
+@registry.tool(
+    name="remove_label",
+    description=(
+        "Remove a label from an email. Works with system labels "
+        "(STARRED, IMPORTANT) and user-created labels."
+    ),
+    category=_CATEGORY,
+    params_model=RemoveLabelParams,
+)
+async def remove_label(
+    message_id: str, label_name: str, account: str | None = None
+) -> ToolResult:
+    service = _auth(account).gmail()
+
+    label_id = await _resolve_label_id(service, label_name)
+    if not label_id:
+        return ToolResult(error=f"Label not found: {label_name}")
+
+    await asyncio.to_thread(
+        lambda: service.users()
+        .messages()
+        .modify(userId="me", id=message_id, body={"removeLabelIds": [label_id]})
+        .execute()
+    )
+
+    return ToolResult(data={"label_removed": True, "message_id": message_id, "label": label_name})
 
 
 # -- download_email_attachment -----------------------------------------------

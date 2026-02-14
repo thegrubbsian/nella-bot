@@ -263,6 +263,136 @@ class TestReplyWithAttachments:
         assert result.data["id"] == "reply1"
 
 
+class TestMarkAsRead:
+    @pytest.mark.asyncio
+    async def test_mark_as_read(self, gmail_mock):
+        from src.tools.google_gmail import mark_as_read
+
+        gmail_mock.users().messages().modify().execute.return_value = {}
+
+        result = await mark_as_read(message_id="msg1")
+        assert result.success
+        assert result.data["marked_read"] is True
+        assert result.data["message_id"] == "msg1"
+
+
+class TestMarkAsUnread:
+    @pytest.mark.asyncio
+    async def test_mark_as_unread(self, gmail_mock):
+        from src.tools.google_gmail import mark_as_unread
+
+        gmail_mock.users().messages().modify().execute.return_value = {}
+
+        result = await mark_as_unread(message_id="msg1")
+        assert result.success
+        assert result.data["marked_unread"] is True
+        assert result.data["message_id"] == "msg1"
+
+
+class TestAddLabel:
+    @pytest.mark.asyncio
+    async def test_add_system_label(self, gmail_mock):
+        from src.tools.google_gmail import add_label
+
+        gmail_mock.users().messages().modify().execute.return_value = {}
+
+        result = await add_label(message_id="msg1", label_name="STARRED")
+        assert result.success
+        assert result.data["label_added"] is True
+        assert result.data["label"] == "STARRED"
+
+    @pytest.mark.asyncio
+    async def test_add_user_label(self, gmail_mock):
+        from src.tools.google_gmail import add_label
+
+        gmail_mock.users().labels().list().execute.return_value = {
+            "labels": [
+                {"id": "Label_1", "name": "Projects"},
+                {"id": "Label_2", "name": "Receipts"},
+            ]
+        }
+        gmail_mock.users().messages().modify().execute.return_value = {}
+
+        result = await add_label(message_id="msg1", label_name="Projects")
+        assert result.success
+        assert result.data["label_added"] is True
+
+    @pytest.mark.asyncio
+    async def test_add_label_not_found(self, gmail_mock):
+        from src.tools.google_gmail import add_label
+
+        gmail_mock.users().labels().list().execute.return_value = {"labels": []}
+
+        result = await add_label(message_id="msg1", label_name="Nonexistent")
+        assert not result.success
+        assert "not found" in result.error.lower()
+
+
+class TestRemoveLabel:
+    @pytest.mark.asyncio
+    async def test_remove_system_label(self, gmail_mock):
+        from src.tools.google_gmail import remove_label
+
+        gmail_mock.users().messages().modify().execute.return_value = {}
+
+        result = await remove_label(message_id="msg1", label_name="STARRED")
+        assert result.success
+        assert result.data["label_removed"] is True
+
+    @pytest.mark.asyncio
+    async def test_remove_user_label(self, gmail_mock):
+        from src.tools.google_gmail import remove_label
+
+        gmail_mock.users().labels().list().execute.return_value = {
+            "labels": [{"id": "Label_5", "name": "Archive/2024"}]
+        }
+        gmail_mock.users().messages().modify().execute.return_value = {}
+
+        result = await remove_label(message_id="msg1", label_name="Archive/2024")
+        assert result.success
+        assert result.data["label_removed"] is True
+
+    @pytest.mark.asyncio
+    async def test_remove_label_not_found(self, gmail_mock):
+        from src.tools.google_gmail import remove_label
+
+        gmail_mock.users().labels().list().execute.return_value = {"labels": []}
+
+        result = await remove_label(message_id="msg1", label_name="Nonexistent")
+        assert not result.success
+        assert "not found" in result.error.lower()
+
+
+class TestResolveLabelId:
+    @pytest.mark.asyncio
+    async def test_system_label_no_api_call(self, gmail_mock):
+        from src.tools.google_gmail import _resolve_label_id
+
+        service = gmail_mock
+        result = await _resolve_label_id(service, "INBOX")
+        assert result == "INBOX"
+        # labels().list() should NOT have been called for system labels
+        service.users().labels().list.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_case_insensitive_user_label(self, gmail_mock):
+        from src.tools.google_gmail import _resolve_label_id
+
+        gmail_mock.users().labels().list().execute.return_value = {
+            "labels": [{"id": "Label_1", "name": "Work"}]
+        }
+        result = await _resolve_label_id(gmail_mock, "work")
+        assert result == "Label_1"
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_not_found(self, gmail_mock):
+        from src.tools.google_gmail import _resolve_label_id
+
+        gmail_mock.users().labels().list().execute.return_value = {"labels": []}
+        result = await _resolve_label_id(gmail_mock, "missing")
+        assert result is None
+
+
 class TestExtractAttachments:
     def test_includes_attachment_id(self):
         from src.tools.google_gmail import _extract_attachments
