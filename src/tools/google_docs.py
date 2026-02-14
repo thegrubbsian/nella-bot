@@ -5,6 +5,7 @@ import logging
 
 from pydantic import Field
 
+from src.config import settings
 from src.integrations.google_auth import GoogleAuthManager
 from src.tools.base import GoogleToolParams, ToolResult
 from src.tools.registry import registry
@@ -16,6 +17,23 @@ _CATEGORY = "google_docs"
 
 def _auth(account: str | None = None) -> GoogleAuthManager:
     return GoogleAuthManager.get(account)
+
+
+async def _share_with_workspace(document_id: str, account: str | None = None) -> None:
+    """Share a document with the Google Workspace domain, if configured."""
+    domain = settings.google_workspace_domain
+    if not domain:
+        return
+
+    drive = _auth(account).drive()
+    await asyncio.to_thread(
+        lambda: drive.permissions()
+        .create(
+            fileId=document_id,
+            body={"type": "domain", "domain": domain, "role": "writer"},
+        )
+        .execute()
+    )
 
 
 def _extract_text(doc: dict) -> str:
@@ -130,6 +148,8 @@ async def create_document(title: str, content: str = "", account: str | None = N
                 .execute()
             )
         )
+
+    await _share_with_workspace(document_id, account)
 
     doc_url = f"https://docs.google.com/document/d/{document_id}/edit"
     logger.info("Created document: %s", document_id)

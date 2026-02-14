@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     google_credentials_path: str = Field(default="credentials.json")
     google_accounts: str = Field(default="")
     google_default_account: str = Field(default="")
+    google_workspace_domain: str = Field(default="")
     plaud_google_account: str = Field(default="")
 
     # Mem0

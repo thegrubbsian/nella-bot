@@ -8,10 +8,11 @@ from src.tools.base import ToolResult
 
 
 def _mock_auth():
-    """Create a mock GoogleAuthManager with a mock Docs service."""
+    """Create a mock GoogleAuthManager with mock Docs and Drive services."""
     auth = MagicMock()
     service = MagicMock()
     auth.docs.return_value = service
+    auth.drive.return_value = MagicMock()
     return auth, service
 
 
@@ -84,8 +85,12 @@ def _make_doc_with_headings():
 @pytest.fixture
 def docs_mock():
     auth, service = _mock_auth()
-    with patch("src.tools.google_docs._auth", return_value=auth):
-        yield service
+    with (
+        patch("src.tools.google_docs._auth", return_value=auth),
+        patch("src.tools.google_docs.settings") as mock_settings,
+    ):
+        mock_settings.google_workspace_domain = ""
+        yield service, auth
 
 
 class TestReadDocument:
@@ -93,7 +98,8 @@ class TestReadDocument:
     async def test_read_document(self, docs_mock):
         from src.tools.google_docs import read_document
 
-        docs_mock.documents().get().execute.return_value = _make_doc()
+        service, _auth = docs_mock
+        service.documents().get().execute.return_value = _make_doc()
 
         result = await read_document(document_id="doc1")
         assert isinstance(result, ToolResult)
@@ -106,7 +112,8 @@ class TestReadDocument:
     async def test_read_document_with_structure(self, docs_mock):
         from src.tools.google_docs import read_document
 
-        docs_mock.documents().get().execute.return_value = _make_doc_with_headings()
+        service, _auth = docs_mock
+        service.documents().get().execute.return_value = _make_doc_with_headings()
 
         result = await read_document(document_id="doc2")
         assert result.success
@@ -122,7 +129,8 @@ class TestCreateDocument:
     async def test_create_empty_document(self, docs_mock):
         from src.tools.google_docs import create_document
 
-        docs_mock.documents().create().execute.return_value = {
+        service, _auth = docs_mock
+        service.documents().create().execute.return_value = {
             "documentId": "new_doc",
         }
 
@@ -131,20 +139,56 @@ class TestCreateDocument:
         assert result.data["document_id"] == "new_doc"
         assert result.data["title"] == "New Doc"
         # No batchUpdate should be called for empty content
-        docs_mock.documents().batchUpdate.assert_not_called()
+        service.documents().batchUpdate.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_create_document_with_content(self, docs_mock):
         from src.tools.google_docs import create_document
 
-        docs_mock.documents().create().execute.return_value = {
+        service, _auth = docs_mock
+        service.documents().create().execute.return_value = {
             "documentId": "new_doc",
         }
-        docs_mock.documents().batchUpdate().execute.return_value = {}
+        service.documents().batchUpdate().execute.return_value = {}
 
         result = await create_document(title="New Doc", content="Initial content")
         assert result.success
         assert result.data["document_id"] == "new_doc"
+
+    @pytest.mark.asyncio
+    async def test_create_document_shares_with_workspace(self, docs_mock):
+        from src.tools.google_docs import create_document
+
+        service, auth = docs_mock
+        service.documents().create().execute.return_value = {
+            "documentId": "new_doc",
+        }
+
+        # Enable workspace sharing via patched settings
+        with patch("src.tools.google_docs.settings") as mock_settings:
+            mock_settings.google_workspace_domain = "example.com"
+            result = await create_document(title="Shared Doc")
+
+        assert result.success
+        drive = auth.drive()
+        drive.permissions().create.assert_called_once_with(
+            fileId="new_doc",
+            body={"type": "domain", "domain": "example.com", "role": "writer"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_create_document_skips_sharing_when_no_domain(self, docs_mock):
+        from src.tools.google_docs import create_document
+
+        service, auth = docs_mock
+        service.documents().create().execute.return_value = {
+            "documentId": "new_doc",
+        }
+
+        # Workspace domain is empty (set by fixture)
+        result = await create_document(title="Private Doc")
+        assert result.success
+        auth.drive().permissions().create.assert_not_called()
 
 
 class TestUpdateDocument:
@@ -152,8 +196,9 @@ class TestUpdateDocument:
     async def test_update_document(self, docs_mock):
         from src.tools.google_docs import update_document
 
-        docs_mock.documents().get().execute.return_value = _make_doc()
-        docs_mock.documents().batchUpdate().execute.return_value = {}
+        service, _auth = docs_mock
+        service.documents().get().execute.return_value = _make_doc()
+        service.documents().batchUpdate().execute.return_value = {}
 
         result = await update_document(document_id="doc1", content="New content")
         assert result.success
@@ -165,8 +210,9 @@ class TestAppendToDocument:
     async def test_append_to_document(self, docs_mock):
         from src.tools.google_docs import append_to_document
 
-        docs_mock.documents().get().execute.return_value = _make_doc()
-        docs_mock.documents().batchUpdate().execute.return_value = {}
+        service, _auth = docs_mock
+        service.documents().get().execute.return_value = _make_doc()
+        service.documents().batchUpdate().execute.return_value = {}
 
         result = await append_to_document(document_id="doc1", content="\nMore text")
         assert result.success
