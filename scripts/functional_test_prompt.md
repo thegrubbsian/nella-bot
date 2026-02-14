@@ -71,13 +71,25 @@ Skip scratch_wipe — we don't want to nuke any real working files.
 
 4.6. **archive_email** — Archive the email from 4.5. (Requires confirmation.)
 
-4.7. **mark_as_unread** — Mark the archived email from 4.6 as unread.
+4.7. **trash_email** — Send the archived email to the trash / delete it. (Requires confirmation.)
 
-4.8. **mark_as_read** — Mark that same email as read again.
+4.8. **mark_as_unread** — Search for another recent email and mark it as unread.
 
-4.9. **add_label** — Add the label "STARRED" to that email.
+4.9. **mark_as_read** — Mark that same email as read again.
 
-4.10. **remove_label** — Remove the "STARRED" label from that email.
+4.10. **add_label** — Add the label "IMPORTANT" to that email.
+
+4.11. **remove_label** — Remove the "IMPORTANT" label from that email.
+
+4.12. **star_email** — Star that email.
+
+4.13. **unstar_email** — Unstar that email.
+
+4.14. **list_labels** — List all Gmail labels.
+
+4.15. **create_label** — Create a label named "Nella Test Label". (Requires confirmation.)
+
+4.16. **delete_label** — Delete the "Nella Test Label" you just created. (Requires confirmation.)
 
 Skip reply_to_email, archive_emails, and download_email_attachment — they're covered by the patterns above.
 

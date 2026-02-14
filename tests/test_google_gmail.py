@@ -263,6 +263,19 @@ class TestReplyWithAttachments:
         assert result.data["id"] == "reply1"
 
 
+class TestTrashEmail:
+    @pytest.mark.asyncio
+    async def test_trash_email(self, gmail_mock):
+        from src.tools.google_gmail import trash_email
+
+        gmail_mock.users().messages().trash().execute.return_value = {}
+
+        result = await trash_email(message_id="msg1")
+        assert result.success
+        assert result.data["trashed"] is True
+        assert result.data["message_id"] == "msg1"
+
+
 class TestMarkAsRead:
     @pytest.mark.asyncio
     async def test_mark_as_read(self, gmail_mock):
@@ -286,6 +299,32 @@ class TestMarkAsUnread:
         result = await mark_as_unread(message_id="msg1")
         assert result.success
         assert result.data["marked_unread"] is True
+        assert result.data["message_id"] == "msg1"
+
+
+class TestStarEmail:
+    @pytest.mark.asyncio
+    async def test_star_email(self, gmail_mock):
+        from src.tools.google_gmail import star_email
+
+        gmail_mock.users().messages().modify().execute.return_value = {}
+
+        result = await star_email(message_id="msg1")
+        assert result.success
+        assert result.data["starred"] is True
+        assert result.data["message_id"] == "msg1"
+
+
+class TestUnstarEmail:
+    @pytest.mark.asyncio
+    async def test_unstar_email(self, gmail_mock):
+        from src.tools.google_gmail import unstar_email
+
+        gmail_mock.users().messages().modify().execute.return_value = {}
+
+        result = await unstar_email(message_id="msg1")
+        assert result.success
+        assert result.data["unstarred"] is True
         assert result.data["message_id"] == "msg1"
 
 
@@ -391,6 +430,86 @@ class TestResolveLabelId:
         gmail_mock.users().labels().list().execute.return_value = {"labels": []}
         result = await _resolve_label_id(gmail_mock, "missing")
         assert result is None
+
+
+class TestCreateLabel:
+    @pytest.mark.asyncio
+    async def test_create_label(self, gmail_mock):
+        from src.tools.google_gmail import create_label
+
+        gmail_mock.users().labels().create().execute.return_value = {
+            "id": "Label_99",
+            "name": "Projects/Alpha",
+        }
+
+        result = await create_label(label_name="Projects/Alpha")
+        assert result.success
+        assert result.data["created"] is True
+        assert result.data["label_id"] == "Label_99"
+        assert result.data["label_name"] == "Projects/Alpha"
+
+
+class TestDeleteLabel:
+    @pytest.mark.asyncio
+    async def test_delete_user_label(self, gmail_mock):
+        from src.tools.google_gmail import delete_label
+
+        gmail_mock.users().labels().list().execute.return_value = {
+            "labels": [{"id": "Label_5", "name": "Old Stuff"}]
+        }
+        gmail_mock.users().labels().delete().execute.return_value = {}
+
+        result = await delete_label(label_name="Old Stuff")
+        assert result.success
+        assert result.data["deleted"] is True
+
+    @pytest.mark.asyncio
+    async def test_delete_system_label_rejected(self, gmail_mock):
+        from src.tools.google_gmail import delete_label
+
+        result = await delete_label(label_name="INBOX")
+        assert not result.success
+        assert "system label" in result.error.lower()
+
+    @pytest.mark.asyncio
+    async def test_delete_label_not_found(self, gmail_mock):
+        from src.tools.google_gmail import delete_label
+
+        gmail_mock.users().labels().list().execute.return_value = {"labels": []}
+
+        result = await delete_label(label_name="Nonexistent")
+        assert not result.success
+        assert "not found" in result.error.lower()
+
+
+class TestListLabels:
+    @pytest.mark.asyncio
+    async def test_list_labels(self, gmail_mock):
+        from src.tools.google_gmail import list_labels
+
+        gmail_mock.users().labels().list().execute.return_value = {
+            "labels": [
+                {"id": "INBOX", "name": "INBOX", "type": "system"},
+                {"id": "Label_1", "name": "Work", "type": "user"},
+                {"id": "STARRED", "name": "STARRED", "type": "system"},
+            ]
+        }
+
+        result = await list_labels()
+        assert result.success
+        assert result.data["count"] == 3
+        # User labels sort first
+        assert result.data["labels"][0]["name"] == "Work"
+
+    @pytest.mark.asyncio
+    async def test_list_labels_empty(self, gmail_mock):
+        from src.tools.google_gmail import list_labels
+
+        gmail_mock.users().labels().list().execute.return_value = {"labels": []}
+
+        result = await list_labels()
+        assert result.success
+        assert result.data["count"] == 0
 
 
 class TestExtractAttachments:

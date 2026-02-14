@@ -25,7 +25,7 @@ She also has access to her own logs and source code so she can help fix issues w
                     ┌──────────────┴──┐    ┌──────┴──────────────┐
                     │  System Prompt  │    │   Tool Registry     │
                     │                 │    │                     │
-                    │  SOUL.md        │    │  Google Gmail (12)  │
+                    │  SOUL.md        │    │  Google Gmail (18)  │
                     │  USER.md        │    │  Google Calendar (7)│
                     │  + current time │    │  Google Drive (7)   │
                     │  + Mem0 recall  │    │  Google Docs (4)    │
@@ -92,7 +92,7 @@ Here's what happens when you send "What's on my calendar today?" in Telegram:
 
 7. **`generate_response()` is called** in `src/llm/client.py`. This is where the real work happens:
    - **System prompt assembly** (`src/llm/prompt.py`): reads `SOUL.md` and `USER.md`, injects the current time and timezone, then searches Mem0 for memories related to your message. These are combined into a system prompt with caching so the static parts aren't re-processed on every tool-calling round.
-   - **Claude API call**: sends your conversation history + system prompt + all 67 tool schemas to Claude via streaming.
+   - **Claude API call**: sends your conversation history + system prompt + all 73 tool schemas to Claude via streaming.
    - **Streaming**: as text chunks arrive, the `on_text_delta` callback edits the placeholder message in Telegram (throttled to every 0.5 seconds to stay under rate limits).
 
 8. **If Claude calls a tool** (in this case, probably `get_todays_schedule`):
@@ -263,7 +263,7 @@ nellabot/
 │   │   ├── __init__.py              # Imports all tool modules (conditional Google loading)
 │   │   ├── registry.py              # ToolRegistry — decorator & class-based registration
 │   │   ├── base.py                  # ToolResult, ToolParams, GoogleToolParams, BaseTool
-│   │   ├── google_gmail.py          # 12 tools: search, read, read_thread, send, reply, archive, archive_emails, mark_as_read, mark_as_unread, add_label, remove_label, download_attachment
+│   │   ├── google_gmail.py          # 18 tools: search, read, read_thread, send, reply, archive, archive_emails, trash, mark_as_read, mark_as_unread, star, unstar, add_label, remove_label, create_label, delete_label, list_labels, download_attachment
 │   │   ├── google_calendar.py       # 7 tools: list, today, date_range, create, update, delete, availability
 │   │   ├── google_drive.py          # 7 tools: search, list recent, list folder, read, delete, download, upload
 │   │   ├── google_docs.py           # 4 tools: read, create, update, append
@@ -487,7 +487,7 @@ Tests use `pytest-asyncio` with `asyncio_mode = "auto"`, which means async test 
 
 After major code changes (especially tool changes), you can run a live functional test by sending Nella the prompt in `scripts/functional_test_prompt.md`. Copy everything below the `---` line and paste it into Telegram.
 
-The prompt exercises all 67 tools one at a time, cleaning up after itself (deleting test notes, events, files, etc.). Tools that require confirmation will pop up Approve/Deny buttons — approve them all. If a tool is disabled (missing API key or token), Nella reports "DISABLED" and moves on. At the end she produces a summary table with PASS/FAIL/DISABLED for each scenario.
+The prompt exercises all 73 tools one at a time, cleaning up after itself (deleting test notes, events, files, etc.). Tools that require confirmation will pop up Approve/Deny buttons — approve them all. If a tool is disabled (missing API key or token), Nella reports "DISABLED" and moves on. At the end she produces a summary table with PASS/FAIL/DISABLED for each scenario.
 
 LinkedIn tools are skipped (posts are public and can't be undone). `scratch_wipe` is also skipped to avoid deleting real working files.
 

@@ -444,6 +444,36 @@ async def archive_emails(message_ids: list[str], account: str | None = None) -> 
     return ToolResult(data={"archived": True, "count": len(message_ids)})
 
 
+# -- trash_email -------------------------------------------------------------
+
+
+class TrashEmailParams(GoogleToolParams):
+    message_id: str = Field(description="Gmail message ID to trash/delete")
+
+
+@registry.tool(
+    name="trash_email",
+    description=(
+        "Move an email to the trash (delete it). "
+        "Trashed emails are permanently deleted after 30 days."
+    ),
+    category=_CATEGORY,
+    params_model=TrashEmailParams,
+    requires_confirmation=True,
+)
+async def trash_email(message_id: str, account: str | None = None) -> ToolResult:
+    service = _auth(account).gmail()
+
+    await asyncio.to_thread(
+        lambda: service.users()
+        .messages()
+        .trash(userId="me", id=message_id)
+        .execute()
+    )
+
+    return ToolResult(data={"trashed": True, "message_id": message_id})
+
+
 # -- mark_as_read ------------------------------------------------------------
 
 
@@ -494,6 +524,58 @@ async def mark_as_unread(message_id: str, account: str | None = None) -> ToolRes
     )
 
     return ToolResult(data={"marked_unread": True, "message_id": message_id})
+
+
+# -- star_email --------------------------------------------------------------
+
+
+class StarEmailParams(GoogleToolParams):
+    message_id: str = Field(description="Gmail message ID to star")
+
+
+@registry.tool(
+    name="star_email",
+    description="Star an email.",
+    category=_CATEGORY,
+    params_model=StarEmailParams,
+)
+async def star_email(message_id: str, account: str | None = None) -> ToolResult:
+    service = _auth(account).gmail()
+
+    await asyncio.to_thread(
+        lambda: service.users()
+        .messages()
+        .modify(userId="me", id=message_id, body={"addLabelIds": ["STARRED"]})
+        .execute()
+    )
+
+    return ToolResult(data={"starred": True, "message_id": message_id})
+
+
+# -- unstar_email ------------------------------------------------------------
+
+
+class UnstarEmailParams(GoogleToolParams):
+    message_id: str = Field(description="Gmail message ID to unstar")
+
+
+@registry.tool(
+    name="unstar_email",
+    description="Remove the star from an email.",
+    category=_CATEGORY,
+    params_model=UnstarEmailParams,
+)
+async def unstar_email(message_id: str, account: str | None = None) -> ToolResult:
+    service = _auth(account).gmail()
+
+    await asyncio.to_thread(
+        lambda: service.users()
+        .messages()
+        .modify(userId="me", id=message_id, body={"removeLabelIds": ["STARRED"]})
+        .execute()
+    )
+
+    return ToolResult(data={"unstarred": True, "message_id": message_id})
 
 
 # -- add_label ---------------------------------------------------------------
@@ -599,6 +681,128 @@ async def remove_label(
     )
 
     return ToolResult(data={"label_removed": True, "message_id": message_id, "label": label_name})
+
+
+# -- create_label ------------------------------------------------------------
+
+
+class CreateLabelParams(GoogleToolParams):
+    label_name: str = Field(description="Name for the new label (e.g. 'Projects/Alpha')")
+
+
+@registry.tool(
+    name="create_label",
+    description=(
+        "Create a new Gmail label. Supports nested labels "
+        "using '/' separator (e.g. 'Work/Projects')."
+    ),
+    category=_CATEGORY,
+    params_model=CreateLabelParams,
+)
+async def create_label(
+    label_name: str, account: str | None = None
+) -> ToolResult:
+    service = _auth(account).gmail()
+
+    label_body = {
+        "name": label_name,
+        "labelListVisibility": "labelShow",
+        "messageListVisibility": "show",
+    }
+
+    result = await asyncio.to_thread(
+        lambda: service.users()
+        .labels()
+        .create(userId="me", body=label_body)
+        .execute()
+    )
+
+    return ToolResult(data={
+        "created": True,
+        "label_id": result["id"],
+        "label_name": result["name"],
+    })
+
+
+# -- delete_label ------------------------------------------------------------
+
+
+class DeleteLabelParams(GoogleToolParams):
+    label_name: str = Field(
+        description="Name of the label to delete (user-created labels only)",
+    )
+
+
+@registry.tool(
+    name="delete_label",
+    description=(
+        "Delete a user-created Gmail label. System labels "
+        "(INBOX, STARRED, etc.) cannot be deleted."
+    ),
+    category=_CATEGORY,
+    params_model=DeleteLabelParams,
+    requires_confirmation=True,
+)
+async def delete_label(
+    label_name: str, account: str | None = None
+) -> ToolResult:
+    service = _auth(account).gmail()
+
+    label_id = await _resolve_label_id(service, label_name)
+    if not label_id:
+        return ToolResult(error=f"Label not found: {label_name}")
+
+    # Prevent deleting system labels
+    system_labels = {
+        "INBOX", "UNREAD", "STARRED", "IMPORTANT", "SPAM", "TRASH",
+        "SENT", "DRAFT", "CATEGORY_PERSONAL", "CATEGORY_SOCIAL",
+        "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_FORUMS",
+    }
+    if label_id in system_labels:
+        return ToolResult(error=f"Cannot delete system label: {label_name}")
+
+    await asyncio.to_thread(
+        lambda: service.users()
+        .labels()
+        .delete(userId="me", id=label_id)
+        .execute()
+    )
+
+    return ToolResult(data={"deleted": True, "label_name": label_name})
+
+
+# -- list_labels -------------------------------------------------------------
+
+
+class ListLabelsParams(GoogleToolParams):
+    pass
+
+
+@registry.tool(
+    name="list_labels",
+    description="List all Gmail labels (both system and user-created).",
+    category=_CATEGORY,
+    params_model=ListLabelsParams,
+)
+async def list_labels(account: str | None = None) -> ToolResult:
+    service = _auth(account).gmail()
+
+    result = await asyncio.to_thread(
+        lambda: service.users().labels().list(userId="me").execute()
+    )
+
+    labels = []
+    for label in result.get("labels", []):
+        labels.append({
+            "id": label["id"],
+            "name": label["name"],
+            "type": label.get("type", "user"),
+        })
+
+    # Sort: user labels first (alphabetical), then system
+    labels.sort(key=lambda lbl: (lbl["type"] != "user", lbl["name"].lower()))
+
+    return ToolResult(data={"labels": labels, "count": len(labels)})
 
 
 # -- download_email_attachment -----------------------------------------------

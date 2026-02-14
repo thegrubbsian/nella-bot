@@ -370,11 +370,21 @@ def _fmt_delete_note(inp: dict[str, Any]) -> str:
     return f"Delete note\nNote ID: {note_id}"
 
 
+def _fmt_trash_email(inp: dict[str, Any]) -> str:
+    return "Delete email (move to trash)"
+
+
+def _fmt_delete_label(inp: dict[str, Any]) -> str:
+    name = inp.get("label_name", "?")
+    return f"Delete Gmail label\nLabel: {name}"
+
+
 _TOOL_FORMATTERS: dict[str, Any] = {
     "send_email": _fmt_send_email,
     "reply_to_email": _fmt_reply_to_email,
     "archive_email": _fmt_archive_email,
     "archive_emails": _fmt_archive_emails,
+    "trash_email": _fmt_trash_email,
     "create_event": _fmt_create_event,
     "update_event": _fmt_update_event,
     "delete_event": _fmt_delete_event,
@@ -392,6 +402,7 @@ _TOOL_FORMATTERS: dict[str, Any] = {
     "scratch_wipe": _fmt_scratch_wipe,
     "browse_web": _fmt_browse_web,
     "delete_note": _fmt_delete_note,
+    "delete_label": _fmt_delete_label,
 }
 
 
