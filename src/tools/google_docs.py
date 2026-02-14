@@ -119,9 +119,20 @@ class CreateDocumentParams(GoogleToolParams):
     content: str = Field(default="", description="Initial document content")
 
 
+def _create_document_description() -> str:
+    desc = "Create a new Google Docs document."
+    domain = settings.google_workspace_domain
+    if domain:
+        desc += (
+            f" The document is automatically shared with everyone in the"
+            f" {domain} workspace (editor access)."
+        )
+    return desc
+
+
 @registry.tool(
     name="create_document",
-    description="Create a new Google Docs document.",
+    description=_create_document_description(),
     category=_CATEGORY,
     params_model=CreateDocumentParams,
     requires_confirmation=True,
