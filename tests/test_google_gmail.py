@@ -54,6 +54,7 @@ class TestSearchEmails:
 
         gmail_mock.users().messages().list().execute.return_value = {
             "messages": [{"id": "msg1"}],
+            "resultSizeEstimate": 1,
         }
         gmail_mock.users().messages().get().execute.return_value = _make_message()
 
@@ -61,6 +62,7 @@ class TestSearchEmails:
         assert isinstance(result, ToolResult)
         assert result.success
         assert result.data["count"] == 1
+        assert result.data["estimated_total"] == 1
         assert result.data["emails"][0]["subject"] == "Test"
 
     @pytest.mark.asyncio
@@ -72,6 +74,36 @@ class TestSearchEmails:
         result = await search_emails(query="nonexistent")
         assert result.success
         assert result.data["count"] == 0
+        assert result.data["estimated_total"] == 0
+
+    @pytest.mark.asyncio
+    async def test_search_returns_next_page_token(self, gmail_mock):
+        from src.tools.google_gmail import search_emails
+
+        gmail_mock.users().messages().list().execute.return_value = {
+            "messages": [{"id": "msg1"}],
+            "resultSizeEstimate": 50,
+            "nextPageToken": "token_page2",
+        }
+        gmail_mock.users().messages().get().execute.return_value = _make_message()
+
+        result = await search_emails(query="is:unread")
+        assert result.success
+        assert result.data["estimated_total"] == 50
+        assert result.data["next_page_token"] == "token_page2"
+
+    @pytest.mark.asyncio
+    async def test_search_no_next_page_token_when_last_page(self, gmail_mock):
+        from src.tools.google_gmail import search_emails
+
+        gmail_mock.users().messages().list().execute.return_value = {
+            "messages": [{"id": "msg1"}],
+            "resultSizeEstimate": 1,
+        }
+        gmail_mock.users().messages().get().execute.return_value = _make_message()
+
+        result = await search_emails(query="test")
+        assert "next_page_token" not in result.data
 
 
 class TestReadEmail:

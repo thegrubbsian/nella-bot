@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Safety limit on tool-call round-trips per user message
-MAX_TOOL_ROUNDS = 10
+MAX_TOOL_ROUNDS = 20
 
 _client: anthropic.AsyncAnthropic | None = None
 

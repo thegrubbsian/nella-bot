@@ -134,28 +134,41 @@ def _build_message(body: str, attachments: list[str] | None = None) -> MIMEText 
 
 class SearchEmailsParams(GoogleToolParams):
     query: str = Field(description="Gmail search query (same syntax as Gmail search bar)")
-    max_results: int = Field(default=10, description="Maximum number of results")
+    max_results: int = Field(default=10, description="Maximum number of results per page")
+    page_token: str | None = Field(
+        default=None,
+        description="Token for fetching the next page of results (from a previous search)",
+    )
 
 
 @registry.tool(
     name="search_emails",
     description=(
         "Search emails using Gmail query syntax. Returns message metadata "
-        "(subject, from, date, snippet). Use read_email for full body."
+        "(subject, from, date, snippet). Use read_email for full body. "
+        "Supports pagination — use the returned next_page_token to fetch more results."
     ),
     category=_CATEGORY,
     params_model=SearchEmailsParams,
 )
 async def search_emails(
-    query: str, max_results: int = 10, account: str | None = None
+    query: str,
+    max_results: int = 10,
+    page_token: str | None = None,
+    account: str | None = None,
 ) -> ToolResult:
     service = _auth(account).gmail()
 
+    list_kwargs: dict[str, Any] = {
+        "userId": "me",
+        "maxResults": max_results,
+        "q": query,
+    }
+    if page_token:
+        list_kwargs["pageToken"] = page_token
+
     result = await asyncio.to_thread(
-        lambda: service.users()
-        .messages()
-        .list(userId="me", maxResults=max_results, q=query)
-        .execute()
+        lambda: service.users().messages().list(**list_kwargs).execute()
     )
 
     messages = []
@@ -177,7 +190,16 @@ async def search_emails(
             "snippet": msg.get("snippet", ""),
         })
 
-    return ToolResult(data={"emails": messages, "count": len(messages)})
+    data: dict[str, Any] = {
+        "emails": messages,
+        "count": len(messages),
+        "estimated_total": result.get("resultSizeEstimate", 0),
+    }
+    next_token = result.get("nextPageToken")
+    if next_token:
+        data["next_page_token"] = next_token
+
+    return ToolResult(data=data)
 
 
 # -- read_email --------------------------------------------------------------
