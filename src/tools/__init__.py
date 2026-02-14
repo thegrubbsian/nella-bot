@@ -39,4 +39,8 @@ if LinkedInAuth.enabled():
 if settings.browser_enabled:
     from src.tools import browser_tools  # noqa: F401
 
+# Conditionally load Slack tools when running on Slack.
+if settings.chat_platform == "slack":
+    from src.tools import slack_tools  # noqa: F401
+
 __all__ = ["registry"]

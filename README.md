@@ -281,6 +281,7 @@ nellabot/
 │   │   ├── log_tools.py             # 1 tool: query production logs (SolarWinds/Papertrail)
 │   │   ├── browser_tools.py          # 1 tool: browse_web (Playwright interactive browsing)
 │   │   ├── web_tools.py             # 2 tools: web_search (Brave), read_webpage (content extraction)
+│   │   ├── slack_tools.py           # 1 tool: slack_list_users (Slack platform only)
 │   │   └── utility.py               # 4 tools: get_current_datetime, save_note, search_notes, delete_note
 │   ├── notifications/
 │   │   ├── __init__.py              # Package exports
@@ -342,6 +343,7 @@ nellabot/
 │   ├── test_web_tools.py            # Web research tools
 │   ├── test_scratch.py              # ScratchSpace filesystem
 │   ├── test_scratch_tools.py        # Scratch space tools
+│   ├── test_slack_tools.py          # Slack workspace tools
 │   └── test_utility.py              # Utility tools
 │
 ├── scripts/
@@ -468,7 +470,7 @@ If you prefer Slack over Telegram as your chat interface:
 
 1. **Create a Slack app** at [api.slack.com/apps](https://api.slack.com/apps) → "Create New App" → "From scratch".
 2. **Enable Socket Mode** under Settings → Socket Mode. Create an app-level token with the `connections:write` scope — this gives you a token starting with `xapp-`.
-3. **Add OAuth scopes** under OAuth & Permissions → Bot Token Scopes. See `slack_manifest.yaml` for the current list: `chat:write`, `commands`, `im:history`, `im:read`, `im:write`.
+3. **Add OAuth scopes** under OAuth & Permissions → Bot Token Scopes. See `slack_manifest.yaml` for the current list: `chat:write`, `commands`, `im:history`, `im:read`, `im:write`, `users:read`.
 4. **Install the app** to your workspace. Copy the Bot User OAuth Token (`xoxb-...`).
 5. **Subscribe to events** under Event Subscriptions → Subscribe to bot events: `message.im` (messages in DMs).
 6. **Set environment variables** in `.env`:

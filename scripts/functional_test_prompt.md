@@ -194,7 +194,15 @@ Skip create_contact and update_contact — we don't want to create or modify rea
 
 13.1. **browse_web** — Browse https://example.com with task "Read the page title and main content." (Requires confirmation.) This is a safe, stable URL that should return quickly.
 
-## 14. LinkedIn
+## 14. Slack
+
+14.1. **slack_list_users** — List all users in the workspace (excluding bots). Confirm you get back a list with at least one user entry containing id, name, and real_name fields.
+
+14.2. **slack_list_users (with bots)** — List all users including bots (include_bots=true). Confirm the count is >= the count from 14.1.
+
+Note: These tests only apply when running on Slack (`CHAT_PLATFORM=slack`). If running on Telegram, report as "DISABLED".
+
+## 15. LinkedIn
 
 Skip linkedin_create_post and linkedin_post_comment — these post publicly and can't be undone. Just confirm whether the LinkedIn integration is enabled or disabled, and report that.
 

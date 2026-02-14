@@ -95,6 +95,10 @@ def create_slack_app() -> App:
 
     _init_notifications(client)
 
+    from src.tools.slack_tools import init_slack_tools
+
+    init_slack_tools(client)
+
     # Message handler — only DMs (im), ignore bot messages and message edits
     @app.event("message")
     async def _on_message(event, say, client):

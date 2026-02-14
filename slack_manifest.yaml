@@ -21,3 +21,4 @@ oauth_config:
       - im:history
       - im:read
       - im:write
+      - users:read
