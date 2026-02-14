@@ -110,8 +110,7 @@ class TaskExecutor:
     async def _send_error(self, task: ScheduledTask, task_id: str) -> None:
         """Notify the owner about a task failure instead of crashing."""
         error_msg = (
-            f"[Scheduler Error] Task '{task.name}' ({task_id}) failed."
-            " Check logs for details."
+            f"[Scheduler Error] Task '{task.name}' ({task_id}) failed. Check logs for details."
         )
         await self._router.send(
             self._owner_user_id,

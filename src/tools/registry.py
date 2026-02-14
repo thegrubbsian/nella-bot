@@ -141,9 +141,7 @@ class ToolRegistry:
             else:
                 kwargs = dict(arguments)
 
-            if msg_context is not None and _accepts_param(
-                tool_def.handler, "msg_context"
-            ):
+            if msg_context is not None and _accepts_param(tool_def.handler, "msg_context"):
                 kwargs["msg_context"] = msg_context
 
             result = await tool_def.handler(**kwargs)

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters
 
-from src.bot.handlers import (
+from src.bot.telegram.handlers import (
     handle_callback_query,
     handle_clear,
     handle_message,
@@ -123,12 +123,7 @@ async def _post_shutdown(app: Application) -> None:
 
 def create_app() -> Application:
     """Build and configure the Telegram application."""
-    app = (
-        Application.builder()
-        .token(settings.telegram_bot_token)
-        .concurrent_updates(True)
-        .build()
-    )
+    app = Application.builder().token(settings.telegram_bot_token).concurrent_updates(True).build()
 
     _init_notifications(app)
 
@@ -136,9 +131,7 @@ def create_app() -> Application:
     app.add_handler(CommandHandler("clear", handle_clear))
     app.add_handler(CommandHandler("status", handle_status))
     app.add_handler(CommandHandler("model", handle_model))
-    app.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
-    )
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(handle_callback_query))
 
     # Scheduler lifecycle hooks

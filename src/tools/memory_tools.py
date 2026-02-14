@@ -18,8 +18,7 @@ class RememberParams(ToolParams):
     category: str = Field(
         default="general",
         description=(
-            "Category: fact, preference, action_item, reference, "
-            "contact, decision, or general"
+            "Category: fact, preference, action_item, reference, contact, decision, or general"
         ),
     )
 
@@ -75,10 +74,12 @@ async def forget_this(query: str) -> ToolResult:
             deleted += 1
             deleted_items.append(entry.content)
 
-    return ToolResult(data={
-        "deleted": deleted,
-        "items": deleted_items,
-    })
+    return ToolResult(
+        data={
+            "deleted": deleted,
+            "items": deleted_items,
+        }
+    )
 
 
 # -- recall ------------------------------------------------------------------

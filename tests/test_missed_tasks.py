@@ -216,9 +216,7 @@ async def test_callback_run_executes_and_deactivates(
     assert "Executed" in query.edit_message_text.call_args.kwargs["text"]
 
 
-async def test_callback_delete_deactivates(
-    engine: SchedulerEngine, store: TaskStore
-) -> None:
+async def test_callback_delete_deactivates(engine: SchedulerEngine, store: TaskStore) -> None:
     """Pressing 'Delete' should deactivate the task without executing."""
     past = (datetime.now(zoneinfo.ZoneInfo(TZ)) - timedelta(hours=1)).isoformat()
     task = _make_task(run_at=past)
@@ -261,7 +259,7 @@ async def test_handler_routes_mst_prefix() -> None:
     """handle_callback_query should route mst: callbacks to handle_missed_task_callback."""
     from unittest.mock import patch as mock_patch
 
-    from src.bot.handlers import handle_callback_query
+    from src.bot.telegram.handlers import handle_callback_query
 
     update = MagicMock()
     query = AsyncMock()
@@ -279,7 +277,7 @@ async def test_handler_routes_mst_prefix() -> None:
 
 async def test_handler_rejects_invalid_mst_action() -> None:
     """mst: callback with invalid action should answer with error."""
-    from src.bot.handlers import handle_callback_query
+    from src.bot.telegram.handlers import handle_callback_query
 
     update = MagicMock()
     query = AsyncMock()

@@ -44,13 +44,15 @@ def test_prompt_empty_history() -> None:
 
 
 def test_parse_valid_json() -> None:
-    raw = json.dumps({
-        "memories": [
-            {"content": "Likes coffee", "category": "preference", "importance": "medium"},
-            {"content": "Lives in NYC", "category": "fact", "importance": "high"},
-        ],
-        "topic_switch": None,
-    })
+    raw = json.dumps(
+        {
+            "memories": [
+                {"content": "Likes coffee", "category": "preference", "importance": "medium"},
+                {"content": "Lives in NYC", "category": "fact", "importance": "high"},
+            ],
+            "topic_switch": None,
+        }
+    )
     result = parse_extraction_result(raw)
     assert len(result.memories) == 2
     assert result.memories[0].content == "Likes coffee"
@@ -59,15 +61,17 @@ def test_parse_valid_json() -> None:
 
 
 def test_parse_with_topic_switch() -> None:
-    raw = json.dumps({
-        "memories": [],
-        "topic_switch": {
-            "previous_topic": "Budget planning",
-            "decisions_made": "Cap at $50k",
-            "open_items": "Need vendor quotes",
-            "next_steps": "Email vendors",
-        },
-    })
+    raw = json.dumps(
+        {
+            "memories": [],
+            "topic_switch": {
+                "previous_topic": "Budget planning",
+                "decisions_made": "Cap at $50k",
+                "open_items": "Need vendor quotes",
+                "next_steps": "Email vendors",
+            },
+        }
+    )
     result = parse_extraction_result(raw)
     assert result.topic_switch is not None
     assert result.topic_switch.previous_topic == "Budget planning"
@@ -98,13 +102,15 @@ def test_parse_json_in_markdown_fences() -> None:
 
 
 def test_parse_skips_empty_content() -> None:
-    raw = json.dumps({
-        "memories": [
-            {"content": "", "category": "fact", "importance": "high"},
-            {"content": "Real memory", "category": "fact", "importance": "high"},
-        ],
-        "topic_switch": None,
-    })
+    raw = json.dumps(
+        {
+            "memories": [
+                {"content": "", "category": "fact", "importance": "high"},
+                {"content": "Real memory", "category": "fact", "importance": "high"},
+            ],
+            "topic_switch": None,
+        }
+    )
     result = parse_extraction_result(raw)
     assert len(result.memories) == 1
 
@@ -116,14 +122,16 @@ async def test_extract_saves_medium_and_high_only() -> None:
     mock_store = AsyncMock()
     mock_store.enabled = True
 
-    response_json = json.dumps({
-        "memories": [
-            {"content": "Important fact", "category": "fact", "importance": "high"},
-            {"content": "Useful detail", "category": "preference", "importance": "medium"},
-            {"content": "Trivial thing", "category": "general", "importance": "low"},
-        ],
-        "topic_switch": None,
-    })
+    response_json = json.dumps(
+        {
+            "memories": [
+                {"content": "Important fact", "category": "fact", "importance": "high"},
+                {"content": "Useful detail", "category": "preference", "importance": "medium"},
+                {"content": "Trivial thing", "category": "general", "importance": "low"},
+            ],
+            "topic_switch": None,
+        }
+    )
 
     with (
         patch("src.memory.automatic.MemoryStore.get", return_value=mock_store),
@@ -142,15 +150,17 @@ async def test_extract_saves_topic_switch() -> None:
     mock_store = AsyncMock()
     mock_store.enabled = True
 
-    response_json = json.dumps({
-        "memories": [],
-        "topic_switch": {
-            "previous_topic": "Budget",
-            "decisions_made": "Cap at $50k",
-            "open_items": "Vendor quotes",
-            "next_steps": "Email vendors",
-        },
-    })
+    response_json = json.dumps(
+        {
+            "memories": [],
+            "topic_switch": {
+                "previous_topic": "Budget",
+                "decisions_made": "Cap at $50k",
+                "open_items": "Vendor quotes",
+                "next_steps": "Email vendors",
+            },
+        }
+    )
 
     with (
         patch("src.memory.automatic.MemoryStore.get", return_value=mock_store),

@@ -23,9 +23,7 @@ class TelegramChannel:
     async def send(self, user_id: str, message: str) -> bool:
         """Send a plain text message to a Telegram chat."""
         try:
-            await self._bot.send_message(
-                chat_id=int(user_id), text=message, parse_mode="Markdown"
-            )
+            await self._bot.send_message(chat_id=int(user_id), text=message, parse_mode="Markdown")
             return True
         except Exception:
             logger.exception("TelegramChannel.send failed for user_id=%s", user_id)
@@ -43,17 +41,19 @@ class TelegramChannel:
         try:
             markup = None
             if buttons:
-                markup = InlineKeyboardMarkup([
+                markup = InlineKeyboardMarkup(
                     [
-                        InlineKeyboardButton(
-                            text=btn["text"],
-                            callback_data=btn.get("callback_data"),
-                            url=btn.get("url"),
-                        )
-                        for btn in row
+                        [
+                            InlineKeyboardButton(
+                                text=btn["text"],
+                                callback_data=btn.get("callback_data"),
+                                url=btn.get("url"),
+                            )
+                            for btn in row
+                        ]
+                        for row in buttons
                     ]
-                    for row in buttons
-                ])
+                )
 
             await self._bot.send_message(
                 chat_id=int(user_id),
@@ -63,7 +63,5 @@ class TelegramChannel:
             )
             return True
         except Exception:
-            logger.exception(
-                "TelegramChannel.send_rich failed for user_id=%s", user_id
-            )
+            logger.exception("TelegramChannel.send_rich failed for user_id=%s", user_id)
             return False

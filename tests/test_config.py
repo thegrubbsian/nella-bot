@@ -41,6 +41,21 @@ class TestGetGoogleAccounts:
         assert s.get_google_accounts() == ["main"]
 
 
+class TestChatPlatform:
+    def test_chat_platform_defaults_to_telegram(self) -> None:
+        s = Settings()
+        assert s.chat_platform == "telegram"
+
+    def test_chat_platform_slack(self) -> None:
+        s = Settings(chat_platform="slack")
+        assert s.chat_platform == "slack"
+
+    def test_slack_tokens_default_empty(self) -> None:
+        s = Settings()
+        assert s.slack_bot_token == ""
+        assert s.slack_app_token == ""
+
+
 class TestDefaults:
     def test_default_chat_model(self):
         s = Settings()

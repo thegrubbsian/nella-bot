@@ -108,9 +108,7 @@ async def linkedin_create_post(
             resp = await client.post(POSTS_URL, headers=headers, json=body)
 
         if resp.status_code not in (200, 201):
-            return ToolResult(
-                error=f"LinkedIn API returned {resp.status_code}: {resp.text[:300]}"
-            )
+            return ToolResult(error=f"LinkedIn API returned {resp.status_code}: {resp.text[:300]}")
 
         post_urn = resp.headers.get("x-restli-id", "")
         return ToolResult(
@@ -173,9 +171,7 @@ async def linkedin_post_comment(
             resp = await client.post(comment_url, headers=headers, json=body)
 
         if resp.status_code not in (200, 201):
-            return ToolResult(
-                error=f"LinkedIn API returned {resp.status_code}: {resp.text[:300]}"
-            )
+            return ToolResult(error=f"LinkedIn API returned {resp.status_code}: {resp.text[:300]}")
 
         resp_data = resp.json() if resp.text else {}
         comment_urn = resp_data.get("$URN", resp_data.get("urn", ""))

@@ -44,9 +44,7 @@ def _get_engine() -> SchedulerEngine:
 
 class ScheduleTaskParams(ToolParams):
     name: str = Field(description="Human-readable name for this task")
-    description: str = Field(
-        default="", description="Optional longer description of the task"
-    )
+    description: str = Field(default="", description="Optional longer description of the task")
     task_type: str = Field(
         description='Either "one_off" (runs once) or "recurring" (runs on a schedule)'
     )
@@ -71,9 +69,7 @@ class ScheduleTaskParams(ToolParams):
         )
     )
     action_content: str = Field(
-        description=(
-            "The message text (for simple_message) or the AI prompt (for ai_task)"
-        )
+        description=("The message text (for simple_message) or the AI prompt (for ai_task)")
     )
     notification_channel: str | None = Field(
         default=None,
@@ -149,15 +145,17 @@ async def schedule_task(
     stored = await engine._store.get_task(task.id)
     next_run = stored.next_run_at if stored else None
 
-    return ToolResult(data={
-        "scheduled": True,
-        "task_id": task.id,
-        "name": task.name,
-        "task_type": task.task_type,
-        "schedule": task.schedule,
-        "action_type": action_type,
-        "next_run_at": next_run,
-    })
+    return ToolResult(
+        data={
+            "scheduled": True,
+            "task_id": task.id,
+            "name": task.name,
+            "task_type": task.task_type,
+            "schedule": task.schedule,
+            "action_type": action_type,
+            "next_run_at": next_run,
+        }
+    )
 
 
 # -- list_scheduled_tasks ------------------------------------------------------
@@ -177,19 +175,21 @@ async def list_scheduled_tasks() -> ToolResult:
 
     task_list = []
     for t in tasks:
-        task_list.append({
-            "id": t.id,
-            "name": t.name,
-            "description": t.description,
-            "task_type": t.task_type,
-            "schedule": t.schedule,
-            "action_type": t.action_type,
-            "action": t.action,
-            "notification_channel": t.notification_channel,
-            "next_run_at": t.next_run_at,
-            "last_run_at": t.last_run_at,
-            "created_at": t.created_at,
-        })
+        task_list.append(
+            {
+                "id": t.id,
+                "name": t.name,
+                "description": t.description,
+                "task_type": t.task_type,
+                "schedule": t.schedule,
+                "action_type": t.action_type,
+                "action": t.action,
+                "notification_channel": t.notification_channel,
+                "next_run_at": t.next_run_at,
+                "last_run_at": t.last_run_at,
+                "created_at": t.created_at,
+            }
+        )
 
     return ToolResult(data={"tasks": task_list, "count": len(task_list)})
 
@@ -198,9 +198,7 @@ async def list_scheduled_tasks() -> ToolResult:
 
 
 class CancelScheduledTaskParams(ToolParams):
-    task_id: str | None = Field(
-        default=None, description="Exact task ID to cancel"
-    )
+    task_id: str | None = Field(default=None, description="Exact task ID to cancel")
     search_query: str | None = Field(
         default=None,
         description="Search task names/descriptions to find the task to cancel",
@@ -239,26 +237,31 @@ async def cancel_scheduled_task(
     matches = await engine._store.search_active_tasks(search_query)
 
     if not matches:
-        return ToolResult(data={
-            "cancelled": False,
-            "message": f"No active tasks matching '{search_query}'",
-        })
+        return ToolResult(
+            data={
+                "cancelled": False,
+                "message": f"No active tasks matching '{search_query}'",
+            }
+        )
 
     if len(matches) == 1:
         task = matches[0]
         cancelled = await engine.cancel_task(task.id)
-        return ToolResult(data={
-            "cancelled": cancelled,
-            "task_id": task.id,
-            "name": task.name,
-        })
+        return ToolResult(
+            data={
+                "cancelled": cancelled,
+                "task_id": task.id,
+                "name": task.name,
+            }
+        )
 
     # Multiple matches — return them for the user to choose
-    return ToolResult(data={
-        "cancelled": False,
-        "message": "Multiple tasks match. Ask which one to cancel.",
-        "matches": [
-            {"id": t.id, "name": t.name, "description": t.description}
-            for t in matches
-        ],
-    })
+    return ToolResult(
+        data={
+            "cancelled": False,
+            "message": "Multiple tasks match. Ask which one to cancel.",
+            "matches": [
+                {"id": t.id, "name": t.name, "description": t.description} for t in matches
+            ],
+        }
+    )

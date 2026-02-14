@@ -40,11 +40,11 @@ class Session:
         return [{"role": m.role, "content": m.content} for m in self.messages]
 
 
-# Global session store keyed by chat_id
-_sessions: dict[int, Session] = {}
+# Global session store keyed by chat_id (int for Telegram, str for Slack)
+_sessions: dict[int | str, Session] = {}
 
 
-def get_session(chat_id: int) -> Session:
+def get_session(chat_id: int | str) -> Session:
     """Get or create a session for a chat."""
     if chat_id not in _sessions:
         _sessions[chat_id] = Session()

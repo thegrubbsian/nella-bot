@@ -64,9 +64,7 @@ async def test_start_and_stop(engine: SchedulerEngine) -> None:
     assert engine.running is False
 
 
-async def test_start_loads_active_tasks(
-    engine: SchedulerEngine, store: TaskStore
-) -> None:
+async def test_start_loads_active_tasks(engine: SchedulerEngine, store: TaskStore) -> None:
     await store.add_task(_make_task("t1"))
     await store.add_task(_make_task("t2"))
 

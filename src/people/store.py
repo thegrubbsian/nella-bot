@@ -61,9 +61,7 @@ class PeopleStore:
 
     # -- CRUD ------------------------------------------------------------------
 
-    async def upsert(
-        self, google_resource_id: str, display_name: str, notes: str
-    ) -> dict:
+    async def upsert(self, google_resource_id: str, display_name: str, notes: str) -> dict:
         """Insert or update a people_notes record. Returns the row as a dict."""
         now = datetime.now(UTC).isoformat()
         db = await self._connect()

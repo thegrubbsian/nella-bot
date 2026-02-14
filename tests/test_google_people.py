@@ -49,6 +49,7 @@ def _make_person(
         person["biographies"] = [{"value": biography}]
     return person
 
+
 pytestmark = pytest.mark.usefixtures("_no_turso")
 
 
@@ -207,9 +208,7 @@ class TestUpdateContactNotes:
         # Pre-populate
         await people_store.upsert("people/c123", "Alice Smith", "Old note")
 
-        result = await update_contact_notes(
-            resource_name="people/c123", notes="Updated note"
-        )
+        result = await update_contact_notes(resource_name="people/c123", notes="Updated note")
         assert result.success
         assert result.data["display_name"] == "Alice Smith"
 

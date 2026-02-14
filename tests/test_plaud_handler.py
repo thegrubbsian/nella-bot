@@ -63,9 +63,7 @@ async def test_read_transcript_returns_none_on_failure() -> None:
 
 async def test_search_transcript_finds_file() -> None:
     mock_service = MagicMock()
-    mock_service.files().list().execute.return_value = {
-        "files": [{"id": "found_id"}]
-    }
+    mock_service.files().list().execute.return_value = {"files": [{"id": "found_id"}]}
     mock_auth = MagicMock()
     mock_auth.drive.return_value = mock_service
 
@@ -315,11 +313,13 @@ async def test_handle_plaud_happy_path() -> None:
             new_callable=AsyncMock,
         ) as mock_save,
     ):
-        await handle_plaud({
-            "file_name": "standup.txt",
-            "file_id": "abc",
-            "meeting_date": "2025-01-15",
-        })
+        await handle_plaud(
+            {
+                "file_name": "standup.txt",
+                "file_id": "abc",
+                "meeting_date": "2025-01-15",
+            }
+        )
 
         mock_notify.assert_awaited_once()
         msg = mock_notify.call_args[0][0]
@@ -327,7 +327,9 @@ async def test_handle_plaud_happy_path() -> None:
         assert "Action items" in msg
 
         mock_save.assert_awaited_once_with(
-            "Action items: ...", "standup.txt", "2025-01-15",
+            "Action items: ...",
+            "standup.txt",
+            "2025-01-15",
         )
 
 

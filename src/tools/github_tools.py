@@ -79,9 +79,7 @@ class ReadFileParams(ToolParams):
 
 class SearchCodeParams(ToolParams):
     query: str = Field(description="Code search query (GitHub search syntax)")
-    repo: str | None = Field(
-        default=None, description="Scope search to this repo ('owner/repo')"
-    )
+    repo: str | None = Field(default=None, description="Scope search to this repo ('owner/repo')")
     max_results: int = Field(
         default=10, description="Maximum results to return (1-30)", ge=1, le=30
     )
@@ -92,9 +90,7 @@ class ListCommitsParams(ToolParams):
     sha: str | None = Field(
         default=None, description="Branch name or commit SHA to start listing from"
     )
-    path: str | None = Field(
-        default=None, description="Only commits touching this file path"
-    )
+    path: str | None = Field(default=None, description="Only commits touching this file path")
     max_results: int = Field(
         default=10, description="Maximum commits to return (1-30)", ge=1, le=30
     )
@@ -107,15 +103,9 @@ class GetCommitParams(ToolParams):
 
 class ListIssuesParams(ToolParams):
     repo: str = Field(description="Repository in 'owner/repo' format")
-    state: str = Field(
-        default="open", description="Filter by state: 'open', 'closed', or 'all'"
-    )
-    labels: str | None = Field(
-        default=None, description="Comma-separated label names to filter by"
-    )
-    max_results: int = Field(
-        default=10, description="Maximum issues to return (1-30)", ge=1, le=30
-    )
+    state: str = Field(default="open", description="Filter by state: 'open', 'closed', or 'all'")
+    labels: str | None = Field(default=None, description="Comma-separated label names to filter by")
+    max_results: int = Field(default=10, description="Maximum issues to return (1-30)", ge=1, le=30)
 
 
 class GetIssueParams(ToolParams):
@@ -142,19 +132,21 @@ async def github_get_repo(repo: str) -> ToolResult:
         slug = _parse_repo(repo)
         gh = _get_github()
         r = await asyncio.to_thread(gh.get_repo, slug)
-        return ToolResult(data={
-            "full_name": r.full_name,
-            "description": r.description or "",
-            "language": r.language or "",
-            "default_branch": r.default_branch,
-            "stars": r.stargazers_count,
-            "forks": r.forks_count,
-            "open_issues": r.open_issues_count,
-            "private": r.private,
-            "url": r.html_url,
-            "created_at": r.created_at.isoformat() if r.created_at else "",
-            "updated_at": r.updated_at.isoformat() if r.updated_at else "",
-        })
+        return ToolResult(
+            data={
+                "full_name": r.full_name,
+                "description": r.description or "",
+                "language": r.language or "",
+                "default_branch": r.default_branch,
+                "stars": r.stargazers_count,
+                "forks": r.forks_count,
+                "open_issues": r.open_issues_count,
+                "private": r.private,
+                "url": r.html_url,
+                "created_at": r.created_at.isoformat() if r.created_at else "",
+                "updated_at": r.updated_at.isoformat() if r.updated_at else "",
+            }
+        )
     except ValueError as exc:
         return ToolResult(error=str(exc))
     except GithubException as exc:
@@ -170,9 +162,7 @@ async def github_get_repo(repo: str) -> ToolResult:
     category="github",
     params_model=ListDirectoryParams,
 )
-async def github_list_directory(
-    repo: str, path: str = "", ref: str | None = None
-) -> ToolResult:
+async def github_list_directory(repo: str, path: str = "", ref: str | None = None) -> ToolResult:
     try:
         slug = _parse_repo(repo)
         gh = _get_github()
@@ -212,9 +202,7 @@ async def github_list_directory(
     category="github",
     params_model=ReadFileParams,
 )
-async def github_read_file(
-    repo: str, path: str, ref: str | None = None
-) -> ToolResult:
+async def github_read_file(repo: str, path: str, ref: str | None = None) -> ToolResult:
     try:
         slug = _parse_repo(repo)
         gh = _get_github()
@@ -236,13 +224,15 @@ async def github_read_file(
             decoded = decoded[:MAX_FILE_CHARS]
             truncated = True
 
-        return ToolResult(data={
-            "path": content_file.path,
-            "name": content_file.name,
-            "size": content_file.size,
-            "sha": content_file.sha,
-            "content": decoded + (" [Content truncated]" if truncated else ""),
-        })
+        return ToolResult(
+            data={
+                "path": content_file.path,
+                "name": content_file.name,
+                "size": content_file.size,
+                "sha": content_file.sha,
+                "content": decoded + (" [Content truncated]" if truncated else ""),
+            }
+        )
     except ValueError as exc:
         return ToolResult(error=str(exc))
     except GithubException as exc:
@@ -272,13 +262,15 @@ async def github_search_code(
 
         results = []
         for item in results_page[:max_results]:
-            results.append({
-                "name": item.name,
-                "path": item.path,
-                "repo": item.repository.full_name,
-                "sha": item.sha,
-                "url": item.html_url,
-            })
+            results.append(
+                {
+                    "name": item.name,
+                    "path": item.path,
+                    "repo": item.repository.full_name,
+                    "sha": item.sha,
+                    "url": item.html_url,
+                }
+            )
 
         return ToolResult(data={"results": results, "count": len(results)})
     except ValueError as exc:
@@ -317,14 +309,16 @@ async def github_list_commits(
 
         commits = []
         for c in commits_page[:max_results]:
-            commits.append({
-                "sha": c.sha,
-                "short_sha": c.sha[:7],
-                "message": c.commit.message,
-                "author": c.commit.author.name if c.commit.author else "",
-                "date": _author_date_iso(c.commit.author),
-                "url": c.html_url,
-            })
+            commits.append(
+                {
+                    "sha": c.sha,
+                    "short_sha": c.sha[:7],
+                    "message": c.commit.message,
+                    "author": c.commit.author.name if c.commit.author else "",
+                    "date": _author_date_iso(c.commit.author),
+                    "url": c.html_url,
+                }
+            )
 
         return ToolResult(data={"commits": commits, "count": len(commits)})
     except ValueError as exc:
@@ -354,27 +348,31 @@ async def github_get_commit(repo: str, sha: str) -> ToolResult:
             patch = f.patch or ""
             if len(patch) > MAX_PATCH_CHARS:
                 patch = patch[:MAX_PATCH_CHARS] + " [Patch truncated]"
-            files.append({
-                "filename": f.filename,
-                "status": f.status,
-                "additions": f.additions,
-                "deletions": f.deletions,
-                "patch": patch,
-            })
+            files.append(
+                {
+                    "filename": f.filename,
+                    "status": f.status,
+                    "additions": f.additions,
+                    "deletions": f.deletions,
+                    "patch": patch,
+                }
+            )
 
-        return ToolResult(data={
-            "sha": c.sha,
-            "message": c.commit.message,
-            "author": c.commit.author.name if c.commit.author else "",
-            "date": _author_date_iso(c.commit.author),
-            "stats": {
-                "additions": c.stats.additions,
-                "deletions": c.stats.deletions,
-                "total": c.stats.total,
-            },
-            "files": files,
-            "url": c.html_url,
-        })
+        return ToolResult(
+            data={
+                "sha": c.sha,
+                "message": c.commit.message,
+                "author": c.commit.author.name if c.commit.author else "",
+                "date": _author_date_iso(c.commit.author),
+                "stats": {
+                    "additions": c.stats.additions,
+                    "deletions": c.stats.deletions,
+                    "total": c.stats.total,
+                },
+                "files": files,
+                "url": c.html_url,
+            }
+        )
     except ValueError as exc:
         return ToolResult(error=str(exc))
     except GithubException as exc:
@@ -405,26 +403,26 @@ async def github_list_issues(
         if labels:
             label_list = [lbl.strip() for lbl in labels.split(",") if lbl.strip()]
             if label_list:
-                kwargs["labels"] = [
-                    await asyncio.to_thread(r.get_label, lbl) for lbl in label_list
-                ]
+                kwargs["labels"] = [await asyncio.to_thread(r.get_label, lbl) for lbl in label_list]
 
         issues_page = await asyncio.to_thread(r.get_issues, **kwargs)
 
         issues = []
         for issue in issues_page[:max_results]:
-            issues.append({
-                "number": issue.number,
-                "title": issue.title,
-                "state": issue.state,
-                "is_pull_request": issue.pull_request is not None,
-                "author": issue.user.login if issue.user else "",
-                "labels": [lbl.name for lbl in issue.labels],
-                "created_at": issue.created_at.isoformat() if issue.created_at else "",
-                "updated_at": issue.updated_at.isoformat() if issue.updated_at else "",
-                "comments": issue.comments,
-                "url": issue.html_url,
-            })
+            issues.append(
+                {
+                    "number": issue.number,
+                    "title": issue.title,
+                    "state": issue.state,
+                    "is_pull_request": issue.pull_request is not None,
+                    "author": issue.user.login if issue.user else "",
+                    "labels": [lbl.name for lbl in issue.labels],
+                    "created_at": issue.created_at.isoformat() if issue.created_at else "",
+                    "updated_at": issue.updated_at.isoformat() if issue.updated_at else "",
+                    "comments": issue.comments,
+                    "url": issue.html_url,
+                }
+            )
 
         return ToolResult(data={"issues": issues, "count": len(issues)})
     except ValueError as exc:
@@ -473,19 +471,21 @@ async def github_get_issue(repo: str, number: int) -> ToolResult:
             comment_body = comment.body or ""
             if len(comment_body) > MAX_COMMENT_CHARS:
                 comment_body = comment_body[:MAX_COMMENT_CHARS] + " [Comment truncated]"
-            comments.append({
-                "author": comment.user.login if comment.user else "",
-                "body": comment_body,
-                "created_at": comment.created_at.isoformat() if comment.created_at else "",
-            })
+            comments.append(
+                {
+                    "author": comment.user.login if comment.user else "",
+                    "body": comment_body,
+                    "created_at": comment.created_at.isoformat() if comment.created_at else "",
+                }
+            )
         data["comments"] = comments
 
         # Add PR-specific fields
         if issue.pull_request is not None:
             pr = await asyncio.to_thread(r.get_pull, number)
             data["merged"] = pr.merged
-            data["base"] = pr.base.ref if pr.base else "",
-            data["head"] = pr.head.ref if pr.head else "",
+            data["base"] = (pr.base.ref if pr.base else "",)
+            data["head"] = (pr.head.ref if pr.head else "",)
             data["additions"] = pr.additions
             data["deletions"] = pr.deletions
             data["changed_files"] = pr.changed_files

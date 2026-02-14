@@ -3,7 +3,7 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.bot.confirmations import (
+from src.bot.telegram.confirmations import (
     _action_label,
     _enrich_cancel_task,
     _humanize_cron,
@@ -494,7 +494,7 @@ def test_format_delete_note() -> None:
 def test_resolve_sets_future_true() -> None:
     loop = asyncio.new_event_loop()
     future: asyncio.Future[bool] = loop.create_future()
-    from src.bot.confirmations import PendingConfirmation
+    from src.bot.telegram.confirmations import PendingConfirmation
 
     pc = PendingConfirmation(
         id="aabb1122",
@@ -516,7 +516,7 @@ def test_resolve_sets_future_true() -> None:
 def test_resolve_sets_future_false() -> None:
     loop = asyncio.new_event_loop()
     future: asyncio.Future[bool] = loop.create_future()
-    from src.bot.confirmations import PendingConfirmation
+    from src.bot.telegram.confirmations import PendingConfirmation
 
     pc = PendingConfirmation(
         id="cc112233",
@@ -543,7 +543,7 @@ def test_resolve_already_done_returns_false() -> None:
     loop = asyncio.new_event_loop()
     future: asyncio.Future[bool] = loop.create_future()
     future.set_result(True)
-    from src.bot.confirmations import PendingConfirmation
+    from src.bot.telegram.confirmations import PendingConfirmation
 
     pc = PendingConfirmation(
         id="dd445566",
@@ -615,7 +615,10 @@ async def test_request_timeout_returns_false() -> None:
     pending_tool = _make_pending_tool()
 
     result = await request_confirmation(
-        bot, chat_id=123, pending_tool=pending_tool, timeout=0.05,
+        bot,
+        chat_id=123,
+        pending_tool=pending_tool,
+        timeout=0.05,
     )
     assert result is False
     # Timed out confirmation should have been edited
@@ -628,6 +631,9 @@ async def test_request_cleans_up_after_timeout() -> None:
     before = len(_pending)
 
     await request_confirmation(
-        bot, chat_id=123, pending_tool=pending_tool, timeout=0.05,
+        bot,
+        chat_id=123,
+        pending_tool=pending_tool,
+        timeout=0.05,
     )
     assert len(_pending) == before  # Cleaned up

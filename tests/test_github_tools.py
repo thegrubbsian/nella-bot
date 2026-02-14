@@ -251,9 +251,7 @@ class TestListDirectory:
 class TestReadFile:
     async def test_success(self, github_mock) -> None:
         _, repo = github_mock
-        repo.get_contents.return_value = _make_content_file(
-            content=b"print('hello')", size=14
-        )
+        repo.get_contents.return_value = _make_content_file(content=b"print('hello')", size=14)
 
         result = await github_read_file(repo="owner/repo", path="main.py")
         assert result.success
@@ -273,9 +271,7 @@ class TestReadFile:
 
     async def test_not_found(self, github_mock) -> None:
         _, repo = github_mock
-        repo.get_contents.side_effect = GithubException(
-            404, {"message": "Not Found"}, None
-        )
+        repo.get_contents.side_effect = GithubException(404, {"message": "Not Found"}, None)
 
         result = await github_read_file(repo="owner/repo", path="missing.py")
         assert not result.success
@@ -298,9 +294,7 @@ class TestReadFile:
         assert result.success
         assert result.data["content"].endswith("[Content truncated]")
         # Content before truncation marker should be exactly MAX_FILE_CHARS
-        assert len(result.data["content"]) == MAX_FILE_CHARS + len(
-            " [Content truncated]"
-        )
+        assert len(result.data["content"]) == MAX_FILE_CHARS + len(" [Content truncated]")
 
 
 # ---------------------------------------------------------------------------
@@ -328,9 +322,7 @@ class TestSearchCode:
         gh, _ = github_mock
         gh.search_code.return_value = []
 
-        result = await github_search_code(
-            query="import asyncio", repo="owner/repo"
-        )
+        result = await github_search_code(query="import asyncio", repo="owner/repo")
         assert result.success
         # Verify the query was scoped
         call_query = gh.search_code.call_args[0][0]
@@ -438,9 +430,7 @@ class TestGetCommit:
 
     async def test_not_found(self, github_mock) -> None:
         _, repo = github_mock
-        repo.get_commit.side_effect = GithubException(
-            404, {"message": "No commit found"}, None
-        )
+        repo.get_commit.side_effect = GithubException(404, {"message": "No commit found"}, None)
 
         result = await github_get_commit(repo="owner/repo", sha="deadbeef")
         assert not result.success
@@ -549,9 +539,7 @@ class TestGetIssue:
 
     async def test_not_found(self, github_mock) -> None:
         _, repo = github_mock
-        repo.get_issue.side_effect = GithubException(
-            404, {"message": "Not Found"}, None
-        )
+        repo.get_issue.side_effect = GithubException(404, {"message": "Not Found"}, None)
 
         result = await github_get_issue(repo="owner/repo", number=999)
         assert not result.success

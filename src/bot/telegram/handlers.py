@@ -8,9 +8,9 @@ import time
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from src.bot.confirmations import get_pending, request_confirmation, resolve_confirmation
-from src.bot.security import is_allowed
 from src.bot.session import get_session
+from src.bot.telegram.confirmations import get_pending, request_confirmation, resolve_confirmation
+from src.bot.telegram.security import is_allowed
 from src.llm.client import generate_response
 from src.llm.models import MODEL_MAP, ModelManager, friendly
 from src.memory.automatic import extract_and_save
@@ -131,7 +131,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     async def on_confirm(pending_tool):
         return await request_confirmation(
-            bot=context.bot, chat_id=chat_id, pending_tool=pending_tool,
+            bot=context.bot,
+            chat_id=chat_id,
+            pending_tool=pending_tool,
         )
 
     try:

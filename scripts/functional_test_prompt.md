@@ -7,6 +7,11 @@ unless noted otherwise. The prompt is designed to clean up after itself.
 If a tool is disabled (missing API key or token), Nella will report that and move on.
 That's expected — a failure to call the tool is different from the tool not existing.
 
+**Note:** These tests are designed for the Telegram interface (`CHAT_PLATFORM=telegram`).
+If you're running Slack (`CHAT_PLATFORM=slack`), the core tool tests still apply, but
+the interaction UX (inline keyboards vs. interactive buttons, message editing vs. posting)
+will differ. No Slack-specific test scenarios are included at this time.
+
 ---
 
 I need you to run a full functional test of all your tools. Work through each scenario below one at a time. For each one, call the tool, report whether it succeeded or failed, and then run any cleanup step listed. Give me a summary at the end with a pass/fail for each tool.

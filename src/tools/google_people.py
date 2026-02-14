@@ -14,8 +14,7 @@ logger = logging.getLogger(__name__)
 
 _CATEGORY = "google_people"
 _PERSON_FIELDS = (
-    "names,emailAddresses,phoneNumbers,organizations,"
-    "biographies,userDefined,memberships,metadata"
+    "names,emailAddresses,phoneNumbers,organizations,biographies,userDefined,memberships,metadata"
 )
 
 
@@ -64,8 +63,7 @@ class SearchContactsParams(GoogleToolParams):
 @registry.tool(
     name="search_contacts",
     description=(
-        "Search Google Contacts by name, email, phone, or other fields. "
-        "Returns contact summaries."
+        "Search Google Contacts by name, email, phone, or other fields. Returns contact summaries."
     ),
     category=_CATEGORY,
     params_model=SearchContactsParams,
@@ -76,9 +74,11 @@ async def search_contacts(
     service = _auth(account).people()
 
     result = await asyncio.to_thread(
-        lambda: service.people()
-        .searchContacts(query=query, readMask=_PERSON_FIELDS, pageSize=min(max_results, 30))
-        .execute()
+        lambda: (
+            service.people()
+            .searchContacts(query=query, readMask=_PERSON_FIELDS, pageSize=min(max_results, 30))
+            .execute()
+        )
     )
 
     contacts = [_format_contact(r["person"]) for r in result.get("results", [])]
@@ -89,9 +89,7 @@ async def search_contacts(
 
 
 class GetContactParams(GoogleToolParams):
-    resource_name: str = Field(
-        description="Contact resource name (e.g. 'people/c1234567890')"
-    )
+    resource_name: str = Field(description="Contact resource name (e.g. 'people/c1234567890')")
 
 
 @registry.tool(
@@ -103,15 +101,13 @@ class GetContactParams(GoogleToolParams):
     category=_CATEGORY,
     params_model=GetContactParams,
 )
-async def get_contact(
-    resource_name: str, account: str | None = None
-) -> ToolResult:
+async def get_contact(resource_name: str, account: str | None = None) -> ToolResult:
     service = _auth(account).people()
 
     person = await asyncio.to_thread(
-        lambda: service.people()
-        .get(resourceName=resource_name, personFields=_PERSON_FIELDS)
-        .execute()
+        lambda: (
+            service.people().get(resourceName=resource_name, personFields=_PERSON_FIELDS).execute()
+        )
     )
 
     contact = _format_contact(person)
@@ -193,20 +189,20 @@ async def create_contact(
         await store.upsert(resource_name, display_name, notes)
 
     logger.info("Created contact: %s (%s)", display_name, resource_name)
-    return ToolResult(data={
-        "created": True,
-        "resource_name": resource_name,
-        "name": display_name,
-    })
+    return ToolResult(
+        data={
+            "created": True,
+            "resource_name": resource_name,
+            "name": display_name,
+        }
+    )
 
 
 # -- update_contact ------------------------------------------------------------
 
 
 class UpdateContactParams(GoogleToolParams):
-    resource_name: str = Field(
-        description="Contact resource name (e.g. 'people/c1234567890')"
-    )
+    resource_name: str = Field(description="Contact resource name (e.g. 'people/c1234567890')")
     given_name: str | None = Field(default=None, description="New first name")
     family_name: str | None = Field(default=None, description="New last name")
     email: str | None = Field(default=None, description="New email address")
@@ -236,9 +232,9 @@ async def update_contact(
 
     # Fetch current person for etag
     current = await asyncio.to_thread(
-        lambda: service.people()
-        .get(resourceName=resource_name, personFields=_PERSON_FIELDS)
-        .execute()
+        lambda: (
+            service.people().get(resourceName=resource_name, personFields=_PERSON_FIELDS).execute()
+        )
     )
 
     etag = current.get("etag", "")
@@ -275,31 +271,33 @@ async def update_contact(
         return ToolResult(error="No fields to update. Provide at least one field.")
 
     updated = await asyncio.to_thread(
-        lambda: service.people()
-        .updateContact(
-            resourceName=resource_name,
-            body=person_body,
-            updatePersonFields=",".join(update_fields),
+        lambda: (
+            service.people()
+            .updateContact(
+                resourceName=resource_name,
+                body=person_body,
+                updatePersonFields=",".join(update_fields),
+            )
+            .execute()
         )
-        .execute()
     )
 
     display_name = _format_contact(updated)["name"]
     logger.info("Updated contact: %s (%s)", display_name, resource_name)
-    return ToolResult(data={
-        "updated": True,
-        "resource_name": resource_name,
-        "name": display_name,
-    })
+    return ToolResult(
+        data={
+            "updated": True,
+            "resource_name": resource_name,
+            "name": display_name,
+        }
+    )
 
 
 # -- update_contact_notes ------------------------------------------------------
 
 
 class UpdateContactNotesParams(GoogleToolParams):
-    resource_name: str = Field(
-        description="Contact resource name (e.g. 'people/c1234567890')"
-    )
+    resource_name: str = Field(description="Contact resource name (e.g. 'people/c1234567890')")
     notes: str = Field(description="Notes content to save for this contact")
 
 
@@ -325,18 +323,18 @@ async def update_contact_notes(
         # Fetch display name from People API
         service = _auth(account).people()
         person = await asyncio.to_thread(
-            lambda: service.people()
-            .get(resourceName=resource_name, personFields="names")
-            .execute()
+            lambda: service.people().get(resourceName=resource_name, personFields="names").execute()
         )
         display_name = _format_contact(person)["name"]
 
     await store.upsert(resource_name, display_name, notes)
-    return ToolResult(data={
-        "updated": True,
-        "resource_name": resource_name,
-        "display_name": display_name,
-    })
+    return ToolResult(
+        data={
+            "updated": True,
+            "resource_name": resource_name,
+            "display_name": display_name,
+        }
+    )
 
 
 # -- search_contact_notes -----------------------------------------------------

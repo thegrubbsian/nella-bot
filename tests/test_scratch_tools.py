@@ -146,12 +146,16 @@ def test_wipe_files_params_no_fields() -> None:
 
 def _make_mock_httpx(mock_cls):
     """Create a mock httpx module with the real exception classes."""
-    return type("MockHttpx", (), {
-        "AsyncClient": mock_cls,
-        "TimeoutException": httpx.TimeoutException,
-        "HTTPStatusError": httpx.HTTPStatusError,
-        "HTTPError": httpx.HTTPError,
-    })()
+    return type(
+        "MockHttpx",
+        (),
+        {
+            "AsyncClient": mock_cls,
+            "TimeoutException": httpx.TimeoutException,
+            "HTTPStatusError": httpx.HTTPStatusError,
+            "HTTPError": httpx.HTTPError,
+        },
+    )()
 
 
 def _mock_streaming_client(mock_cls, chunks, status_code=200, headers=None):
@@ -226,7 +230,8 @@ async def test_download_file_custom_filename(monkeypatch) -> None:
     _mock_streaming_client(mock_cls, [b"data"])
 
     result = await download_file(
-        url="https://example.com/blob", filename="custom.txt",
+        url="https://example.com/blob",
+        filename="custom.txt",
     )
     assert result.success
     assert result.data["path"] == "custom.txt"
@@ -331,6 +336,7 @@ def test_download_file_params() -> None:
     assert p.filename is None
 
     p2 = DownloadFileParams(
-        url="https://example.com/file.pdf", filename="custom.pdf",
+        url="https://example.com/file.pdf",
+        filename="custom.pdf",
     )
     assert p2.filename == "custom.pdf"

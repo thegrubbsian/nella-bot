@@ -1,20 +1,31 @@
 """Application settings loaded from environment variables."""
 
+import os
 from pathlib import Path
 
-from dotenv import load_dotenv
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-load_dotenv()
+
+def _env_file() -> str | None:
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        return None
+    return ".env"
 
 
 class Settings(BaseSettings):
     """Nella configuration. All values come from environment variables."""
 
+    # Platform
+    chat_platform: str = Field(default="telegram")
+
     # Telegram
     telegram_bot_token: str = Field(default="")
     allowed_user_ids: str = Field(default="")
+
+    # Slack
+    slack_bot_token: str = Field(default="")
+    slack_app_token: str = Field(default="")
 
     # Anthropic
     anthropic_api_key: str = Field(default="")
@@ -89,7 +100,20 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = Field(default="INFO")
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = SettingsConfigDict(env_file=_env_file(), env_file_encoding="utf-8")
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        if os.getenv("PYTEST_CURRENT_TEST"):
+            return (init_settings,)
+        return (init_settings, env_settings, dotenv_settings, file_secret_settings)
 
     def get_allowed_user_ids(self) -> set[int]:
         """Parse ALLOWED_USER_IDS into a set of ints."""

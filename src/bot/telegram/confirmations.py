@@ -503,12 +503,14 @@ async def request_confirmation(
         pending_tool.description,
     )
 
-    keyboard = InlineKeyboardMarkup([
+    keyboard = InlineKeyboardMarkup(
         [
-            InlineKeyboardButton("Approve", callback_data=f"cfm:{conf_id}:y"),
-            InlineKeyboardButton("Deny", callback_data=f"cfm:{conf_id}:n"),
+            [
+                InlineKeyboardButton("Approve", callback_data=f"cfm:{conf_id}:y"),
+                InlineKeyboardButton("Deny", callback_data=f"cfm:{conf_id}:n"),
+            ]
         ]
-    ])
+    )
 
     safe_summary = html.escape(summary)
     msg = await bot.send_message(
