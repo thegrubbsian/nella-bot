@@ -1,12 +1,14 @@
-"""Tests for Slack tools (slack_list_users)."""
+"""Tests for Slack tools (slack_list_users, slack_get_user_profile)."""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from src.tools.slack_tools import (
+    SlackGetUserProfileParams,
     SlackListUsersParams,
     init_slack_tools,
+    slack_get_user_profile,
     slack_list_users,
 )
 
@@ -196,11 +198,109 @@ class TestSlackListUsers:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# slack_get_user_profile tests
+# ---------------------------------------------------------------------------
+
+SAMPLE_PROFILE = {
+    "real_name": "Alice Smith",
+    "display_name": "alice.s",
+    "email": "alice@example.com",
+    "title": "Staff Engineer",
+    "phone": "+1-555-0100",
+    "status_text": "In a meeting",
+    "status_emoji": ":calendar:",
+    "tz": "America/New_York",
+    "image_192": "https://avatars.slack.com/alice_192.png",
+}
+
+
+def _make_profile_client(profile: dict) -> AsyncMock:
+    """Create a mock client whose users_profile_get returns *profile*."""
+    client = AsyncMock()
+    resp = MagicMock()
+    resp.get.side_effect = {"profile": profile}.get
+    client.users_profile_get = AsyncMock(return_value=resp)
+    return client
+
+
+class TestSlackGetUserProfile:
+    async def test_success(self) -> None:
+        mock_client = _make_profile_client(SAMPLE_PROFILE)
+        init_slack_tools(mock_client)
+
+        result = await slack_get_user_profile(user_id="U001")
+
+        assert result.success
+        assert result.data["user_id"] == "U001"
+        assert result.data["real_name"] == "Alice Smith"
+        assert result.data["display_name"] == "alice.s"
+        assert result.data["email"] == "alice@example.com"
+        assert result.data["title"] == "Staff Engineer"
+        assert result.data["phone"] == "+1-555-0100"
+        assert result.data["status_text"] == "In a meeting"
+        assert result.data["status_emoji"] == ":calendar:"
+        assert result.data["timezone"] == "America/New_York"
+        assert result.data["image_url"] == "https://avatars.slack.com/alice_192.png"
+
+    async def test_passes_user_id_to_api(self) -> None:
+        mock_client = _make_profile_client({})
+        init_slack_tools(mock_client)
+
+        await slack_get_user_profile(user_id="U999")
+
+        mock_client.users_profile_get.assert_awaited_once_with(user="U999")
+
+    async def test_missing_fields_default_to_empty(self) -> None:
+        mock_client = _make_profile_client({})
+        init_slack_tools(mock_client)
+
+        result = await slack_get_user_profile(user_id="U001")
+
+        assert result.success
+        assert result.data["email"] == ""
+        assert result.data["title"] == ""
+        assert result.data["phone"] == ""
+
+    async def test_client_not_initialized(self) -> None:
+        result = await slack_get_user_profile(user_id="U001")
+
+        assert not result.success
+        assert "not initialized" in result.error
+
+    async def test_api_error(self) -> None:
+        mock_client = AsyncMock()
+        mock_client.users_profile_get = AsyncMock(
+            side_effect=Exception("user_not_found")
+        )
+        init_slack_tools(mock_client)
+
+        result = await slack_get_user_profile(user_id="UBAD")
+
+        assert not result.success
+        assert "user_not_found" in result.error
+
+
+# ---------------------------------------------------------------------------
+# Params validation tests
+# ---------------------------------------------------------------------------
+
+
 class TestParams:
-    def test_defaults(self) -> None:
+    def test_list_users_defaults(self) -> None:
         p = SlackListUsersParams()
         assert p.include_bots is False
 
-    def test_include_bots_true(self) -> None:
+    def test_list_users_include_bots_true(self) -> None:
         p = SlackListUsersParams(include_bots=True)
         assert p.include_bots is True
+
+    def test_get_profile_requires_user_id(self) -> None:
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            SlackGetUserProfileParams()  # type: ignore[call-arg]
+
+    def test_get_profile_valid(self) -> None:
+        p = SlackGetUserProfileParams(user_id="U001")
+        assert p.user_id == "U001"

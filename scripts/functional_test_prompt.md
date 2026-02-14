@@ -200,6 +200,8 @@ Skip create_contact and update_contact — we don't want to create or modify rea
 
 14.2. **slack_list_users (with bots)** — List all users including bots (include_bots=true). Confirm the count is >= the count from 14.1.
 
+14.3. **slack_get_user_profile** — Pick one user ID from 14.1 and get their full profile. Confirm the result includes real_name, email, and title fields (they may be empty strings but should be present).
+
 Note: These tests only apply when running on Slack (`CHAT_PLATFORM=slack`). If running on Telegram, report as "DISABLED".
 
 ## 15. LinkedIn

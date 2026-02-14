@@ -104,3 +104,52 @@ async def slack_list_users(include_bots: bool = False) -> ToolResult:
     except Exception as exc:
         logger.exception("slack_list_users failed")
         return ToolResult(error=f"Slack API error: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# slack_get_user_profile
+# ---------------------------------------------------------------------------
+
+
+class SlackGetUserProfileParams(ToolParams):
+    user_id: str = Field(
+        description="The Slack user ID (e.g. 'U01ABCDEF') to fetch the profile for.",
+    )
+
+
+@registry.tool(
+    name="slack_get_user_profile",
+    description=(
+        "Get a Slack user's full profile including email, title, phone, "
+        "status, and timezone. Requires a user ID from slack_list_users."
+    ),
+    category="slack",
+    params_model=SlackGetUserProfileParams,
+)
+async def slack_get_user_profile(user_id: str) -> ToolResult:
+    try:
+        client = _get_client()
+    except _SlackToolError as exc:
+        return ToolResult(error=str(exc))
+
+    try:
+        response = await client.users_profile_get(user=user_id)
+        profile = response.get("profile", {})
+
+        return ToolResult(
+            data={
+                "user_id": user_id,
+                "real_name": profile.get("real_name", ""),
+                "display_name": profile.get("display_name", ""),
+                "email": profile.get("email", ""),
+                "title": profile.get("title", ""),
+                "phone": profile.get("phone", ""),
+                "status_text": profile.get("status_text", ""),
+                "status_emoji": profile.get("status_emoji", ""),
+                "timezone": profile.get("tz", ""),
+                "image_url": profile.get("image_192", ""),
+            }
+        )
+    except Exception as exc:
+        logger.exception("slack_get_user_profile failed")
+        return ToolResult(error=f"Slack API error: {exc}")
