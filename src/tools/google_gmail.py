@@ -1,4 +1,4 @@
-"""Gmail tools — search, read, send, reply, archive, labels, download attachment."""
+"""Gmail tools — search, read, send, reply, archive, trash, read/unread, star, labels, download."""
 
 from __future__ import annotations
 

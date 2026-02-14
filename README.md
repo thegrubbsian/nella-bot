@@ -67,7 +67,7 @@ She also has access to her own logs and source code so she can help fix issues w
 | `src/llm/` | Claude API client, system prompt assembly, model switching | You want to change how Claude is called, what it sees, or the tool-calling loop |
 | `src/memory/` | Mem0 integration, automatic memory extraction, data models | You want to change how Nella remembers things |
 | `src/browser/` | Playwright browser automation — headless Chromium agent for JS-heavy sites | You want to change how interactive browsing works |
-| `src/tools/` | Tool registry, all 63 tool implementations, base classes | You want to add a new tool or modify an existing one |
+| `src/tools/` | Tool registry, all 73 tool implementations, base classes | You want to add a new tool or modify an existing one |
 | `src/integrations/` | Google OAuth multi-account manager, LinkedIn OAuth | You want to add a new Google API, add an account, or fix auth issues |
 | `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
 | `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
@@ -100,7 +100,7 @@ Here's what happens when you send "What's on my calendar today?" in Telegram:
    - `registry.execute()` looks up the tool, validates params, and runs it. If the tool's function signature includes `msg_context`, it's injected automatically.
    - The `ToolResult` is sent back to Claude as a `tool_result` message.
    - Claude generates a new response incorporating the tool output.
-   - This loop can run up to 10 rounds (for multi-step tasks).
+   - This loop can run up to 20 rounds (for multi-step tasks like bulk email processing).
 
 9. **Final response** is edited into the Telegram message, replacing the streamed text.
 
@@ -195,7 +195,7 @@ If the transcript isn't found after all retries, the owner gets a notification e
 
 ### How Tool Calling Works
 
-Claude has access to 63 tools organized into categories. When Claude decides it needs to call a tool:
+Claude has access to 73 tools organized into categories. When Claude decides it needs to call a tool:
 
 1. Claude returns a `tool_use` content block with the tool name and arguments.
 2. The registry validates the arguments against a Pydantic model (if one is defined).
@@ -306,7 +306,7 @@ nellabot/
 │   └── MEMORY_RULES.md.EXAMPLE      # Auto-extraction rules (template)
 │   # Copy .EXAMPLE → .md and customize. Actual .md files are gitignored.
 │
-├── tests/                           # 606 tests
+├── tests/                           # 628 tests
 │   ├── test_google_*.py             # Google auth + integrations (6 files)
 │   ├── test_linkedin_*.py           # LinkedIn tools
 │   ├── test_github_*.py             # GitHub tools
