@@ -37,7 +37,15 @@ def _init_notifications(client: AsyncWebClient) -> None:
     router = NotificationRouter.get()
     slack_channel = SlackChannel(client)
     router.register_channel(slack_channel)
-    router.set_default_channel(settings.default_notification_channel)
+    default_channel = settings.default_notification_channel
+    if router.get_channel(default_channel) is None:
+        logger.warning(
+            "Default notification channel '%s' is not registered; using '%s'",
+            default_channel,
+            slack_channel.name,
+        )
+        default_channel = slack_channel.name
+    router.set_default_channel(default_channel)
     logger.info(
         "Notifications initialized: channels=%s, default=%s",
         router.list_channels(),
@@ -90,12 +98,36 @@ def create_slack_app() -> App:
     # Message handler — only DMs (im), ignore bot messages and message edits
     @app.event("message")
     async def _on_message(event, say, client):
+        logger.info(
+            "Slack message event received: channel_type=%s user=%s channel=%s text=%s",
+            event.get("channel_type"),
+            event.get("user"),
+            event.get("channel"),
+            event.get("text", "")[:120],
+        )
         # Skip bot messages, message_changed, etc.
         if event.get("subtype"):
+            logger.info("Skipping Slack message event due to subtype=%s", event.get("subtype"))
             return
         # Only handle DMs (channel type "im")
         if event.get("channel_type") != "im":
+            logger.info("Skipping Slack message event due to channel_type=%s", event.get("channel_type"))
             return
+        await handle_message(event=event, say=say, client=client)
+
+    # Mention handler — allow channel mentions to trigger responses
+    @app.event("app_mention")
+    async def _on_mention(event, say, client):
+        logger.info(
+            "Slack app_mention event received: user=%s channel=%s text=%s",
+            event.get("user"),
+            event.get("channel"),
+            event.get("text", "")[:120],
+        )
+        if event.get("subtype"):
+            logger.info("Skipping Slack mention event due to subtype=%s", event.get("subtype"))
+            return
+        # app_mention only fires in channels; treat as channel response
         await handle_message(event=event, say=say, client=client)
 
     # Slash commands
