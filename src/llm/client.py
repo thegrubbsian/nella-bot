@@ -21,9 +21,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Safety limit on tool-call round-trips per user message
-MAX_TOOL_ROUNDS = 20
-
 _client: anthropic.AsyncAnthropic | None = None
 
 
@@ -129,7 +126,8 @@ async def generate_response(
     loop_messages = list(messages)
     full_text = ""
 
-    for round_num in range(MAX_TOOL_ROUNDS):
+    max_rounds = settings.max_tool_rounds
+    for round_num in range(max_rounds):
         kwargs: dict[str, Any] = {
             "model": ModelManager.get().get_chat_model(),
             "max_tokens": 4096,
@@ -230,5 +228,5 @@ async def generate_response(
 
         loop_messages.append({"role": "user", "content": tool_results})
 
-    logger.warning("Hit max tool rounds (%d)", MAX_TOOL_ROUNDS)
+    logger.warning("Hit max tool rounds (%d)", max_rounds)
     return full_text

@@ -43,6 +43,7 @@ class Settings(BaseSettings):
 
     # Conversation
     conversation_window_size: int = Field(default=50)
+    max_tool_rounds: int = Field(default=20)
 
     # Memory extraction
     memory_extraction_enabled: bool = Field(default=True)
