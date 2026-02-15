@@ -31,6 +31,13 @@ async def test_build_system_prompt_contains_user_profile() -> None:
     assert "Owner Profile" in text
 
 
+async def test_build_system_prompt_contains_tools_guidance() -> None:
+    """TOOLS.md content should be included in the static block."""
+    blocks = await build_system_prompt()
+    text = blocks[0]["text"]
+    assert "Tool Usage Guidance" in text
+
+
 async def test_build_system_prompt_contains_current_time() -> None:
     """The second block should contain the current time and timezone."""
     blocks = await build_system_prompt()

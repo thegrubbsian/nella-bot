@@ -62,8 +62,8 @@ def _init_scheduler() -> SchedulerEngine:
 
     # Simplified generate_response wrapper for the executor:
     # The executor doesn't need streaming or confirmation callbacks.
-    async def _scheduler_generate(messages: list[dict]) -> str:
-        return await generate_response(messages)
+    async def _scheduler_generate(messages: list[dict], model: str | None = None) -> str:
+        return await generate_response(messages, model=model)
 
     executor = TaskExecutor(
         router=router,

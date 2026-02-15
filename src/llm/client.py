@@ -87,6 +87,7 @@ async def generate_response(
     on_text_delta: Callable[[str], Awaitable[None]] | None = None,
     on_confirm: Callable[[PendingToolCall], Awaitable[bool]] | None = None,
     msg_context: MessageContext | None = None,
+    model: str | None = None,
 ) -> str:
     """Generate a response with full tool-calling loop.
 
@@ -129,7 +130,7 @@ async def generate_response(
     max_rounds = settings.max_tool_rounds
     for round_num in range(max_rounds):
         kwargs: dict[str, Any] = {
-            "model": ModelManager.get().get_chat_model(),
+            "model": model or ModelManager.get().get_chat_model(),
             "max_tokens": 4096,
             "system": system_prompt,
             "messages": loop_messages,

@@ -23,6 +23,7 @@ class ScheduledTask:
             or ``{"type": "ai_task", "prompt": "..."}``.
         description: Optional human-readable description.
         notification_channel: Channel name override (None → default).
+        model: Claude model override for ai_task execution (None → global default).
         active: Whether the task is scheduled.
         created_at: ISO 8601 timestamp.
         last_run_at: ISO 8601 timestamp of the last execution.
@@ -36,6 +37,7 @@ class ScheduledTask:
     action: dict[str, Any]
     description: str = ""
     notification_channel: str | None = None
+    model: str | None = None
     active: bool = True
     created_at: str = ""
     last_run_at: str | None = None
@@ -72,6 +74,7 @@ class ScheduledTask:
             json.dumps(self.action),
             self.description,
             self.notification_channel,
+            self.model,
             int(self.active),
             self.created_at,
             self.last_run_at,
@@ -81,6 +84,23 @@ class ScheduledTask:
     @classmethod
     def from_row(cls, row: tuple) -> ScheduledTask:
         """Deserialize from a SQLite row tuple."""
+        # Handle rows from databases that predate the model column (11 elements)
+        has_model = len(row) > 11
+        if has_model:
+            return cls(
+                id=row[0],
+                name=row[1],
+                task_type=row[2],
+                schedule=json.loads(row[3]),
+                action=json.loads(row[4]),
+                description=row[5] or "",
+                notification_channel=row[6],
+                model=row[7],
+                active=bool(row[8]),
+                created_at=row[9],
+                last_run_at=row[10],
+                next_run_at=row[11],
+            )
         return cls(
             id=row[0],
             name=row[1],

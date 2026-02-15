@@ -41,6 +41,7 @@ def test_default_values() -> None:
     )
     assert task.description == ""
     assert task.notification_channel is None
+    assert task.model is None
     assert task.active is True
     assert task.last_run_at is None
     assert task.next_run_at is None
@@ -95,6 +96,7 @@ def test_to_row_and_from_row_roundtrip() -> None:
         action={"type": "ai_task", "prompt": "Check my email"},
         description="Every morning at 9",
         notification_channel="telegram",
+        model="claude-opus-4-6-20250612",
         active=True,
         created_at="2025-01-01T00:00:00",
         last_run_at="2025-01-02T09:00:00",
@@ -110,10 +112,25 @@ def test_to_row_and_from_row_roundtrip() -> None:
     assert restored.action == original.action
     assert restored.description == original.description
     assert restored.notification_channel == original.notification_channel
+    assert restored.model == original.model
     assert restored.active == original.active
     assert restored.created_at == original.created_at
     assert restored.last_run_at == original.last_run_at
     assert restored.next_run_at == original.next_run_at
+
+
+def test_from_row_legacy_without_model() -> None:
+    """Rows from databases predating the model column (11 elements) still parse."""
+    row = (
+        "id1", "name", "one_off",
+        '{"run_at": "2025-01-01"}',
+        '{"type": "simple_message", "message": "hi"}',
+        "", None, 1,
+        "2025-01-01T00:00:00", None, None,
+    )
+    task = ScheduledTask.from_row(row)
+    assert task.model is None
+    assert task.active is True
 
 
 def test_to_row_json_fields() -> None:

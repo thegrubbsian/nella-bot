@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field
 
+from src.llm.models import _resolve as resolve_model
+from src.llm.models import friendly as friendly_model
 from src.scheduler.models import ScheduledTask, make_task_id
 from src.tools.base import ToolParams, ToolResult
 from src.tools.registry import registry
@@ -79,6 +81,13 @@ class ScheduleTaskParams(ToolParams):
         default=None,
         description="Notification channel override (defaults to current channel)",
     )
+    model: str | None = Field(
+        default=None,
+        description=(
+            "Claude model to use for ai_task execution "
+            "(e.g. 'opus', 'sonnet', 'haiku'). Defaults to the globally configured model."
+        ),
+    )
 
 
 @registry.tool(
@@ -101,6 +110,7 @@ async def schedule_task(
     run_at: str | None = None,
     cron: str | None = None,
     notification_channel: str | None = None,
+    model: str | None = None,
     msg_context: MessageContext | None = None,
 ) -> ToolResult:
     engine = _get_engine()
@@ -114,6 +124,13 @@ async def schedule_task(
         return ToolResult(error=f"Invalid task_type: {task_type}")
     if action_type not in ("simple_message", "ai_task"):
         return ToolResult(error=f"Invalid action_type: {action_type}")
+
+    # Validate and resolve model name to full model ID
+    resolved_model: str | None = None
+    if model:
+        resolved_model = resolve_model(model)
+        if resolved_model is None:
+            return ToolResult(error=f"Unknown model: {model}")
 
     # Build schedule dict
     schedule: dict[str, Any] = {}
@@ -141,6 +158,7 @@ async def schedule_task(
         action=action,
         description=description,
         notification_channel=notification_channel,
+        model=resolved_model,
     )
 
     task = await engine.schedule_task(task)
@@ -156,6 +174,7 @@ async def schedule_task(
         "task_type": task.task_type,
         "schedule": task.schedule,
         "action_type": action_type,
+        "model": friendly_model(resolved_model) if resolved_model else None,
         "next_run_at": next_run,
     })
 
@@ -186,6 +205,7 @@ async def list_scheduled_tasks() -> ToolResult:
             "action_type": t.action_type,
             "action": t.action,
             "notification_channel": t.notification_channel,
+            "model": friendly_model(t.model) if t.model else None,
             "next_run_at": t.next_run_at,
             "last_run_at": t.last_run_at,
             "created_at": t.created_at,
@@ -261,4 +281,61 @@ async def cancel_scheduled_task(
             {"id": t.id, "name": t.name, "description": t.description}
             for t in matches
         ],
+    })
+
+
+# -- update_scheduled_task -----------------------------------------------------
+
+
+class UpdateScheduledTaskParams(ToolParams):
+    task_id: str = Field(description="ID of the task to update")
+    model: str | None = Field(
+        default=None,
+        description=(
+            "Claude model to use for ai_task execution "
+            "(e.g. 'opus', 'sonnet', 'haiku'). Set to update the model."
+        ),
+    )
+
+
+@registry.tool(
+    name="update_scheduled_task",
+    description=(
+        "Update properties of an existing scheduled task. "
+        "Currently supports changing the model used for ai_task execution."
+    ),
+    category=_CATEGORY,
+    params_model=UpdateScheduledTaskParams,
+)
+async def update_scheduled_task(
+    task_id: str,
+    model: str | None = None,
+) -> ToolResult:
+    engine = _get_engine()
+
+    # Normalize: Claude sometimes reformats hex IDs as dashed UUIDs
+    task_id = task_id.replace("-", "")
+
+    # Look up the task first
+    task = await engine._store.get_task(task_id)
+    if task is None or not task.active:
+        return ToolResult(error=f"Task not found or inactive: {task_id}")
+
+    if model is None:
+        return ToolResult(error="No fields to update. Provide 'model' to change.")
+
+    # Validate and resolve model name
+    resolved_model = resolve_model(model)
+    if resolved_model is None:
+        return ToolResult(error=f"Unknown model: {model}")
+
+    updated = await engine._store.update_task_model(task_id, resolved_model)
+    if not updated:
+        return ToolResult(error=f"Failed to update task: {task_id}")
+
+    return ToolResult(data={
+        "updated": True,
+        "task_id": task_id,
+        "name": task.name,
+        "model": friendly_model(resolved_model),
     })

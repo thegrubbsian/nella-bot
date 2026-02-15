@@ -55,9 +55,9 @@ async def _retrieve_memories(user_message: str) -> str:
 async def build_system_prompt(user_message: str = "") -> list[dict]:
     """Assemble the system prompt with optional memory context.
 
-    The static parts (SOUL.md, USER.md) get ``cache_control`` so they're
-    cached across tool-calling rounds. Retrieved memories are appended
-    as a separate block.
+    The static parts (SOUL.md, USER.md, TOOLS.md) get ``cache_control``
+    so they're cached across tool-calling rounds. Retrieved memories are
+    appended as a separate block.
 
     Args:
         user_message: Current user message for memory retrieval. If empty,
@@ -68,12 +68,15 @@ async def build_system_prompt(user_message: str = "") -> list[dict]:
     """
     soul = _read_config("SOUL.md")
     user = _read_config("USER.md")
+    tools = _read_config("TOOLS.md")
 
     sections = []
     if soul:
         sections.append(soul)
     if user:
         sections.append(f"# Owner Profile\n\n{user}")
+    if tools:
+        sections.append(tools)
 
     # Inject Google account list so Claude knows what accounts exist
     accounts = settings.get_google_accounts()

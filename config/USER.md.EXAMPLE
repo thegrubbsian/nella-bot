@@ -1,5 +1,11 @@
 # User Profile
 
+<!--
+This file is injected into the system prompt to inform Nella about you the user.
+
+Copy this file to USER.md and customize. USER.md is gitignored.
+-->
+
 ## Basic Info
 
 - **Name:**

@@ -155,7 +155,9 @@ Skip create_contact and update_contact — we don't want to create or modify rea
 
 9.3. **list_scheduled_tasks** — List tasks again. Confirm the new task appears.
 
-9.4. **cancel_scheduled_task** — Cancel the task from 9.2. (Requires confirmation.)
+9.4. **update_scheduled_task** — Update the task from 9.2 to use model "haiku". Confirm the response shows the model was updated.
+
+9.5. **cancel_scheduled_task** — Cancel the task from 9.2. (Requires confirmation.)
 
 ## 10. Web Research
 

@@ -267,6 +267,8 @@ def _fmt_schedule_task(inp: dict[str, Any]) -> str:
         lines.append(f"Instructions: {_trunc(inp['action_content'], 150)}")
     if inp.get("description"):
         lines.append(f"Description: {_trunc(inp['description'], 100)}")
+    if inp.get("model"):
+        lines.append(f"Model: {inp['model']}")
     return "\n".join(lines)
 
 

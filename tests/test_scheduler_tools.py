@@ -15,6 +15,7 @@ from src.tools.scheduler_tools import (
     init_scheduler_tools,
     list_scheduled_tasks,
     schedule_task,
+    update_scheduled_task,
 )
 
 pytestmark = pytest.mark.usefixtures("_no_turso")
@@ -306,3 +307,142 @@ async def test_cancel_no_args(engine: SchedulerEngine) -> None:
     result = await cancel_scheduled_task()
     assert not result.success
     assert "task_id or search_query" in result.error
+
+
+# -- schedule_task with model --------------------------------------------------
+
+
+async def test_schedule_with_model(engine: SchedulerEngine, store: TaskStore) -> None:
+    result = await schedule_task(
+        name="Opus task",
+        task_type="recurring",
+        action_type="ai_task",
+        action_content="Do something with opus",
+        cron="0 9 * * *",
+        model="opus",
+    )
+    assert result.success
+    assert result.data["model"] == "opus"
+
+    task = await store.get_task(result.data["task_id"])
+    assert task is not None
+    assert task.model == "claude-opus-4-6-20250612"
+
+
+async def test_schedule_with_invalid_model(engine: SchedulerEngine) -> None:
+    result = await schedule_task(
+        name="Bad model task",
+        task_type="one_off",
+        action_type="ai_task",
+        action_content="hi",
+        run_at="2099-01-01T00:00:00",
+        model="gpt-4",
+    )
+    assert not result.success
+    assert "Unknown model" in result.error
+
+
+async def test_schedule_without_model_returns_none(engine: SchedulerEngine) -> None:
+    result = await schedule_task(
+        name="No model task",
+        task_type="one_off",
+        action_type="simple_message",
+        action_content="hi",
+        run_at="2099-01-01T00:00:00",
+    )
+    assert result.success
+    assert result.data["model"] is None
+
+
+# -- list_scheduled_tasks with model -------------------------------------------
+
+
+async def test_list_shows_model(engine: SchedulerEngine) -> None:
+    await schedule_task(
+        name="Opus task",
+        task_type="recurring",
+        action_type="ai_task",
+        action_content="Check stuff",
+        cron="0 9 * * *",
+        model="opus",
+    )
+    await schedule_task(
+        name="Default task",
+        task_type="recurring",
+        action_type="simple_message",
+        action_content="hi",
+        cron="0 10 * * *",
+    )
+
+    result = await list_scheduled_tasks()
+    assert result.success
+    tasks_by_name = {t["name"]: t for t in result.data["tasks"]}
+    assert tasks_by_name["Opus task"]["model"] == "opus"
+    assert tasks_by_name["Default task"]["model"] is None
+
+
+# -- update_scheduled_task -----------------------------------------------------
+
+
+async def test_update_task_model(engine: SchedulerEngine) -> None:
+    created = await schedule_task(
+        name="Update me",
+        task_type="recurring",
+        action_type="ai_task",
+        action_content="Do things",
+        cron="0 9 * * *",
+    )
+    task_id = created.data["task_id"]
+
+    result = await update_scheduled_task(task_id=task_id, model="haiku")
+    assert result.success
+    assert result.data["updated"] is True
+    assert result.data["model"] == "haiku"
+
+
+async def test_update_task_model_with_dashed_uuid(engine: SchedulerEngine) -> None:
+    created = await schedule_task(
+        name="Dash test",
+        task_type="one_off",
+        action_type="ai_task",
+        action_content="Do things",
+        run_at="2099-01-01T00:00:00",
+    )
+    raw_id = created.data["task_id"]
+    dashed_id = f"{raw_id[:8]}-{raw_id[8:12]}-{raw_id[12:16]}-{raw_id[16:20]}-{raw_id[20:]}"
+
+    result = await update_scheduled_task(task_id=dashed_id, model="sonnet")
+    assert result.success
+    assert result.data["updated"] is True
+
+
+async def test_update_task_invalid_model(engine: SchedulerEngine) -> None:
+    created = await schedule_task(
+        name="Bad update",
+        task_type="recurring",
+        action_type="ai_task",
+        action_content="Do things",
+        cron="0 9 * * *",
+    )
+    result = await update_scheduled_task(task_id=created.data["task_id"], model="gpt-4")
+    assert not result.success
+    assert "Unknown model" in result.error
+
+
+async def test_update_task_not_found(engine: SchedulerEngine) -> None:
+    result = await update_scheduled_task(task_id="nonexistent", model="opus")
+    assert not result.success
+    assert "not found" in result.error
+
+
+async def test_update_task_no_fields(engine: SchedulerEngine) -> None:
+    created = await schedule_task(
+        name="No update",
+        task_type="recurring",
+        action_type="ai_task",
+        action_content="Do things",
+        cron="0 9 * * *",
+    )
+    result = await update_scheduled_task(task_id=created.data["task_id"])
+    assert not result.success
+    assert "No fields" in result.error

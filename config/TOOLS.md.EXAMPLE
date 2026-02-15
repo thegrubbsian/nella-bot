@@ -1,0 +1,17 @@
+# Tool Usage Guidance
+
+<!--
+This file is injected into the system prompt to guide tool selection.
+Use it for preferences, strategies, and disambiguation — not for
+describing what tools do (that lives in the tool source code).
+
+Copy this file to TOOLS.md and customize. TOOLS.md is gitignored.
+-->
+
+## Email
+
+- When I say "delete" an email, use `trash_email`.
+- Prefer `star_email`/`unstar_email` over `add_label`/`remove_label` with STARRED.
+- Prefer `mark_as_read`/`mark_as_unread` over label operations with UNREAD.
+- When I ask "how many" emails match a query, report the `estimated_total` from search results, not just the number fetched.
+- For bulk email operations, use pagination (`next_page_token`) to process all results.

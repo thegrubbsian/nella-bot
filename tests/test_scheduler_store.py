@@ -133,6 +133,61 @@ async def test_update_next_run_clear(store: TaskStore) -> None:
     assert task.next_run_at is None
 
 
+# -- model persistence --------------------------------------------------------
+
+
+async def test_model_persists_through_add_get(store: TaskStore) -> None:
+    task = _make_task("t1", model="claude-opus-4-6-20250612")
+    await store.add_task(task)
+
+    fetched = await store.get_task("t1")
+    assert fetched is not None
+    assert fetched.model == "claude-opus-4-6-20250612"
+
+
+async def test_model_none_by_default(store: TaskStore) -> None:
+    task = _make_task("t1")
+    await store.add_task(task)
+
+    fetched = await store.get_task("t1")
+    assert fetched is not None
+    assert fetched.model is None
+
+
+# -- update_task_model ---------------------------------------------------------
+
+
+async def test_update_task_model(store: TaskStore) -> None:
+    await store.add_task(_make_task("t1"))
+    result = await store.update_task_model("t1", "claude-haiku-4-5-20251001")
+
+    assert result is True
+    task = await store.get_task("t1")
+    assert task is not None
+    assert task.model == "claude-haiku-4-5-20251001"
+
+
+async def test_update_task_model_clear(store: TaskStore) -> None:
+    await store.add_task(_make_task("t1", model="claude-opus-4-6-20250612"))
+    result = await store.update_task_model("t1", None)
+
+    assert result is True
+    task = await store.get_task("t1")
+    assert task is not None
+    assert task.model is None
+
+
+async def test_update_task_model_inactive_returns_false(store: TaskStore) -> None:
+    await store.add_task(_make_task("t1", active=False))
+    result = await store.update_task_model("t1", "claude-opus-4-6-20250612")
+    assert result is False
+
+
+async def test_update_task_model_nonexistent_returns_false(store: TaskStore) -> None:
+    result = await store.update_task_model("nonexistent", "claude-opus-4-6-20250612")
+    assert result is False
+
+
 # -- Singleton -----------------------------------------------------------------
 
 

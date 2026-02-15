@@ -99,7 +99,30 @@ async def test_ai_task(
 
     await executor.execute("task1")
 
-    generate_response.assert_called_once_with([{"role": "user", "content": "Check my email"}])
+    generate_response.assert_called_once_with(
+        [{"role": "user", "content": "Check my email"}], None
+    )
+    router.send.assert_called_once_with("12345", "AI response text", channel=None)
+
+
+async def test_ai_task_passes_model(
+    executor: TaskExecutor,
+    store: TaskStore,
+    router: AsyncMock,
+    generate_response: AsyncMock,
+) -> None:
+    task = _make_task(
+        action={"type": "ai_task", "prompt": "Daily report"},
+        model="claude-opus-4-6-20250612",
+    )
+    await store.add_task(task)
+
+    await executor.execute("task1")
+
+    generate_response.assert_called_once_with(
+        [{"role": "user", "content": "Daily report"}],
+        "claude-opus-4-6-20250612",
+    )
     router.send.assert_called_once_with("12345", "AI response text", channel=None)
 
 

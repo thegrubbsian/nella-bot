@@ -7,6 +7,12 @@ should always have access to.
 
 Mem0 handles semantic/conversational memory automatically. Use this file
 for things you want to explicitly control.
+
+This file is injected into the system prompt to guide tool selection.
+Use it for preferences, strategies, and disambiguation — not for
+describing what tools do (that lives in the tool source code).
+
+Copy this file to SOUL.md and customize. SOUL.md is gitignored.
 -->
 
 ## Facts

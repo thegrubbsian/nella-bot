@@ -139,6 +139,44 @@ async def test_confirmation_text_retracted_from_result() -> None:
     assert "Tasks have been cancelled." in result
 
 
+async def test_model_param_overrides_default() -> None:
+    """When model is passed, it's used instead of ModelManager default."""
+    round1 = _make_stream(
+        "Hello!",
+        [_FakeBlock(type="text", text="Hello!")],
+    )
+
+    mock_client = _make_mock_client([round1])
+
+    mock_registry = MagicMock()
+    mock_registry.get_schemas.return_value = []
+
+    captured_kwargs: list[dict] = []
+    original_stream = mock_client.messages.stream
+
+    @asynccontextmanager
+    async def capturing_stream(**kwargs):
+        captured_kwargs.append(kwargs)
+        async with original_stream(**kwargs) as s:
+            yield s
+
+    mock_client.messages.stream = capturing_stream
+
+    with (
+        patch("src.llm.client._get_client", return_value=mock_client),
+        patch("src.llm.client.build_system_prompt", new_callable=AsyncMock, return_value="system"),
+        patch("src.llm.client.registry", mock_registry),
+    ):
+        result = await generate_response(
+            [{"role": "user", "content": "hi"}],
+            model="claude-opus-4-6-20250612",
+        )
+
+    assert result == "Hello!"
+    assert len(captured_kwargs) == 1
+    assert captured_kwargs[0]["model"] == "claude-opus-4-6-20250612"
+
+
 async def test_text_not_retracted_for_non_confirmation_tools() -> None:
     """Text in rounds with non-confirmation tools stays in the result."""
     round1 = _make_stream(

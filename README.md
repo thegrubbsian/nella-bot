@@ -31,7 +31,7 @@ She also has access to her own logs and source code so she can help fix issues w
                     │  + Mem0 recall  │    │  Google Docs (4)    │
                     └─────────────────┘    │  Google People (6)  │
                                            │  Memory (4)         │
-                    ┌─────────────────┐    │  Scheduler (3)      │
+                    ┌─────────────────┐    │  Scheduler (4)      │
                     │  Memory System  │    │  Utility (4)        │
                     │                 │    │  Files (6)          │
                     │  Mem0 (semantic) │    │  Research (3)       │
@@ -67,7 +67,7 @@ She also has access to her own logs and source code so she can help fix issues w
 | `src/llm/` | Claude API client, system prompt assembly, model switching | You want to change how Claude is called, what it sees, or the tool-calling loop |
 | `src/memory/` | Mem0 integration, automatic memory extraction, data models | You want to change how Nella remembers things |
 | `src/browser/` | Playwright browser automation — headless Chromium agent for JS-heavy sites | You want to change how interactive browsing works |
-| `src/tools/` | Tool registry, all 73 tool implementations, base classes | You want to add a new tool or modify an existing one |
+| `src/tools/` | Tool registry, all 74 tool implementations, base classes | You want to add a new tool or modify an existing one |
 | `src/integrations/` | Google OAuth multi-account manager, LinkedIn OAuth | You want to add a new Google API, add an account, or fix auth issues |
 | `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
 | `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
@@ -92,7 +92,7 @@ Here's what happens when you send "What's on my calendar today?" in Telegram:
 
 7. **`generate_response()` is called** in `src/llm/client.py`. This is where the real work happens:
    - **System prompt assembly** (`src/llm/prompt.py`): reads `SOUL.md` and `USER.md`, injects the current time and timezone, then searches Mem0 for memories related to your message. These are combined into a system prompt with caching so the static parts aren't re-processed on every tool-calling round.
-   - **Claude API call**: sends your conversation history + system prompt + all 73 tool schemas to Claude via streaming.
+   - **Claude API call**: sends your conversation history + system prompt + all 74 tool schemas to Claude via streaming.
    - **Streaming**: as text chunks arrive, the `on_text_delta` callback edits the placeholder message in Telegram (throttled to every 0.5 seconds to stay under rate limits).
 
 8. **If Claude calls a tool** (in this case, probably `get_todays_schedule`):
@@ -124,7 +124,7 @@ Both pathways store to Mem0 (a hosted semantic memory service). When building th
 
 ### How Task Scheduling Works
 
-Nella can schedule tasks to run at a specific time or on a recurring schedule. Claude has three scheduling tools: `schedule_task`, `list_scheduled_tasks`, and `cancel_scheduled_task`.
+Nella can schedule tasks to run at a specific time or on a recurring schedule. Claude has four scheduling tools: `schedule_task`, `list_scheduled_tasks`, `cancel_scheduled_task`, and `update_scheduled_task`.
 
 **Task types:**
 - **One-off** — runs once at a specific datetime, then auto-deactivates. Schedule is `{"run_at": "ISO 8601"}`.
@@ -132,7 +132,7 @@ Nella can schedule tasks to run at a specific time or on a recurring schedule. C
 
 **Action types:**
 - **`simple_message`** — sends a plain text message to the owner via the notification router. Good for reminders.
-- **`ai_task`** — runs a prompt through the full LLM pipeline (with tool access) and sends the result. Good for tasks like "check my email and summarize anything important."
+- **`ai_task`** — runs a prompt through the full LLM pipeline (with tool access) and sends the result. Good for tasks like "check my email and summarize anything important." Each task can optionally specify a model override (e.g. "use opus for this daily report") without affecting the main conversation's model.
 
 **Lifecycle:**
 1. On bot startup, `SchedulerEngine.start()` loads all active tasks from SQLite and creates APScheduler jobs for each.
@@ -195,7 +195,7 @@ If the transcript isn't found after all retries, the owner gets a notification e
 
 ### How Tool Calling Works
 
-Claude has access to 73 tools organized into categories. When Claude decides it needs to call a tool:
+Claude has access to 74 tools organized into categories. When Claude decides it needs to call a tool:
 
 1. Claude returns a `tool_use` content block with the tool name and arguments.
 2. The registry validates the arguments against a Pydantic model (if one is defined).
@@ -269,7 +269,7 @@ nellabot/
 │   │   ├── google_docs.py           # 4 tools: read, create, update, append
 │   │   ├── google_people.py         # 6 tools: search, get, create, update contacts + local notes
 │   │   ├── memory_tools.py          # 4 tools: remember, forget, recall, save_reference
-│   │   ├── scheduler_tools.py       # 3 tools: schedule, list, cancel scheduled tasks
+│   │   ├── scheduler_tools.py       # 4 tools: schedule, list, cancel, update scheduled tasks
 │   │   ├── scratch_tools.py         # 6 tools: scratch_write, scratch_read, scratch_list, scratch_delete, scratch_wipe, scratch_download
 │   │   ├── github_tools.py          # 8 tools: get_repo, list_directory, read_file, search_code, list_commits, get_commit, list_issues, get_issue
 │   │   ├── linkedin_tools.py        # 2 tools: create_post, post_comment
@@ -306,7 +306,7 @@ nellabot/
 │   └── MEMORY_RULES.md.EXAMPLE      # Auto-extraction rules (template)
 │   # Copy .EXAMPLE → .md and customize. Actual .md files are gitignored.
 │
-├── tests/                           # 628 tests
+├── tests/                           # 648 tests
 │   ├── test_google_*.py             # Google auth + integrations (6 files)
 │   ├── test_linkedin_*.py           # LinkedIn tools
 │   ├── test_github_*.py             # GitHub tools
@@ -449,7 +449,7 @@ uv run python scripts/google_auth.py --account personal
 
 Each command opens a browser for you to authorize the corresponding Google account. Tokens are saved to `auth_tokens/google_work_auth_token.json`, `auth_tokens/google_personal_auth_token.json`, etc. Google tools automatically load when at least one token file exists.
 
-All 32 Google tools accept an optional `account` parameter. Claude picks the right account based on conversational context (the system prompt tells it which accounts are available). When `account` is omitted, the default from `GOOGLE_DEFAULT_ACCOUNT` is used.
+All 42 Google tools accept an optional `account` parameter. Claude picks the right account based on conversational context (the system prompt tells it which accounts are available). When `account` is omitted, the default from `GOOGLE_DEFAULT_ACCOUNT` is used.
 
 If you skip this step, Nella works fine — she just won't have Google tools available.
 
@@ -487,7 +487,7 @@ Tests use `pytest-asyncio` with `asyncio_mode = "auto"`, which means async test 
 
 After major code changes (especially tool changes), you can run a live functional test by sending Nella the prompt in `scripts/functional_test_prompt.md`. Copy everything below the `---` line and paste it into Telegram.
 
-The prompt exercises all 73 tools one at a time, cleaning up after itself (deleting test notes, events, files, etc.). Tools that require confirmation will pop up Approve/Deny buttons — approve them all. If a tool is disabled (missing API key or token), Nella reports "DISABLED" and moves on. At the end she produces a summary table with PASS/FAIL/DISABLED for each scenario.
+The prompt exercises all 74 tools one at a time, cleaning up after itself (deleting test notes, events, files, etc.). Tools that require confirmation will pop up Approve/Deny buttons — approve them all. If a tool is disabled (missing API key or token), Nella reports "DISABLED" and moves on. At the end she produces a summary table with PASS/FAIL/DISABLED for each scenario.
 
 LinkedIn tools are skipped (posts are public and can't be undone). `scratch_wipe` is also skipped to avoid deleting real working files.
 

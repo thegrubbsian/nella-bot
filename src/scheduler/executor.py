@@ -20,8 +20,8 @@ class TaskExecutor:
 
     Args:
         router: NotificationRouter for sending messages.
-        generate_response: Async callable that takes a message list and returns
-            the assistant's response text.
+        generate_response: Async callable ``(messages, model)`` that runs the
+            LLM pipeline and returns the assistant's response text.
         store: TaskStore for updating last_run_at.
         owner_user_id: The bot owner's user ID (for routing notifications).
     """
@@ -29,7 +29,7 @@ class TaskExecutor:
     def __init__(
         self,
         router: NotificationRouter,
-        generate_response: Callable[[list[dict]], Awaitable[str]],
+        generate_response: Callable[[list[dict], str | None], Awaitable[str]],
         store: TaskStore,
         owner_user_id: str,
     ) -> None:
@@ -97,7 +97,7 @@ class TaskExecutor:
             "Running ai_task for '%s' (prompt: %d chars)", task.name, len(prompt)
         )
         messages = [{"role": "user", "content": prompt}]
-        response = await self._generate_response(messages)
+        response = await self._generate_response(messages, task.model)
         logger.info(
             "ai_task LLM response for '%s' (%d chars)", task.name, len(response)
         )

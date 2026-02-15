@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -23,6 +24,7 @@ CREATE TABLE IF NOT EXISTS scheduled_tasks (
     action TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
     notification_channel TEXT,
+    model TEXT,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
     last_run_at TEXT,
@@ -62,6 +64,11 @@ class TaskStore:
         db = await get_connection(local_path_override=self._db_path)
         if not self._initialised:
             await db.execute(_CREATE_TABLE)
+            # Migrate existing databases: add model column if missing
+            with contextlib.suppress(Exception):
+                await db.execute(
+                    "ALTER TABLE scheduled_tasks ADD COLUMN model TEXT"
+                )
             await db.commit()
             self._initialised = True
         return db
@@ -76,8 +83,9 @@ class TaskStore:
                 """
                 INSERT INTO scheduled_tasks
                     (id, name, task_type, schedule, action, description,
-                     notification_channel, active, created_at, last_run_at, next_run_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     notification_channel, model, active, created_at,
+                     last_run_at, next_run_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 task.to_row(),
             )
@@ -166,5 +174,21 @@ class TaskStore:
                 (timestamp, task_id),
             )
             await db.commit()
+        finally:
+            await db.close()
+
+    async def update_task_model(self, task_id: str, model: str | None) -> bool:
+        """Set the model override for a task. Returns True if a row was updated."""
+        db = await self._connect()
+        try:
+            cursor = await db.execute(
+                "UPDATE scheduled_tasks SET model = ? WHERE id = ? AND active = 1",
+                (model, task_id),
+            )
+            await db.commit()
+            updated = cursor.rowcount > 0
+            if updated:
+                logger.info("Updated model for task %s → %s", task_id, model)
+            return updated
         finally:
             await db.close()
