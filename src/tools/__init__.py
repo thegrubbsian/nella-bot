@@ -49,4 +49,8 @@ if settings.browser_enabled:
 if settings.openai_api_key:
     from src.tools import openai_image_tools  # noqa: F401
 
+# Conditionally load Notion tools when API key is configured.
+if settings.notion_api_key:
+    from src.tools import notion_tools  # noqa: F401
+
 __all__ = ["registry"]

@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from src.bot.confirmations import (
     _action_label,
     _enrich_cancel_task,
+    _enrich_notion_archive,
     _humanize_cron,
     _humanize_datetime,
     _pending,
@@ -631,3 +632,117 @@ async def test_request_cleans_up_after_timeout() -> None:
         bot, chat_id=123, pending_tool=pending_tool, timeout=0.05,
     )
     assert len(_pending) == before  # Cleaned up
+
+
+# -- Notion formatters -----------------------------------------------------
+
+
+def test_format_notion_create_page() -> None:
+    inp = {
+        "database_id": "abc12345678",
+        "properties": {"Name": "Buy groceries"},
+        "content": "Milk, eggs, bread",
+    }
+    text = format_tool_summary("notion_create_page", inp, "Create page")
+    assert "Create Notion page" in text
+    assert "Buy groceries" in text
+    assert "...12345678" in text
+    assert "Milk, eggs, bread" in text
+
+
+def test_format_notion_create_page_title_key() -> None:
+    inp = {"database_id": "db1", "properties": {"Title": "Meeting Notes"}}
+    text = format_tool_summary("notion_create_page", inp, "Create page")
+    assert "Meeting Notes" in text
+
+
+def test_format_notion_update_page() -> None:
+    inp = {
+        "page_id": "page12345678",
+        "properties": {"Status": "Done", "Priority": "High"},
+    }
+    text = format_tool_summary("notion_update_page", inp, "Update page")
+    assert "Update Notion page" in text
+    assert "...12345678" in text
+    assert "Status" in text
+    assert "Priority" in text
+
+
+def test_format_notion_archive_page_with_title() -> None:
+    inp = {"page_id": "page12345678", "_page_title": "Old Task"}
+    text = format_tool_summary("notion_archive_page", inp, "Archive page")
+    assert "Archive Notion page" in text
+    assert "Old Task" in text
+
+
+def test_format_notion_archive_page_without_title() -> None:
+    inp = {"page_id": "page12345678"}
+    text = format_tool_summary("notion_archive_page", inp, "Archive page")
+    assert "Archive Notion page" in text
+    assert "...12345678" in text
+
+
+def test_format_notion_append_content() -> None:
+    inp = {"page_id": "page12345678", "content": "Additional notes here"}
+    text = format_tool_summary("notion_append_content", inp, "Append")
+    assert "Append to Notion page" in text
+    assert "...12345678" in text
+    assert "Additional notes here" in text
+
+
+# -- _enrich_notion_archive ------------------------------------------------
+
+
+async def test_enrich_notion_archive_success() -> None:
+    page = {
+        "id": "page-123",
+        "properties": {
+            "Name": {
+                "type": "title",
+                "title": [{"plain_text": "Important Task"}],
+            },
+        },
+    }
+    client = AsyncMock()
+    client.pages = AsyncMock()
+    client.pages.retrieve = AsyncMock(return_value=page)
+
+    with patch("src.tools.notion_tools._get_client", return_value=client):
+        result = await _enrich_notion_archive({"page_id": "page-123"})
+
+    assert result["_page_title"] == "Important Task"
+    assert result["page_id"] == "page-123"
+
+
+async def test_enrich_notion_archive_no_title_property() -> None:
+    page = {
+        "id": "page-123",
+        "properties": {
+            "Status": {"type": "status", "status": {"name": "Done"}},
+        },
+    }
+    client = AsyncMock()
+    client.pages = AsyncMock()
+    client.pages.retrieve = AsyncMock(return_value=page)
+
+    with patch("src.tools.notion_tools._get_client", return_value=client):
+        result = await _enrich_notion_archive({"page_id": "page-123"})
+
+    assert "_page_title" not in result
+
+
+async def test_enrich_notion_archive_api_error() -> None:
+    client = AsyncMock()
+    client.pages = AsyncMock()
+    client.pages.retrieve = AsyncMock(side_effect=Exception("API error"))
+
+    with patch("src.tools.notion_tools._get_client", return_value=client):
+        result = await _enrich_notion_archive({"page_id": "page-123"})
+
+    assert "_page_title" not in result
+    assert result["page_id"] == "page-123"
+
+
+async def test_enrich_notion_archive_no_page_id() -> None:
+    result = await _enrich_notion_archive({})
+    assert result == {}

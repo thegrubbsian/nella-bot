@@ -381,6 +381,50 @@ def _fmt_delete_label(inp: dict[str, Any]) -> str:
     return f"Delete Gmail label\nLabel: {name}"
 
 
+def _fmt_notion_create_page(inp: dict[str, Any]) -> str:
+    lines = ["Create Notion page"]
+    props = inp.get("properties", {})
+    # Look for a title in common property names
+    for key in ("Name", "Title", "name", "title"):
+        if key in props:
+            lines.append(f"Title: {props[key]}")
+            break
+    if inp.get("database_id"):
+        lines.append(f"Database: ...{inp['database_id'][-8:]}")
+    if inp.get("content"):
+        lines.append(f"Content: {_trunc(inp['content'])}")
+    return "\n".join(lines)
+
+
+def _fmt_notion_update_page(inp: dict[str, Any]) -> str:
+    lines = ["Update Notion page"]
+    if inp.get("page_id"):
+        lines.append(f"Page: ...{inp['page_id'][-8:]}")
+    props = inp.get("properties", {})
+    if props:
+        changed = list(props.keys())
+        lines.append(f"Updating: {', '.join(changed)}")
+    return "\n".join(lines)
+
+
+def _fmt_notion_archive_page(inp: dict[str, Any]) -> str:
+    lines = ["Archive Notion page"]
+    if inp.get("_page_title"):
+        lines.append(f"Title: {inp['_page_title']}")
+    elif inp.get("page_id"):
+        lines.append(f"Page: ...{inp['page_id'][-8:]}")
+    return "\n".join(lines)
+
+
+def _fmt_notion_append_content(inp: dict[str, Any]) -> str:
+    lines = ["Append to Notion page"]
+    if inp.get("page_id"):
+        lines.append(f"Page: ...{inp['page_id'][-8:]}")
+    if inp.get("content"):
+        lines.append(f"Content: {_trunc(inp['content'])}")
+    return "\n".join(lines)
+
+
 _TOOL_FORMATTERS: dict[str, Any] = {
     "send_email": _fmt_send_email,
     "reply_to_email": _fmt_reply_to_email,
@@ -405,6 +449,10 @@ _TOOL_FORMATTERS: dict[str, Any] = {
     "browse_web": _fmt_browse_web,
     "delete_note": _fmt_delete_note,
     "delete_label": _fmt_delete_label,
+    "notion_create_page": _fmt_notion_create_page,
+    "notion_update_page": _fmt_notion_update_page,
+    "notion_archive_page": _fmt_notion_archive_page,
+    "notion_append_content": _fmt_notion_append_content,
 }
 
 
@@ -439,8 +487,31 @@ async def _enrich_cancel_task(inp: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+async def _enrich_notion_archive(inp: dict[str, Any]) -> dict[str, Any]:
+    """Look up the page title before showing the archive confirmation."""
+    page_id = inp.get("page_id")
+    if not page_id:
+        return inp
+    try:
+        from src.tools.notion_tools import _get_client, _rich_text_to_plain
+
+        client = _get_client()
+        page = await client.pages.retrieve(page_id=page_id)
+        # Find the title property (type == "title")
+        for prop in page.get("properties", {}).values():
+            if prop.get("type") == "title":
+                title = _rich_text_to_plain(prop.get("title", []))
+                if title:
+                    return {**inp, "_page_title": title}
+                break
+    except Exception:
+        pass
+    return inp
+
+
 _ENRICHERS: dict[str, Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]] = {
     "cancel_scheduled_task": _enrich_cancel_task,
+    "notion_archive_page": _enrich_notion_archive,
 }
 
 

@@ -1,6 +1,6 @@
 # Nella
 
-Nella is an always-on personal AI assistant that interfaces through Telegram. She uses Claude as her brain, Mem0 for persistent memory, has a task scheduling system, supports webhooks for Zapier integrations, and wires up a number of tools (Gmail, Calendar, Drive, Docs, LinkedIn, Github, image generation, etc) so she can actually do things in the real world — not just talk about them. She's single-user by design: one owner, one bot, full context.
+Nella is an always-on personal AI assistant that interfaces through Telegram. She uses Claude as her brain, Mem0 for persistent memory, has a task scheduling system, supports webhooks for Zapier integrations, and wires up a number of tools (Gmail, Calendar, Drive, Docs, Notion, LinkedIn, Github, image generation, etc) so she can actually do things in the real world — not just talk about them. She's single-user by design: one owner, one bot, full context.
 
 She also has access to her own logs and source code so she can help fix issues when things go awry. All you need is a VPS :)
 
@@ -38,6 +38,7 @@ She also has access to her own logs and source code so she can help fix issues w
                     │                 │    │  Observability (1)  │
                     │                 │    │  GitHub (8)         │
                     │                 │    │  LinkedIn (2)       │
+                                           │  Notion (10)        │
                                            │  Creative (1)       │
                     │                 │    └─────────────────────┘
                     │  SQLite (notes) │    ┌─────────────────────┐
@@ -68,7 +69,7 @@ She also has access to her own logs and source code so she can help fix issues w
 | `src/llm/` | Claude API client, system prompt assembly, model switching | You want to change how Claude is called, what it sees, or the tool-calling loop |
 | `src/memory/` | Mem0 integration, automatic memory extraction, data models | You want to change how Nella remembers things |
 | `src/browser/` | Playwright browser automation — headless Chromium agent for JS-heavy sites | You want to change how interactive browsing works |
-| `src/tools/` | Tool registry, all 76 tool implementations, base classes | You want to add a new tool or modify an existing one |
+| `src/tools/` | Tool registry, all 86 tool implementations, base classes | You want to add a new tool or modify an existing one |
 | `src/integrations/` | Google OAuth multi-account manager, LinkedIn OAuth | You want to add a new Google API, add an account, or fix auth issues |
 | `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
 | `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
@@ -196,7 +197,7 @@ If the transcript isn't found after all retries, the owner gets a notification e
 
 ### How Tool Calling Works
 
-Claude has access to 76 tools organized into categories. When Claude decides it needs to call a tool:
+Claude has access to 86 tools organized into categories. When Claude decides it needs to call a tool:
 
 1. Claude returns a `tool_use` content block with the tool name and arguments.
 2. The registry validates the arguments against a Pydantic model (if one is defined).
@@ -218,6 +219,7 @@ The `config/` directory contains markdown files that shape Nella's behavior:
 | `USER.md` | Owner profile — your name, timezone, preferences, work info | Loaded into every system prompt. Fill this in so Nella knows about you. |
 | `MEMORY.md` | Explicit long-term facts you want Nella to always know | Human-editable memory store. Edit directly when you want to add/remove persistent facts. |
 | `MEMORY_RULES.md` | Rules for the automatic memory extraction system | Controls what the background extraction picks up. Change this if Nella is remembering too much or too little. |
+| `NOTION.md` | Notion database IDs, schemas, and usage hints | Loaded when `NOTION_API_KEY` is set. Tells Nella which databases exist and how to use them. |
 
 The actual `.md` files are gitignored (they contain personal data). The repo ships `.md.EXAMPLE` templates — copy them to get started:
 
@@ -276,6 +278,7 @@ nellabot/
 │   │   ├── scratch_tools.py         # 6 tools: scratch_write, scratch_read (auto-extracts PDF/DOCX/XLSX), scratch_list, scratch_delete, scratch_wipe, scratch_download
 │   │   ├── github_tools.py          # 8 tools: get_repo, list_directory, read_file, search_code, list_commits, get_commit, list_issues, get_issue
 │   │   ├── linkedin_tools.py        # 2 tools: create_post, post_comment
+│   │   ├── notion_tools.py          # 10 tools: search, list_databases, get_database, query_database, get_page, read_page_content, create_page, update_page, archive_page, append_content
 │   │   ├── openai_image_tools.py    # 1 tool: generate_image (OpenAI GPT-Image-1)
 │   │   ├── log_tools.py             # 1 tool: query production logs (SolarWinds/Papertrail)
 │   │   ├── browser_tools.py          # 1 tool: browse_web (Playwright interactive browsing)
@@ -307,10 +310,11 @@ nellabot/
 │   ├── SOUL.md.EXAMPLE              # Nella's personality (template)
 │   ├── USER.md.EXAMPLE              # Owner profile (template — fill this in)
 │   ├── MEMORY.md.EXAMPLE            # Explicit long-term facts (template)
-│   └── MEMORY_RULES.md.EXAMPLE      # Auto-extraction rules (template)
+│   ├── MEMORY_RULES.md.EXAMPLE      # Auto-extraction rules (template)
+│   └── NOTION.md.EXAMPLE            # Notion database IDs and schema hints (template)
 │   # Copy .EXAMPLE → .md and customize. Actual .md files are gitignored.
 │
-├── tests/                           # 710 tests
+├── tests/                           # 820+ tests
 │   ├── test_google_*.py             # Google auth + integrations (6 files)
 │   ├── test_linkedin_*.py           # LinkedIn tools
 │   ├── test_github_*.py             # GitHub tools
@@ -341,6 +345,7 @@ nellabot/
 │   ├── test_scratch.py              # ScratchSpace filesystem
 │   ├── test_extractors.py           # Document text extraction (PDF, DOCX, XLSX)
 │   ├── test_image_tools.py          # Image analysis tool
+│   ├── test_notion_tools.py          # Notion tools (10 tools + helpers)
 │   ├── test_openai_image_tools.py   # Image generation tool
 │   ├── test_upload_handler.py       # Telegram file upload handler
 │   ├── test_scratch_tools.py        # Scratch space tools
@@ -434,6 +439,7 @@ Then edit `.env` with your actual values:
 | `LINKEDIN_CLIENT_ID` | No | LinkedIn OAuth client ID. Required for LinkedIn tools (`create_post`, `post_comment`). Create an app at [linkedin.com/developers](https://www.linkedin.com/developers/apps). |
 | `LINKEDIN_CLIENT_SECRET` | No | LinkedIn OAuth client secret. |
 | `OPENAI_API_KEY` | No | OpenAI API key. Enables the `generate_image` tool (GPT-Image-1). Get one at [platform.openai.com](https://platform.openai.com/api-keys). |
+| `NOTION_API_KEY` | No | Notion internal integration token. Enables 10 Notion tools (database CRUD, page management). Create at [notion.so/profile/integrations](https://www.notion.so/profile/integrations), then share databases with the integration. |
 | `BROWSER_ENABLED` | No | Enable the `browse_web` tool (Playwright). Requires Chromium: `uv run playwright install chromium`. Default: `false` |
 | `BROWSER_MODEL` | No | Claude model for browser vision agent (friendly name). Default: `sonnet` |
 | `BROWSER_TIMEOUT_MS` | No | Page navigation timeout in milliseconds. Default: `30000` |
@@ -496,7 +502,7 @@ Tests use `pytest-asyncio` with `asyncio_mode = "auto"`, which means async test 
 
 After major code changes (especially tool changes), you can run a live functional test by sending Nella the prompt in `scripts/functional_test_prompt.md`. Copy everything below the `---` line and paste it into Telegram.
 
-The prompt exercises all 76 tools one at a time, cleaning up after itself (deleting test notes, events, files, etc.). Tools that require confirmation will pop up Approve/Deny buttons — approve them all. If a tool is disabled (missing API key or token), Nella reports "DISABLED" and moves on. At the end she produces a summary table with PASS/FAIL/DISABLED for each scenario.
+The prompt exercises all 86 tools one at a time, cleaning up after itself (deleting test notes, events, files, etc.). Tools that require confirmation will pop up Approve/Deny buttons — approve them all. If a tool is disabled (missing API key or token), Nella reports "DISABLED" and moves on. At the end she produces a summary table with PASS/FAIL/DISABLED for each scenario.
 
 LinkedIn tools are skipped (posts are public and can't be undone). `scratch_wipe` is also skipped to avoid deleting real working files.
 

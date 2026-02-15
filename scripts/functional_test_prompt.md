@@ -199,22 +199,47 @@ Skip create_contact and update_contact — we don't want to create or modify rea
 
 12.8. **github_get_issue** — If 12.7 returned results, get details of the first issue. If no issues exist, report that and move on.
 
-## 13. Browser
+## 13. Notion
 
-13.1. **browse_web** — Browse https://example.com with task "Read the page title and main content." (Requires confirmation.) This is a safe, stable URL that should return quickly.
+13.1. **notion_list_databases** — List all databases shared with the Notion integration.
 
-## 14. Image Generation
+13.2. **notion_get_database** — If 13.1 returned results, get the schema of the first database.
 
-14.1. **generate_image** — Generate an image with prompt "A simple red circle on a white background" using quality="low" (to minimize cost). Verify the image appears in the chat and a file was saved to scratch space.
+13.3. **notion_search** — Search for "test" across all pages and databases.
 
-14.2. **scratch_delete** — Delete the generated image file from 14.1.
+13.4. **notion_create_page** — Create a page in the first database from 13.1 with title "Nella Functional Test" and any required properties set to reasonable defaults. Add body content: "Created by functional test suite. Safe to delete." (Requires confirmation.)
 
-## 15. LinkedIn
+13.5. **notion_get_page** — Get the page you just created in 13.4 and confirm the properties.
+
+13.6. **notion_read_page_content** — Read the body content of the page from 13.4. Confirm the text matches.
+
+13.7. **notion_query_database** — Query the database from 13.1 for the page you just created (filter by title if possible).
+
+13.8. **notion_append_content** — Append "Appended by functional test." to the page from 13.4. (Requires confirmation.)
+
+13.9. **notion_read_page_content** — Read the page again and confirm the appended text is there.
+
+13.10. **notion_update_page** — Update a property on the page from 13.4 (e.g. change status or add a tag). (Requires confirmation.)
+
+13.11. **notion_archive_page** — Archive the page from 13.4. (Requires confirmation.)
+
+## 14. Browser
+
+14.1. **browse_web** — Browse https://example.com with task "Read the page title and main content." (Requires confirmation.) This is a safe, stable URL that should return quickly.
+
+## 15. Image Generation
+
+15.1. **generate_image** — Generate an image with prompt "A simple red circle on a white background" using quality="low" (to minimize cost). Verify the image appears in the chat and a file was saved to scratch space.
+
+15.2. **scratch_delete** — Delete the generated image file from 15.1.
+
+## 16. LinkedIn
 
 Skip linkedin_create_post and linkedin_post_comment — these post publicly and can't be undone. Just confirm whether the LinkedIn integration is enabled or disabled, and report that.
 
-Note: If browser automation is disabled (BROWSER_ENABLED=false), report scenario 13.1 as "DISABLED" and move on.
-Note: If OpenAI image generation is disabled (OPENAI_API_KEY not set), report scenarios 14.1-14.2 as "DISABLED" and move on.
+Note: If Notion is disabled (NOTION_API_KEY not set), report scenarios 13.1-13.11 as "DISABLED" and move on.
+Note: If browser automation is disabled (BROWSER_ENABLED=false), report scenario 14.1 as "DISABLED" and move on.
+Note: If OpenAI image generation is disabled (OPENAI_API_KEY not set), report scenarios 15.1-15.2 as "DISABLED" and move on.
 
 ---
 

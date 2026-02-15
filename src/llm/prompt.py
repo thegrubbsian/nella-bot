@@ -112,6 +112,19 @@ async def build_system_prompt(user_message: str = "") -> list[dict]:
             "Both require confirmation before executing."
         )
 
+    # Inject Notion config when API key is set
+    if settings.notion_api_key:
+        notion_config = _read_config("NOTION.md")
+        if notion_config:
+            sections.append(notion_config)
+        else:
+            sections.append(
+                "# Notion\n\n"
+                "Notion is connected. You can search, query databases, create/update pages, "
+                "read content, and archive pages. Use notion_list_databases to discover "
+                "available databases."
+            )
+
     static_text = "\n\n---\n\n".join(sections)
 
     # Current time — injected on every call (not cached)

@@ -1,0 +1,45 @@
+# Notion
+
+<!--
+This file is loaded into the system prompt when NOTION_API_KEY is set.
+Use it to tell Nella about your Notion databases — their IDs, schemas,
+and how you want her to use them.
+
+Copy this file to NOTION.md and customize. NOTION.md is gitignored.
+
+To find a database ID: open the database as a full page in Notion,
+copy the URL. The ID is the 32-character hex string before the ?v= parameter:
+https://www.notion.so/myworkspace/<DATABASE_ID>?v=...
+-->
+
+## Databases
+
+### Tasks
+- **Database ID:** `<paste your tasks database ID here>`
+- **Properties:**
+  - Name (title) — task name
+  - Status (status) — Not Started, In Progress, Done
+  - Priority (select) — High, Medium, Low
+  - Due Date (date) — deadline
+  - Tags (multi_select) — project labels
+- **Usage:** When I say "add a task", create a page here with Status = Not Started. When I ask about my tasks, query this database. Use filters on Status to show open tasks by default.
+
+### Notes
+- **Database ID:** `<paste your notes database ID here>`
+- **Properties:**
+  - Name (title) — note title
+  - Tags (multi_select) — topic labels
+  - Created (created_time) — auto-set by Notion
+- **Usage:** When I say "make a note" or "write this down", create a page here. Put the main content in the page body, not in properties.
+
+<!--
+Add more databases as needed. The format above helps Nella understand
+what each database is for and how to use it correctly.
+
+Tips:
+- Include all property names and types so Nella formats values correctly
+- Add usage hints so Nella knows which database to use for which request
+- Notion search only searches page titles, not body content — mention this
+  if relevant (e.g., "to find notes by content, use notion_query_database
+  with a filter instead of notion_search")
+-->

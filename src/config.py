@@ -87,6 +87,9 @@ class Settings(BaseSettings):
     # OpenAI (image generation)
     openai_api_key: str = Field(default="")
 
+    # Notion
+    notion_api_key: str = Field(default="")
+
     # Plaud
     plaud_drive_folder_id: str = Field(default="")
 

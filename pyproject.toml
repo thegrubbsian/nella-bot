@@ -24,6 +24,7 @@ dependencies = [
     "python-docx>=1.1.0",
     "openpyxl>=3.1.0",
     "openai>=1.0.0",
+    "notion-client>=2.2.0",
 ]
 
 [project.optional-dependencies]

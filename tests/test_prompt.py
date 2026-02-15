@@ -95,3 +95,64 @@ def test_format_memories_with_entries() -> None:
     assert "[explicit/contact]" in result
     assert "Likes coffee" in result
     assert "555-1234" in result
+
+
+# -- Notion prompt injection ------------------------------------------------
+
+
+async def test_notion_config_loaded_when_api_key_set(tmp_path) -> None:
+    """NOTION.md content should appear in the static block when notion_api_key is set."""
+    config_file = tmp_path / "NOTION.md"
+    config_file.write_text("# Notion\n\nMy databases config here.")
+
+    with (
+        patch("src.llm.prompt.CONFIG_DIR", tmp_path),
+        patch("src.llm.prompt.settings") as mock_settings,
+    ):
+        mock_settings.get_google_accounts.return_value = []
+        mock_settings.nella_source_repo = ""
+        mock_settings.scheduler_timezone = "America/Chicago"
+        mock_settings.notion_api_key = "ntn_test_key"
+
+        blocks = await build_system_prompt()
+
+    text = blocks[0]["text"]
+    assert "My databases config here" in text
+
+
+async def test_notion_fallback_when_no_config_file(tmp_path) -> None:
+    """Fallback text when notion_api_key is set but NOTION.md doesn't exist."""
+    with (
+        patch("src.llm.prompt.CONFIG_DIR", tmp_path),
+        patch("src.llm.prompt.settings") as mock_settings,
+    ):
+        mock_settings.get_google_accounts.return_value = []
+        mock_settings.nella_source_repo = ""
+        mock_settings.scheduler_timezone = "America/Chicago"
+        mock_settings.notion_api_key = "ntn_test_key"
+
+        blocks = await build_system_prompt()
+
+    text = blocks[0]["text"]
+    assert "Notion is connected" in text
+    assert "notion_list_databases" in text
+
+
+async def test_notion_not_injected_when_no_api_key(tmp_path) -> None:
+    """Nothing Notion-related when notion_api_key is empty."""
+    config_file = tmp_path / "NOTION.md"
+    config_file.write_text("# Notion\n\nShould not appear.")
+
+    with (
+        patch("src.llm.prompt.CONFIG_DIR", tmp_path),
+        patch("src.llm.prompt.settings") as mock_settings,
+    ):
+        mock_settings.get_google_accounts.return_value = []
+        mock_settings.nella_source_repo = ""
+        mock_settings.scheduler_timezone = "America/Chicago"
+        mock_settings.notion_api_key = ""
+
+        blocks = await build_system_prompt()
+
+    text = blocks[0]["text"]
+    assert "Should not appear" not in text
