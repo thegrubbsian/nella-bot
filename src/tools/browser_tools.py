@@ -34,7 +34,7 @@ class BrowseWebParams(ToolParams):
     ),
     category="research",
     params_model=BrowseWebParams,
-    requires_confirmation=True,
+    requires_confirmation=False,
 )
 async def browse_web(url: str, task: str) -> ToolResult:
     try:

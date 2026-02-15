@@ -43,8 +43,8 @@ class TestGetGoogleAccounts:
 
 class TestDefaults:
     def test_default_chat_model(self):
-        s = Settings()
-        assert s.default_chat_model == "sonnet"
+        field_default = Settings.model_fields["default_chat_model"].default
+        assert field_default == "sonnet"
 
     def test_default_memory_model(self):
         s = Settings()

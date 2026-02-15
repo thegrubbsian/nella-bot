@@ -358,15 +358,6 @@ def _fmt_scratch_wipe(inp: dict[str, Any]) -> str:
     return "Wipe scratch space\nThis will delete ALL temporary files"
 
 
-def _fmt_browse_web(inp: dict[str, Any]) -> str:
-    lines = ["Browse website"]
-    if inp.get("url"):
-        lines.append(f"URL: {inp['url']}")
-    if inp.get("task"):
-        lines.append(f"Task: {_trunc(inp['task'], 150)}")
-    return "\n".join(lines)
-
-
 def _fmt_delete_note(inp: dict[str, Any]) -> str:
     note_id = inp.get("note_id", "?")
     return f"Delete note\nNote ID: {note_id}"
@@ -446,7 +437,6 @@ _TOOL_FORMATTERS: dict[str, Any] = {
     "create_contact": _fmt_create_contact,
     "update_contact": _fmt_update_contact,
     "scratch_wipe": _fmt_scratch_wipe,
-    "browse_web": _fmt_browse_web,
     "delete_note": _fmt_delete_note,
     "delete_label": _fmt_delete_label,
     "notion_create_page": _fmt_notion_create_page,

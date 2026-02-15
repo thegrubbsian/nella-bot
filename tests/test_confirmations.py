@@ -475,14 +475,6 @@ def test_format_scratch_wipe() -> None:
     assert "ALL temporary files" in text
 
 
-def test_format_browse_web() -> None:
-    inp = {"url": "https://example.com", "task": "Find contact info"}
-    text = format_tool_summary("browse_web", inp, "Browse")
-    assert "Browse website" in text
-    assert "https://example.com" in text
-    assert "Find contact info" in text
-
-
 def test_format_delete_note() -> None:
     text = format_tool_summary("delete_note", {"note_id": 42}, "Delete")
     assert "Delete note" in text

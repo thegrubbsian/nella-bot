@@ -225,7 +225,7 @@ Skip create_contact and update_contact — we don't want to create or modify rea
 
 ## 14. Browser
 
-14.1. **browse_web** — Browse https://example.com with task "Read the page title and main content." (Requires confirmation.) This is a safe, stable URL that should return quickly.
+14.1. **browse_web** — Browse https://example.com with task "Read the page title and main content." This is a safe, stable URL that should return quickly.
 
 ## 15. Image Generation
 
