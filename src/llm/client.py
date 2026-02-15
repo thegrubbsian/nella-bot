@@ -229,5 +229,10 @@ async def generate_response(
 
         loop_messages.append({"role": "user", "content": tool_results})
 
-    logger.warning("Hit max tool rounds (%d)", max_rounds)
+    last_tools = ", ".join(b.name for b in tool_use_blocks) if tool_use_blocks else "none"
+    logger.warning(
+        "Hit max tool rounds (%d) — last tools called: %s",
+        max_rounds,
+        last_tools,
+    )
     return full_text
