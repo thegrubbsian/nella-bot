@@ -4,7 +4,13 @@
 # To add a new integration, create a file in src/tools/ and add an import here.
 from src.config import settings
 from src.integrations.google_auth import GoogleAuthManager
-from src.tools import memory_tools, scheduler_tools, scratch_tools, utility  # noqa: F401
+from src.tools import (  # noqa: F401
+    image_tools,
+    memory_tools,
+    scheduler_tools,
+    scratch_tools,
+    utility,
+)
 from src.tools.registry import registry
 
 # Conditionally load Google tools when at least one account has a token file.

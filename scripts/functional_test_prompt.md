@@ -55,11 +55,17 @@ Here are the scenarios:
 
 3.6. **scratch_read** — Read "test.pdf". Confirm that extracted text content is returned (not binary metadata). The response should contain a `content` field with readable text and an `extracted_from` field set to "application/pdf".
 
-3.7. **scratch_delete** — Delete "functional_test.txt".
+3.7. **scratch_download** — Download a small public PNG image: https://www.w3.org/WAI/WCAG21/Techniques/pdf/img/table-word.jpg and save it as "test_image.jpg".
 
-3.8. **scratch_delete** — Delete the robots.txt file downloaded in 3.4.
+3.8. **analyze_image** — Analyze "test_image.jpg" with the prompt "Describe what you see in this image." Confirm it returns an analysis.
 
-3.9. **scratch_delete** — Delete "test.pdf" from 3.5.
+3.9. **scratch_delete** — Delete "test_image.jpg".
+
+3.10. **scratch_delete** — Delete "functional_test.txt".
+
+3.11. **scratch_delete** — Delete the robots.txt file downloaded in 3.4.
+
+3.12. **scratch_delete** — Delete "test.pdf" from 3.5.
 
 Skip scratch_wipe — we don't want to nuke any real working files.
 

@@ -15,6 +15,7 @@ from src.bot.handlers import (
     handle_model,
     handle_start,
     handle_status,
+    handle_upload,
 )
 from src.config import settings
 from src.notifications.router import NotificationRouter
@@ -138,6 +139,9 @@ def create_app() -> Application:
     app.add_handler(CommandHandler("model", handle_model))
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
+    )
+    app.add_handler(
+        MessageHandler(filters.PHOTO | filters.Document.ALL, handle_upload)
     )
     app.add_handler(CallbackQueryHandler(handle_callback_query))
 

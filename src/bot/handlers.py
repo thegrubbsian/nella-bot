@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 import logging
+import mimetypes
 import time
 
 from telegram import Update
@@ -15,11 +16,23 @@ from src.llm.client import generate_response
 from src.llm.models import MODEL_MAP, ModelManager, friendly
 from src.memory.automatic import extract_and_save
 from src.notifications.context import MessageContext
+from src.scratch import ScratchSpace
 
 logger = logging.getLogger(__name__)
 
 # Minimum interval between Telegram message edits (seconds)
 STREAM_UPDATE_INTERVAL = 0.5
+
+MAX_UPLOAD_SIZE = 20 * 1024 * 1024  # 20 MB
+
+
+def _format_size(size_bytes: int) -> str:
+    """Format byte count as a human-readable string."""
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    if size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    return f"{size_bytes / (1024 * 1024):.1f} MB"
 
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -95,15 +108,11 @@ async def handle_model(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle incoming text messages with streaming Claude response."""
-    if not is_allowed(update):
-        return
-
-    user_message = update.message.text
+async def _process_message(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, user_message: str
+) -> None:
+    """Shared pipeline: add to session, stream Claude response, extract memory."""
     chat_id = update.effective_chat.id
-
-    logger.info("Message from %s: %s", chat_id, user_message[:80])
 
     session = get_session(chat_id)
     session.add("user", user_message)
@@ -167,6 +176,87 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # Small delay to avoid Telegram rate limits between conversations
     await asyncio.sleep(0.1)
+
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle incoming text messages with streaming Claude response."""
+    if not is_allowed(update):
+        return
+
+    user_message = update.message.text
+    logger.info("Message from %s: %s", update.effective_chat.id, user_message[:80])
+
+    await _process_message(update, context, user_message)
+
+
+async def _download_attachment(
+    message,
+) -> tuple[str, int, str] | None:
+    """Download a photo or document from a Telegram message to scratch space.
+
+    Returns (filename, file_size, mime_type) or None if no attachment found.
+    Raises ValueError if the file exceeds MAX_UPLOAD_SIZE.
+    """
+    if message.photo:
+        # Take the largest resolution (last in the list)
+        photo = message.photo[-1]
+        if photo.file_size and photo.file_size > MAX_UPLOAD_SIZE:
+            size = _format_size(photo.file_size)
+            limit = _format_size(MAX_UPLOAD_SIZE)
+            raise ValueError(f"File too large: {size} (max {limit})")
+        tg_file = await photo.get_file()
+        data = await tg_file.download_as_bytearray()
+        filename = f"photo_{int(time.time())}.jpg"
+        mime_type = "image/jpeg"
+
+    elif message.document:
+        doc = message.document
+        if doc.file_size and doc.file_size > MAX_UPLOAD_SIZE:
+            size = _format_size(doc.file_size)
+            limit = _format_size(MAX_UPLOAD_SIZE)
+            raise ValueError(f"File too large: {size} (max {limit})")
+        tg_file = await doc.get_file()
+        data = await tg_file.download_as_bytearray()
+        filename = doc.file_name or f"document_{int(time.time())}"
+        mime_type = doc.mime_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+
+    else:
+        return None
+
+    scratch = ScratchSpace.get()
+    sanitized = scratch.sanitize_filename(filename)
+    scratch.write(sanitized, bytes(data))
+    return sanitized, len(data), mime_type
+
+
+async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle photo/document uploads — save to scratch and tell Claude about it."""
+    if not is_allowed(update):
+        return
+
+    try:
+        result = await _download_attachment(update.message)
+    except ValueError as exc:
+        await update.message.reply_text(str(exc))
+        return
+    except Exception:
+        logger.exception("Failed to download attachment")
+        await update.message.reply_text("Something went wrong downloading that file.")
+        return
+
+    if result is None:
+        return
+
+    filename, file_size, mime_type = result
+    caption = update.message.caption or ""
+
+    user_message = f"[File uploaded: {filename} ({mime_type}, {_format_size(file_size)})]"
+    if caption:
+        user_message += f"\n{caption}"
+
+    logger.info("Upload from %s: %s (%s)", update.effective_chat.id, filename, mime_type)
+
+    await _process_message(update, context, user_message)
 
 
 async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

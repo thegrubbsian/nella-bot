@@ -33,7 +33,7 @@ She also has access to her own logs and source code so she can help fix issues w
                                            │  Memory (4)         │
                     ┌─────────────────┐    │  Scheduler (4)      │
                     │  Memory System  │    │  Utility (4)        │
-                    │                 │    │  Files (6)          │
+                    │                 │    │  Files (7)          │
                     │  Mem0 (semantic) │    │  Research (3)       │
                     │                 │    │  Observability (1)  │
                     │                 │    │  GitHub (8)         │
@@ -67,7 +67,7 @@ She also has access to her own logs and source code so she can help fix issues w
 | `src/llm/` | Claude API client, system prompt assembly, model switching | You want to change how Claude is called, what it sees, or the tool-calling loop |
 | `src/memory/` | Mem0 integration, automatic memory extraction, data models | You want to change how Nella remembers things |
 | `src/browser/` | Playwright browser automation — headless Chromium agent for JS-heavy sites | You want to change how interactive browsing works |
-| `src/tools/` | Tool registry, all 74 tool implementations, base classes | You want to add a new tool or modify an existing one |
+| `src/tools/` | Tool registry, all 75 tool implementations, base classes | You want to add a new tool or modify an existing one |
 | `src/integrations/` | Google OAuth multi-account manager, LinkedIn OAuth | You want to add a new Google API, add an account, or fix auth issues |
 | `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
 | `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
@@ -92,7 +92,7 @@ Here's what happens when you send "What's on my calendar today?" in Telegram:
 
 7. **`generate_response()` is called** in `src/llm/client.py`. This is where the real work happens:
    - **System prompt assembly** (`src/llm/prompt.py`): reads `SOUL.md` and `USER.md`, injects the current time and timezone, then searches Mem0 for memories related to your message. These are combined into a system prompt with caching so the static parts aren't re-processed on every tool-calling round.
-   - **Claude API call**: sends your conversation history + system prompt + all 74 tool schemas to Claude via streaming.
+   - **Claude API call**: sends your conversation history + system prompt + all 75 tool schemas to Claude via streaming.
    - **Streaming**: as text chunks arrive, the `on_text_delta` callback edits the placeholder message in Telegram (throttled to every 0.5 seconds to stay under rate limits).
 
 8. **If Claude calls a tool** (in this case, probably `get_todays_schedule`):
@@ -195,7 +195,7 @@ If the transcript isn't found after all retries, the owner gets a notification e
 
 ### How Tool Calling Works
 
-Claude has access to 74 tools organized into categories. When Claude decides it needs to call a tool:
+Claude has access to 75 tools organized into categories. When Claude decides it needs to call a tool:
 
 1. Claude returns a `tool_use` content block with the tool name and arguments.
 2. The registry validates the arguments against a Pydantic model (if one is defined).
@@ -234,7 +234,7 @@ nellabot/
 │   ├── bot/
 │   │   ├── main.py                  # Entry point — starts the bot
 │   │   ├── app.py                   # Telegram Application factory, handler registration
-│   │   ├── handlers.py              # /start, /clear, /status, /model, message handler
+│   │   ├── handlers.py              # /start, /clear, /status, /model, message + upload handlers
 │   │   ├── confirmations.py         # Inline keyboard tool confirmation (Approve/Deny)
 │   │   ├── session.py               # In-memory conversation history (sliding window)
 │   │   └── security.py              # User allowlist check
@@ -271,6 +271,7 @@ nellabot/
 │   │   ├── memory_tools.py          # 4 tools: remember, forget, recall, save_reference
 │   │   ├── scheduler_tools.py       # 4 tools: schedule, list, cancel, update scheduled tasks
 │   │   ├── extractors.py            # Text extraction from PDF, DOCX, XLSX (used by scratch_read)
+│   │   ├── image_tools.py           # 1 tool: analyze_image (Claude vision for images in scratch space)
 │   │   ├── scratch_tools.py         # 6 tools: scratch_write, scratch_read (auto-extracts PDF/DOCX/XLSX), scratch_list, scratch_delete, scratch_wipe, scratch_download
 │   │   ├── github_tools.py          # 8 tools: get_repo, list_directory, read_file, search_code, list_commits, get_commit, list_issues, get_issue
 │   │   ├── linkedin_tools.py        # 2 tools: create_post, post_comment
@@ -307,7 +308,7 @@ nellabot/
 │   └── MEMORY_RULES.md.EXAMPLE      # Auto-extraction rules (template)
 │   # Copy .EXAMPLE → .md and customize. Actual .md files are gitignored.
 │
-├── tests/                           # 664 tests
+├── tests/                           # 690 tests
 │   ├── test_google_*.py             # Google auth + integrations (6 files)
 │   ├── test_linkedin_*.py           # LinkedIn tools
 │   ├── test_github_*.py             # GitHub tools
@@ -337,6 +338,8 @@ nellabot/
 │   ├── test_web_tools.py            # Web research tools
 │   ├── test_scratch.py              # ScratchSpace filesystem
 │   ├── test_extractors.py           # Document text extraction (PDF, DOCX, XLSX)
+│   ├── test_image_tools.py          # Image analysis tool
+│   ├── test_upload_handler.py       # Telegram file upload handler
 │   ├── test_scratch_tools.py        # Scratch space tools
 │   └── test_utility.py              # Utility tools
 │
@@ -489,7 +492,7 @@ Tests use `pytest-asyncio` with `asyncio_mode = "auto"`, which means async test 
 
 After major code changes (especially tool changes), you can run a live functional test by sending Nella the prompt in `scripts/functional_test_prompt.md`. Copy everything below the `---` line and paste it into Telegram.
 
-The prompt exercises all 74 tools one at a time, cleaning up after itself (deleting test notes, events, files, etc.). Tools that require confirmation will pop up Approve/Deny buttons — approve them all. If a tool is disabled (missing API key or token), Nella reports "DISABLED" and moves on. At the end she produces a summary table with PASS/FAIL/DISABLED for each scenario.
+The prompt exercises all 75 tools one at a time, cleaning up after itself (deleting test notes, events, files, etc.). Tools that require confirmation will pop up Approve/Deny buttons — approve them all. If a tool is disabled (missing API key or token), Nella reports "DISABLED" and moves on. At the end she produces a summary table with PASS/FAIL/DISABLED for each scenario.
 
 LinkedIn tools are skipped (posts are public and can't be undone). `scratch_wipe` is also skipped to avoid deleting real working files.
 
