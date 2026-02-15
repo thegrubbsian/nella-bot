@@ -78,7 +78,7 @@ def test_set_by_full_model_id(mock_settings) -> None:
     mock_settings.default_memory_model = "haiku"
     ModelManager._instance = None
     mm = ModelManager.get()
-    result = mm.set_chat_model("claude-opus-4-6-20250612")
+    result = mm.set_chat_model("claude-opus-4-6")
     assert result == MODEL_MAP["opus"]
     assert mm.get_chat_model() == MODEL_MAP["opus"]
     ModelManager._instance = None

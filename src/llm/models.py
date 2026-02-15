@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 MODEL_MAP: dict[str, str] = {
     "haiku": "claude-haiku-4-5-20251001",
     "sonnet": "claude-sonnet-4-5-20250929",
-    "opus": "claude-opus-4-6-20250612",
+    "opus": "claude-opus-4-6",
 }
 
 # Reverse lookup: full model string → friendly name
