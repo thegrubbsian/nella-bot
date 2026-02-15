@@ -63,6 +63,7 @@ class ScheduleTaskParams(ToolParams):
         default=None,
         description=(
             "Cron expression for recurring tasks (e.g. '0 8 * * *' for daily at 8am). "
+            "Times are in the user's local timezone, NOT UTC. "
             "Required when task_type is 'recurring'."
         ),
     )

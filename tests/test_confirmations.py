@@ -10,6 +10,7 @@ from src.bot.confirmations import (
     _humanize_cron,
     _humanize_datetime,
     _pending,
+    _tz_abbr,
     format_tool_summary,
     generate_confirmation_id,
     get_pending,
@@ -162,7 +163,7 @@ def test_format_cancel_scheduled_task_enriched() -> None:
     }
     text = format_tool_summary("cancel_scheduled_task", inp, "Cancel")
     assert "Name: Morning check" in text
-    assert "Daily at 8:00 AM" in text
+    assert f"Daily at 8:00 AM {_tz_abbr()}" in text
     assert "AI task (with tool access)" in text
     assert "Next run:" in text
     assert "Jun 2, 2025" in text
@@ -268,19 +269,23 @@ def test_format_truncates_long_body() -> None:
 
 
 def test_humanize_cron_daily() -> None:
-    assert _humanize_cron("0 8 * * *") == "Daily at 8:00 AM"
+    tz = _tz_abbr()
+    assert _humanize_cron("0 8 * * *") == f"Daily at 8:00 AM {tz}"
 
 
 def test_humanize_cron_daily_pm() -> None:
-    assert _humanize_cron("30 14 * * *") == "Daily at 2:30 PM"
+    tz = _tz_abbr()
+    assert _humanize_cron("30 14 * * *") == f"Daily at 2:30 PM {tz}"
 
 
 def test_humanize_cron_weekdays() -> None:
-    assert _humanize_cron("0 9 * * 1-5") == "Weekdays at 9:00 AM"
+    tz = _tz_abbr()
+    assert _humanize_cron("0 9 * * 1-5") == f"Weekdays at 9:00 AM {tz}"
 
 
 def test_humanize_cron_weekends() -> None:
-    assert _humanize_cron("0 10 * * 0,6") == "Weekends at 10:00 AM"
+    tz = _tz_abbr()
+    assert _humanize_cron("0 10 * * 0,6") == f"Weekends at 10:00 AM {tz}"
 
 
 def test_humanize_cron_every_n_minutes() -> None:
@@ -396,7 +401,7 @@ def test_format_schedule_task_recurring() -> None:
     }
     text = format_tool_summary("schedule_task", inp, "Schedule")
     assert "Schedule recurring task" in text
-    assert "Daily at 8:00 AM" in text
+    assert f"Daily at 8:00 AM {_tz_abbr()}" in text
     assert "AI task (with tool access)" in text
     assert "Check my inbox" in text
 

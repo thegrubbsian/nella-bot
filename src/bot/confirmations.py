@@ -107,11 +107,26 @@ def _humanize_cron(expr: str) -> str:
     return expr
 
 
+def _tz_abbr() -> str:
+    """Return the current timezone abbreviation (e.g. 'CST', 'CDT')."""
+    try:
+        import zoneinfo
+
+        from src.config import settings
+
+        tz = zoneinfo.ZoneInfo(settings.scheduler_timezone)
+        return datetime.now(tz).strftime("%Z")
+    except Exception:
+        return ""
+
+
 def _fmt_time(hour: int, minute: int) -> str:
-    """Format hour/minute as 12-hour time like '8:00 AM'."""
+    """Format hour/minute as 12-hour time like '8:00 AM CST'."""
     period = "AM" if hour < 12 else "PM"
     display_hour = hour % 12 or 12
-    return f"{display_hour}:{minute:02d} {period}"
+    tz = _tz_abbr()
+    suffix = f" {tz}" if tz else ""
+    return f"{display_hour}:{minute:02d} {period}{suffix}"
 
 
 def _humanize_datetime(iso: str) -> str:
