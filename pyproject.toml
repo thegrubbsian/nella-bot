@@ -20,6 +20,9 @@ dependencies = [
     "trafilatura>=2.0.0",
     "PyGithub>=2.0.0",
     "playwright>=1.40.0",
+    "pymupdf>=1.24.0",
+    "python-docx>=1.1.0",
+    "openpyxl>=3.1.0",
 ]
 
 [project.optional-dependencies]

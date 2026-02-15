@@ -9,6 +9,7 @@ from pydantic import Field
 
 from src.scratch import MAX_FILE_SIZE, ScratchSpace
 from src.tools.base import ToolParams, ToolResult
+from src.tools.extractors import extract_text
 from src.tools.registry import registry
 
 logger = logging.getLogger(__name__)
@@ -82,7 +83,8 @@ async def write_file(path: str, content: str) -> ToolResult:
     name="scratch_read",
     description=(
         "Read a file from the local scratch space. Returns the text content "
-        "for text files, or metadata for binary files."
+        "for text files. Automatically extracts text from PDF, DOCX, and XLSX files. "
+        "Returns metadata for other binary files."
     ),
     category="files",
     params_model=ReadFileParams,
@@ -100,9 +102,19 @@ async def read_file(path: str) -> ToolResult:
     except FileNotFoundError:
         return ToolResult(error=f"File not found: {path}")
     except ValueError:
-        # Binary file — return metadata instead
+        # Binary file — try text extraction (PDF, DOCX, XLSX), then fall back to metadata
         target = scratch.resolve(path)
         mime_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
+
+        extracted = await extract_text(target)
+        if extracted:
+            return ToolResult(data={
+                "path": path,
+                "content": extracted,
+                "size": target.stat().st_size,
+                "extracted_from": mime_type,
+            })
+
         return ToolResult(data={
             "path": path,
             "binary": True,

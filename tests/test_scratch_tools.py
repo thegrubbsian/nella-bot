@@ -74,6 +74,57 @@ async def test_read_file_binary_returns_metadata(scratch) -> None:
     assert "Reference" in result.data["message"]
 
 
+async def test_read_file_extracts_pdf(scratch) -> None:
+    """scratch_read should extract text from a PDF instead of returning binary metadata."""
+    import pymupdf
+
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "Hello from PDF extraction")
+    target = scratch.resolve("report.pdf")
+    doc.save(str(target))
+    doc.close()
+
+    result = await read_file(path="report.pdf")
+    assert result.success
+    assert "Hello from PDF extraction" in result.data["content"]
+    assert result.data["extracted_from"] == "application/pdf"
+    assert "binary" not in result.data
+
+
+async def test_read_file_extracts_docx(scratch) -> None:
+    """scratch_read should extract text from a DOCX file."""
+    import docx
+
+    doc = docx.Document()
+    doc.add_paragraph("Hello from DOCX extraction")
+    target = scratch.resolve("report.docx")
+    doc.save(str(target))
+
+    result = await read_file(path="report.docx")
+    assert result.success
+    assert "Hello from DOCX extraction" in result.data["content"]
+    assert "wordprocessingml" in result.data["extracted_from"]
+
+
+async def test_read_file_extracts_xlsx(scratch) -> None:
+    """scratch_read should extract text from an XLSX file."""
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Name", "Score"])
+    ws.append(["Alice", 95])
+    target = scratch.resolve("data.xlsx")
+    wb.save(str(target))
+    wb.close()
+
+    result = await read_file(path="data.xlsx")
+    assert result.success
+    assert "Alice" in result.data["content"]
+    assert "spreadsheetml" in result.data["extracted_from"]
+
+
 # ---------------------------------------------------------------------------
 # list_files
 # ---------------------------------------------------------------------------

@@ -270,7 +270,8 @@ nellabot/
 │   │   ├── google_people.py         # 6 tools: search, get, create, update contacts + local notes
 │   │   ├── memory_tools.py          # 4 tools: remember, forget, recall, save_reference
 │   │   ├── scheduler_tools.py       # 4 tools: schedule, list, cancel, update scheduled tasks
-│   │   ├── scratch_tools.py         # 6 tools: scratch_write, scratch_read, scratch_list, scratch_delete, scratch_wipe, scratch_download
+│   │   ├── extractors.py            # Text extraction from PDF, DOCX, XLSX (used by scratch_read)
+│   │   ├── scratch_tools.py         # 6 tools: scratch_write, scratch_read (auto-extracts PDF/DOCX/XLSX), scratch_list, scratch_delete, scratch_wipe, scratch_download
 │   │   ├── github_tools.py          # 8 tools: get_repo, list_directory, read_file, search_code, list_commits, get_commit, list_issues, get_issue
 │   │   ├── linkedin_tools.py        # 2 tools: create_post, post_comment
 │   │   ├── log_tools.py             # 1 tool: query production logs (SolarWinds/Papertrail)
@@ -306,7 +307,7 @@ nellabot/
 │   └── MEMORY_RULES.md.EXAMPLE      # Auto-extraction rules (template)
 │   # Copy .EXAMPLE → .md and customize. Actual .md files are gitignored.
 │
-├── tests/                           # 648 tests
+├── tests/                           # 664 tests
 │   ├── test_google_*.py             # Google auth + integrations (6 files)
 │   ├── test_linkedin_*.py           # LinkedIn tools
 │   ├── test_github_*.py             # GitHub tools
@@ -335,6 +336,7 @@ nellabot/
 │   ├── test_watchdog.py             # Systemd watchdog integration
 │   ├── test_web_tools.py            # Web research tools
 │   ├── test_scratch.py              # ScratchSpace filesystem
+│   ├── test_extractors.py           # Document text extraction (PDF, DOCX, XLSX)
 │   ├── test_scratch_tools.py        # Scratch space tools
 │   └── test_utility.py              # Utility tools
 │
