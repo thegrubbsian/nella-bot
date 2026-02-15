@@ -310,7 +310,7 @@ nellabot/
 │   └── MEMORY_RULES.md.EXAMPLE      # Auto-extraction rules (template)
 │   # Copy .EXAMPLE → .md and customize. Actual .md files are gitignored.
 │
-├── tests/                           # 709 tests
+├── tests/                           # 710 tests
 │   ├── test_google_*.py             # Google auth + integrations (6 files)
 │   ├── test_linkedin_*.py           # LinkedIn tools
 │   ├── test_github_*.py             # GitHub tools

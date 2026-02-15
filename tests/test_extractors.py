@@ -2,10 +2,7 @@
 
 from pathlib import Path
 
-import pytest
-
 from src.tools.extractors import MAX_EXTRACTED_CHARS, extract_text
-
 
 # ---------------------------------------------------------------------------
 # Helpers — create minimal valid files using the same libraries
