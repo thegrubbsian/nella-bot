@@ -67,3 +67,18 @@ class TelegramChannel:
                 "TelegramChannel.send_rich failed for user_id=%s", user_id
             )
             return False
+
+    async def send_photo(
+        self,
+        user_id: str,
+        photo: bytes,
+        *,
+        caption: str | None = None,
+    ) -> bool:
+        """Send a photo to a Telegram chat."""
+        try:
+            await self._bot.send_photo(chat_id=int(user_id), photo=photo, caption=caption)
+            return True
+        except Exception:
+            logger.exception("TelegramChannel.send_photo failed for user_id=%s", user_id)
+            return False

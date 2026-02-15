@@ -203,11 +203,18 @@ Skip create_contact and update_contact — we don't want to create or modify rea
 
 13.1. **browse_web** — Browse https://example.com with task "Read the page title and main content." (Requires confirmation.) This is a safe, stable URL that should return quickly.
 
-## 14. LinkedIn
+## 14. Image Generation
+
+14.1. **generate_image** — Generate an image with prompt "A simple red circle on a white background" using quality="low" (to minimize cost). Verify the image appears in the chat and a file was saved to scratch space.
+
+14.2. **scratch_delete** — Delete the generated image file from 14.1.
+
+## 15. LinkedIn
 
 Skip linkedin_create_post and linkedin_post_comment — these post publicly and can't be undone. Just confirm whether the LinkedIn integration is enabled or disabled, and report that.
 
 Note: If browser automation is disabled (BROWSER_ENABLED=false), report scenario 13.1 as "DISABLED" and move on.
+Note: If OpenAI image generation is disabled (OPENAI_API_KEY not set), report scenarios 14.1-14.2 as "DISABLED" and move on.
 
 ---
 

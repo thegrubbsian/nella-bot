@@ -14,6 +14,7 @@ class FakeChannel:
         self._name = channel_name
         self.sent: list[tuple[str, str]] = []
         self.sent_rich: list[tuple[str, str, dict]] = []
+        self.sent_photos: list[tuple[str, bytes, dict]] = []
 
     @property
     def name(self) -> str:
@@ -34,6 +35,16 @@ class FakeChannel:
         self.sent_rich.append((user_id, message, {"buttons": buttons, "parse_mode": parse_mode}))
         return True
 
+    async def send_photo(
+        self,
+        user_id: str,
+        photo: bytes,
+        *,
+        caption: str | None = None,
+    ) -> bool:
+        self.sent_photos.append((user_id, photo, {"caption": caption}))
+        return True
+
 
 class FailChannel(FakeChannel):
     """Channel that always fails to send."""
@@ -42,6 +53,9 @@ class FailChannel(FakeChannel):
         return False
 
     async def send_rich(self, user_id: str, message: str, **kwargs) -> bool:
+        return False
+
+    async def send_photo(self, user_id: str, photo: bytes, **kwargs) -> bool:
         return False
 
 
@@ -188,4 +202,28 @@ async def test_send_rich_dispatch() -> None:
 async def test_send_rich_no_channel_returns_false() -> None:
     router = NotificationRouter.get()
     ok = await router.send_rich("1", "hello")
+    assert ok is False
+
+
+# -- Send photo ----------------------------------------------------------------
+
+
+async def test_send_photo_routes_correctly() -> None:
+    router = NotificationRouter.get()
+    ch = FakeChannel("telegram")
+    router.register_channel(ch)
+    router.set_default_channel("telegram")
+
+    photo_data = b"\x89PNG..."
+    ok = await router.send_photo("123", photo_data, caption="test caption")
+    assert ok is True
+    assert len(ch.sent_photos) == 1
+    assert ch.sent_photos[0][0] == "123"
+    assert ch.sent_photos[0][1] == photo_data
+    assert ch.sent_photos[0][2]["caption"] == "test caption"
+
+
+async def test_send_photo_no_channel_returns_false() -> None:
+    router = NotificationRouter.get()
+    ok = await router.send_photo("1", b"\x89PNG...")
     assert ok is False

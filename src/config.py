@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     linkedin_client_id: str = Field(default="")
     linkedin_client_secret: str = Field(default="")
 
+    # OpenAI (image generation)
+    openai_api_key: str = Field(default="")
+
     # Plaud
     plaud_drive_folder_id: str = Field(default="")
 

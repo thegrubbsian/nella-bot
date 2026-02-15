@@ -103,3 +103,18 @@ class NotificationRouter:
         return await ch.send_rich(
             user_id, message, buttons=buttons, parse_mode=parse_mode
         )
+
+    async def send_photo(
+        self,
+        user_id: str,
+        photo: bytes,
+        *,
+        channel: str | None = None,
+        caption: str | None = None,
+    ) -> bool:
+        """Send a photo via the resolved channel."""
+        ch = self._resolve_channel(channel)
+        if ch is None:
+            logger.warning("No channel resolved for send_photo (requested=%s)", channel)
+            return False
+        return await ch.send_photo(user_id, photo, caption=caption)

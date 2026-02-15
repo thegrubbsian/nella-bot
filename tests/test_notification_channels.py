@@ -12,6 +12,7 @@ def _make_mock_bot() -> AsyncMock:
     """Create a mock telegram.Bot."""
     bot = AsyncMock()
     bot.send_message = AsyncMock()
+    bot.send_photo = AsyncMock()
     return bot
 
 
@@ -116,4 +117,38 @@ async def test_send_rich_returns_false_on_error() -> None:
     ch = TelegramChannel(bot)
 
     ok = await ch.send_rich("1", "hi")
+    assert ok is False
+
+
+# -- send_photo() ---------------------------------------------------------------
+
+
+async def test_send_photo_success() -> None:
+    bot = _make_mock_bot()
+    ch = TelegramChannel(bot)
+
+    ok = await ch.send_photo("12345", b"\x89PNG...", caption="A cool image")
+    assert ok is True
+    bot.send_photo.assert_awaited_once_with(
+        chat_id=12345, photo=b"\x89PNG...", caption="A cool image"
+    )
+
+
+async def test_send_photo_without_caption() -> None:
+    bot = _make_mock_bot()
+    ch = TelegramChannel(bot)
+
+    ok = await ch.send_photo("12345", b"\x89PNG...")
+    assert ok is True
+    bot.send_photo.assert_awaited_once_with(
+        chat_id=12345, photo=b"\x89PNG...", caption=None
+    )
+
+
+async def test_send_photo_returns_false_on_error() -> None:
+    bot = _make_mock_bot()
+    bot.send_photo.side_effect = RuntimeError("network error")
+    ch = TelegramChannel(bot)
+
+    ok = await ch.send_photo("1", b"\x89PNG...")
     assert ok is False

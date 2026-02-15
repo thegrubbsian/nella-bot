@@ -26,3 +26,13 @@ class NotificationChannel(Protocol):
     ) -> bool:
         """Send a message with optional rich formatting. Returns True on success."""
         ...
+
+    async def send_photo(
+        self,
+        user_id: str,
+        photo: bytes,
+        *,
+        caption: str | None = None,
+    ) -> bool:
+        """Send a photo. Returns True on success."""
+        ...

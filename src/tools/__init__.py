@@ -45,4 +45,8 @@ if LinkedInAuth.enabled():
 if settings.browser_enabled:
     from src.tools import browser_tools  # noqa: F401
 
+# Conditionally load OpenAI image generation when API key is configured.
+if settings.openai_api_key:
+    from src.tools import openai_image_tools  # noqa: F401
+
 __all__ = ["registry"]
