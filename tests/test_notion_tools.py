@@ -37,9 +37,9 @@ def _mock_client():
     """Return an AsyncMock pretending to be a Notion AsyncClient."""
     client = AsyncMock()
     client.search = AsyncMock()
+    client.request = AsyncMock()
     client.databases = AsyncMock()
     client.databases.retrieve = AsyncMock()
-    client.databases.query = AsyncMock()
     client.pages = AsyncMock()
     client.pages.retrieve = AsyncMock()
     client.pages.create = AsyncMock()
@@ -628,7 +628,7 @@ class TestNotionQueryDatabase:
     async def test_success(self) -> None:
         page = _make_page()
         client = _mock_client()
-        client.databases.query.return_value = {
+        client.request.return_value = {
             "results": [page],
             "has_more": True,
             "next_cursor": "cursor-abc",
@@ -644,7 +644,7 @@ class TestNotionQueryDatabase:
 
     async def test_with_filter_and_sorts(self) -> None:
         client = _mock_client()
-        client.databases.query.return_value = {"results": [], "has_more": False}
+        client.request.return_value = {"results": [], "has_more": False}
         test_filter = {"property": "Status", "status": {"equals": "Done"}}
         test_sorts = [{"property": "Due Date", "direction": "ascending"}]
 
@@ -655,13 +655,13 @@ class TestNotionQueryDatabase:
                 sorts=test_sorts,
             )
 
-        call_kwargs = client.databases.query.call_args.kwargs
-        assert call_kwargs["filter"] == test_filter
-        assert call_kwargs["sorts"] == test_sorts
+        call_kwargs = client.request.call_args.kwargs
+        assert call_kwargs["body"]["filter"] == test_filter
+        assert call_kwargs["body"]["sorts"] == test_sorts
 
     async def test_with_pagination(self) -> None:
         client = _mock_client()
-        client.databases.query.return_value = {"results": [], "has_more": False}
+        client.request.return_value = {"results": [], "has_more": False}
 
         with patch("src.tools.notion_tools._get_client", return_value=client):
             await notion_query_database(
@@ -669,14 +669,14 @@ class TestNotionQueryDatabase:
                 start_cursor="cursor-xyz",
             )
 
-        call_kwargs = client.databases.query.call_args.kwargs
-        assert call_kwargs["start_cursor"] == "cursor-xyz"
+        call_kwargs = client.request.call_args.kwargs
+        assert call_kwargs["body"]["start_cursor"] == "cursor-xyz"
 
     async def test_api_error(self) -> None:
         exc = Exception("bad query")
         exc.message = "Invalid filter"  # type: ignore[attr-defined]
         client = _mock_client()
-        client.databases.query.side_effect = exc
+        client.request.side_effect = exc
 
         with patch("src.tools.notion_tools._get_client", return_value=client):
             result = await notion_query_database(database_id="db-456")

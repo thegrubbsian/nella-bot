@@ -326,7 +326,7 @@ async def test_schedule_with_model(engine: SchedulerEngine, store: TaskStore) ->
 
     task = await store.get_task(result.data["task_id"])
     assert task is not None
-    assert task.model == "claude-opus-4-6-20250612"
+    assert task.model == "claude-opus-4-6"
 
 
 async def test_schedule_with_invalid_model(engine: SchedulerEngine) -> None:

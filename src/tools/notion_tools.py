@@ -32,7 +32,13 @@ def _get_client() -> AsyncClient:
             raise ValueError(msg)
         from notion_client import AsyncClient
 
-        _client = AsyncClient(auth=settings.notion_api_key)
+        # Pin to 2022-06-28 — the stable, well-documented API version.
+        # SDK v2.7.0 defaults to 2025-09-03 which restructured databases
+        # around "data sources" and changed property value formats.
+        _client = AsyncClient(
+            auth=settings.notion_api_key,
+            notion_version="2022-06-28",
+        )
     return _client
 
 
@@ -532,17 +538,20 @@ async def notion_query_database(
 ) -> ToolResult:
     try:
         client = _get_client()
-        kwargs: dict[str, Any] = {
-            "database_id": database_id,
-            "page_size": page_size,
-        }
+        # SDK v2.7.0 removed databases.query() (moved to data_sources).
+        # Call the endpoint directly via client.request().
+        body: dict[str, Any] = {"page_size": page_size}
         if filter is not None:
-            kwargs["filter"] = filter
+            body["filter"] = filter
         if sorts is not None:
-            kwargs["sorts"] = sorts
+            body["sorts"] = sorts
         if start_cursor is not None:
-            kwargs["start_cursor"] = start_cursor
-        response = await client.databases.query(**kwargs)
+            body["start_cursor"] = start_cursor
+        response = await client.request(
+            path=f"databases/{database_id}/query",
+            method="POST",
+            body=body,
+        )
         pages = [_format_page_summary(page) for page in response.get("results", [])]
         return ToolResult(data={
             "pages": pages,
