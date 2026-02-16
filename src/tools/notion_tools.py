@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from src.config import settings
 from src.tools.base import ToolParams, ToolResult
@@ -64,24 +65,157 @@ def _plain_to_rich_text(text: str) -> list[dict[str, Any]]:
     return [{"type": "text", "text": {"content": chunk}} for chunk in chunks]
 
 
-def _text_to_blocks(text: str) -> list[dict[str, Any]]:
-    """Convert plain text to Notion paragraph blocks.
+_HEADING_RE = re.compile(r"^(#{1,3})\s+(.+)$")
+_BULLET_RE = re.compile(r"^[-*]\s+(.+)$")
+_NUMBERED_RE = re.compile(r"^\d+\.\s+(.+)$")
+_TODO_RE = re.compile(r"^-\s+\[([ xX])\]\s+(.+)$")
+_QUOTE_RE = re.compile(r"^>\s?(.*)$")
+_DIVIDER_RE = re.compile(r"^(---|___|\*\*\*)$")
+_CODE_FENCE_RE = re.compile(r"^```(\w*)$")
 
-    Splits on double newlines into separate paragraphs. Each paragraph's
-    rich text respects the 2000-character limit.
+
+def _markdown_to_blocks(text: str) -> list[dict[str, Any]]:
+    """Convert markdown text to Notion blocks.
+
+    Supports headings (h1–h3), bulleted/numbered lists, to-do items,
+    blockquotes, fenced code blocks, dividers, and plain paragraphs.
     """
     if not text:
         return []
-    paragraphs = text.split("\n\n")
-    return [
-        {
+
+    lines = text.split("\n")
+    blocks: list[dict[str, Any]] = []
+    i = 0
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        # Skip blank lines
+        if not stripped:
+            i += 1
+            continue
+
+        # Fenced code block
+        m = _CODE_FENCE_RE.match(stripped)
+        if m:
+            language = m.group(1) or "plain text"
+            code_lines: list[str] = []
+            i += 1
+            while i < len(lines):
+                if lines[i].strip() == "```":
+                    i += 1
+                    break
+                code_lines.append(lines[i])
+                i += 1
+            blocks.append({
+                "object": "block",
+                "type": "code",
+                "code": {
+                    "rich_text": _plain_to_rich_text("\n".join(code_lines)),
+                    "language": language,
+                },
+            })
+            continue
+
+        # Divider
+        if _DIVIDER_RE.match(stripped):
+            blocks.append({"object": "block", "type": "divider", "divider": {}})
+            i += 1
+            continue
+
+        # Heading
+        m = _HEADING_RE.match(stripped)
+        if m:
+            level = len(m.group(1))
+            heading_type = f"heading_{level}"
+            blocks.append({
+                "object": "block",
+                "type": heading_type,
+                heading_type: {"rich_text": _plain_to_rich_text(m.group(2))},
+            })
+            i += 1
+            continue
+
+        # To-do (must be checked before bullet since `- [ ]` starts with `-`)
+        m = _TODO_RE.match(stripped)
+        if m:
+            checked = m.group(1).lower() == "x"
+            blocks.append({
+                "object": "block",
+                "type": "to_do",
+                "to_do": {
+                    "rich_text": _plain_to_rich_text(m.group(2)),
+                    "checked": checked,
+                },
+            })
+            i += 1
+            continue
+
+        # Bulleted list item
+        m = _BULLET_RE.match(stripped)
+        if m:
+            blocks.append({
+                "object": "block",
+                "type": "bulleted_list_item",
+                "bulleted_list_item": {"rich_text": _plain_to_rich_text(m.group(1))},
+            })
+            i += 1
+            continue
+
+        # Numbered list item
+        m = _NUMBERED_RE.match(stripped)
+        if m:
+            blocks.append({
+                "object": "block",
+                "type": "numbered_list_item",
+                "numbered_list_item": {"rich_text": _plain_to_rich_text(m.group(1))},
+            })
+            i += 1
+            continue
+
+        # Blockquote
+        m = _QUOTE_RE.match(stripped)
+        if m:
+            blocks.append({
+                "object": "block",
+                "type": "quote",
+                "quote": {"rich_text": _plain_to_rich_text(m.group(1))},
+            })
+            i += 1
+            continue
+
+        # Plain paragraph — collect consecutive non-blank, non-special lines
+        para_lines: list[str] = [stripped]
+        i += 1
+        while i < len(lines):
+            next_stripped = lines[i].strip()
+            if not next_stripped:
+                break
+            # Stop if the next line matches any block-level pattern
+            if (
+                _HEADING_RE.match(next_stripped)
+                or _TODO_RE.match(next_stripped)
+                or _BULLET_RE.match(next_stripped)
+                or _NUMBERED_RE.match(next_stripped)
+                or _QUOTE_RE.match(next_stripped)
+                or _DIVIDER_RE.match(next_stripped)
+                or _CODE_FENCE_RE.match(next_stripped)
+            ):
+                break
+            para_lines.append(next_stripped)
+            i += 1
+        blocks.append({
             "object": "block",
             "type": "paragraph",
-            "paragraph": {"rich_text": _plain_to_rich_text(para)},
-        }
-        for para in paragraphs
-        if para.strip()
-    ]
+            "paragraph": {"rich_text": _plain_to_rich_text("\n".join(para_lines))},
+        })
+
+    return blocks
+
+
+# Backward compat — tests and existing callers import _text_to_blocks
+_text_to_blocks = _markdown_to_blocks
 
 
 def _extract_block_text(block: dict[str, Any]) -> str:
@@ -345,19 +479,41 @@ class NotionReadPageContentParams(ToolParams):
 
 
 class NotionCreatePageParams(ToolParams):
-    database_id: str = Field(description="The database to create the page in")
+    database_id: str | None = Field(
+        default=None,
+        description="The database to create the page in (mutually exclusive with page_id)",
+    )
+    page_id: str | None = Field(
+        default=None,
+        description=(
+            "Parent page ID to create a child page under "
+            "(mutually exclusive with database_id)"
+        ),
+    )
     properties: dict[str, Any] = Field(
         description=(
-            "Page properties as {name: value}. Values are auto-formatted based on "
-            "the database schema (e.g. {'Name': 'My Task', 'Status': 'Not Started'})."
+            "Page properties as {name: value}. For database parents, values are "
+            "auto-formatted based on schema (e.g. {'Name': 'My Task', 'Status': 'Not Started'}). "
+            "For page parents, only the title property is used (e.g. {'title': 'Child Page'})."
         ),
     )
     content: str | None = Field(
         default=None,
         description=(
-            "Optional page body text (plain text, split into paragraphs on double newlines)"
+            "Optional page body content (supports markdown: headings, bullets, "
+            "numbered lists, to-do items, quotes, code blocks, dividers, paragraphs)"
         ),
     )
+
+    @model_validator(mode="after")
+    def _require_one_parent(self) -> NotionCreatePageParams:
+        if self.database_id and self.page_id:
+            msg = "Specify either database_id or page_id, not both."
+            raise ValueError(msg)
+        if not self.database_id and not self.page_id:
+            msg = "Either database_id or page_id is required."
+            raise ValueError(msg)
+        return self
 
 
 class NotionUpdatePageParams(ToolParams):
@@ -376,7 +532,10 @@ class NotionArchivePageParams(ToolParams):
 class NotionAppendContentParams(ToolParams):
     page_id: str = Field(description="The ID of the page to append content to")
     content: str = Field(
-        description="Text to append (plain text, split into paragraphs on double newlines)",
+        description=(
+            "Content to append (supports markdown: headings, bullets, "
+            "numbered lists, to-do items, quotes, code blocks, dividers, paragraphs)"
+        ),
     )
 
 
@@ -650,25 +809,45 @@ async def _read_blocks_recursive(
 @registry.tool(
     name="notion_create_page",
     description=(
-        "Create a new page in a Notion database. Properties are auto-formatted "
-        "based on the database schema — just pass simple values like "
-        "{'Name': 'My Task', 'Status': 'Not Started', 'Due Date': '2025-03-15'}. "
-        "Optionally include body text via the content parameter."
+        "Create a new page in a Notion database OR as a child of another page. "
+        "Pass database_id to create inside a database (properties auto-formatted "
+        "from schema), or page_id to create a child page under a regular page "
+        "(only title property used, e.g. {'title': 'Child Page'}). "
+        "Optionally include body content via the content parameter (supports markdown)."
     ),
     category="notion",
     params_model=NotionCreatePageParams,
     requires_confirmation=True,
 )
 async def notion_create_page(
-    database_id: str,
     properties: dict[str, Any],
+    database_id: str | None = None,
+    page_id: str | None = None,
     content: str | None = None,
 ) -> ToolResult:
     try:
-        formatted_props = await _build_properties_payload(properties, database_id)
         client = _get_client()
+        if database_id:
+            formatted_props = await _build_properties_payload(properties, database_id)
+            parent = {"database_id": database_id}
+        else:
+            # Child page under a regular page — format title property only
+            title_text = None
+            for key in ("title", "Title", "name", "Name"):
+                if key in properties:
+                    title_text = str(properties[key])
+                    break
+            if title_text is None:
+                return ToolResult(
+                    error=(
+                        "Properties must include a title "
+                        "(key: 'title', 'Title', 'name', or 'Name')."
+                    )
+                )
+            formatted_props = {"title": {"title": _plain_to_rich_text(title_text)}}
+            parent = {"page_id": page_id}
         kwargs: dict[str, Any] = {
-            "parent": {"database_id": database_id},
+            "parent": parent,
             "properties": formatted_props,
         }
         if content:
@@ -733,8 +912,9 @@ async def notion_archive_page(page_id: str) -> ToolResult:
 @registry.tool(
     name="notion_append_content",
     description=(
-        "Append text to the body of a Notion page. The text is split into paragraph "
-        "blocks on double newlines."
+        "Append content to the body of a Notion page. "
+        "Supports markdown: headings, bullets, numbered lists, "
+        "to-do items, quotes, code blocks, dividers, and paragraphs."
     ),
     category="notion",
     params_model=NotionAppendContentParams,
@@ -755,3 +935,132 @@ async def notion_append_content(page_id: str, content: str) -> ToolResult:
         return ToolResult(error=str(exc))
     except Exception as exc:
         return ToolResult(error=_notion_error_message(exc))
+
+
+# ---------------------------------------------------------------------------
+# Create database
+# ---------------------------------------------------------------------------
+
+
+def _build_schema_payload(properties: dict[str, Any]) -> dict[str, Any]:
+    """Convert simplified property definitions to Notion database schema format.
+
+    Accepts a dict like::
+
+        {"Name": "title", "Status": {"select": ["Todo", "Done"]}, "Due": "date"}
+
+    Returns Notion-API-formatted property schema.
+    """
+    schema: dict[str, Any] = {}
+    for name, definition in properties.items():
+        if isinstance(definition, str):
+            # Simple type shorthand: "title", "rich_text", "number", etc.
+            schema[name] = {definition: {}}
+        elif isinstance(definition, dict):
+            # Expanded definition with options
+            for ptype, options in definition.items():
+                if ptype in ("select", "multi_select") and isinstance(options, list):
+                    schema[name] = {
+                        ptype: {"options": [{"name": str(o)} for o in options]}
+                    }
+                elif ptype == "status" and isinstance(options, list):
+                    schema[name] = {
+                        "status": {"options": [{"name": str(o)} for o in options]}
+                    }
+                else:
+                    schema[name] = {ptype: options if options else {}}
+                break  # Only the first key matters
+        else:
+            schema[name] = {"rich_text": {}}
+    return schema
+
+
+class NotionCreateDatabaseParams(ToolParams):
+    page_id: str = Field(
+        description="Parent page ID — the database will be created inside this page",
+    )
+    title: str = Field(description="Database title")
+    properties: dict[str, Any] = Field(
+        description=(
+            "Database schema as {name: type_or_config}. "
+            "Simple types: 'title', 'rich_text', 'number', 'date', "
+            "'checkbox', 'url', 'email'. "
+            "With options: {'select': ['Option A', 'Option B']}, "
+            "{'multi_select': ['Tag1', 'Tag2']}."
+        ),
+    )
+    is_inline: bool = Field(
+        default=True,
+        description=(
+            "If true, creates an inline database (embedded in page). "
+            "If false, creates a full-page database."
+        ),
+    )
+
+
+@registry.tool(
+    name="notion_create_database",
+    description=(
+        "Create a new database inside a Notion page. Define the schema with a "
+        "simplified format: {'Name': 'title', 'Status': {'select': ['Todo', 'Done']}, "
+        "'Due Date': 'date'}. The database is created inline by default."
+    ),
+    category="notion",
+    params_model=NotionCreateDatabaseParams,
+    requires_confirmation=True,
+)
+async def notion_create_database(
+    page_id: str,
+    title: str,
+    properties: dict[str, Any],
+    is_inline: bool = True,
+) -> ToolResult:
+    try:
+        client = _get_client()
+        schema = _build_schema_payload(properties)
+        # Ensure there's exactly one title property
+        has_title = any(
+            "title" in prop_def for prop_def in schema.values()
+        )
+        if not has_title:
+            schema["Name"] = {"title": {}}
+
+        body: dict[str, Any] = {
+            "parent": {"page_id": page_id},
+            "title": _plain_to_rich_text(title),
+            "properties": schema,
+            "is_inline": is_inline,
+        }
+        # Use client.request() — same pattern as notion_query_database
+        response = await client.request(
+            path="databases",
+            method="POST",
+            body=body,
+        )
+        # Format response
+        title_parts = response.get("title", [])
+        db_title = _rich_text_to_plain(title_parts)
+        props = {}
+        for name, prop in response.get("properties", {}).items():
+            props[name] = {"type": prop.get("type", "")}
+        return ToolResult(data={
+            "id": response["id"],
+            "title": db_title,
+            "url": response.get("url", ""),
+            "properties": props,
+        })
+    except ValueError as exc:
+        return ToolResult(error=str(exc))
+    except Exception as exc:
+        return ToolResult(error=_notion_error_message(exc))
+
+
+# ---------------------------------------------------------------------------
+# Future work
+# ---------------------------------------------------------------------------
+# - notion_delete_block — delete/archive individual blocks
+# - notion_update_block — modify existing block content
+# - notion_list_comments + notion_create_comment — comments API
+# - notion_update_database — modify database schema/title
+# - Append position control (insert at beginning or after specific block)
+# - Inline markdown formatting (bold, italic, links within rich text)

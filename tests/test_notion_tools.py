@@ -1,16 +1,20 @@
 """Tests for src/tools/notion_tools."""
 
+import pytest
 from unittest.mock import AsyncMock, patch
 
 from src.tools.notion_tools import (
     MAX_CONTENT_CHARS,
     RICH_TEXT_CHAR_LIMIT,
+    NotionCreatePageParams,
     _build_properties_payload,
+    _build_schema_payload,
     _extract_block_text,
     _format_page_properties,
     _format_page_summary,
     _format_property_value,
     _format_value_for_type,
+    _markdown_to_blocks,
     _notion_error_message,
     _plain_to_rich_text,
     _read_blocks_recursive,
@@ -18,6 +22,7 @@ from src.tools.notion_tools import (
     _text_to_blocks,
     notion_append_content,
     notion_archive_page,
+    notion_create_database,
     notion_create_page,
     notion_get_database,
     notion_get_page,
@@ -1058,5 +1063,426 @@ class TestNotionAppendContent:
             result = await notion_append_content(
                 page_id="page-123",
                 content="text",
+            )
+        assert not result.success
+
+
+# ---------------------------------------------------------------------------
+# _markdown_to_blocks
+# ---------------------------------------------------------------------------
+
+
+class TestMarkdownToBlocks:
+    def test_empty_string(self) -> None:
+        assert _markdown_to_blocks("") == []
+
+    def test_alias_matches(self) -> None:
+        """_text_to_blocks should be an alias for _markdown_to_blocks."""
+        assert _text_to_blocks is _markdown_to_blocks
+
+    def test_plain_paragraph(self) -> None:
+        blocks = _markdown_to_blocks("Hello world")
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "paragraph"
+        assert blocks[0]["paragraph"]["rich_text"][0]["text"]["content"] == "Hello world"
+
+    def test_multiple_paragraphs(self) -> None:
+        blocks = _markdown_to_blocks("First paragraph\n\nSecond paragraph")
+        assert len(blocks) == 2
+        assert blocks[0]["type"] == "paragraph"
+        assert blocks[1]["type"] == "paragraph"
+
+    def test_heading_1(self) -> None:
+        blocks = _markdown_to_blocks("# Main Title")
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "heading_1"
+        assert blocks[0]["heading_1"]["rich_text"][0]["text"]["content"] == "Main Title"
+
+    def test_heading_2(self) -> None:
+        blocks = _markdown_to_blocks("## Section")
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "heading_2"
+
+    def test_heading_3(self) -> None:
+        blocks = _markdown_to_blocks("### Subsection")
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "heading_3"
+
+    def test_bulleted_list_dash(self) -> None:
+        blocks = _markdown_to_blocks("- Item one\n- Item two")
+        assert len(blocks) == 2
+        assert blocks[0]["type"] == "bulleted_list_item"
+        assert blocks[0]["bulleted_list_item"]["rich_text"][0]["text"]["content"] == "Item one"
+        assert blocks[1]["type"] == "bulleted_list_item"
+
+    def test_bulleted_list_asterisk(self) -> None:
+        blocks = _markdown_to_blocks("* Star item")
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "bulleted_list_item"
+
+    def test_numbered_list(self) -> None:
+        blocks = _markdown_to_blocks("1. First\n2. Second")
+        assert len(blocks) == 2
+        assert blocks[0]["type"] == "numbered_list_item"
+        assert blocks[0]["numbered_list_item"]["rich_text"][0]["text"]["content"] == "First"
+
+    def test_todo_unchecked(self) -> None:
+        blocks = _markdown_to_blocks("- [ ] Buy milk")
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "to_do"
+        assert blocks[0]["to_do"]["checked"] is False
+        assert blocks[0]["to_do"]["rich_text"][0]["text"]["content"] == "Buy milk"
+
+    def test_todo_checked(self) -> None:
+        blocks = _markdown_to_blocks("- [x] Done task")
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "to_do"
+        assert blocks[0]["to_do"]["checked"] is True
+
+    def test_todo_checked_uppercase(self) -> None:
+        blocks = _markdown_to_blocks("- [X] Also done")
+        assert len(blocks) == 1
+        assert blocks[0]["to_do"]["checked"] is True
+
+    def test_blockquote(self) -> None:
+        blocks = _markdown_to_blocks("> This is a quote")
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "quote"
+        assert blocks[0]["quote"]["rich_text"][0]["text"]["content"] == "This is a quote"
+
+    def test_divider_dashes(self) -> None:
+        blocks = _markdown_to_blocks("---")
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "divider"
+
+    def test_divider_underscores(self) -> None:
+        blocks = _markdown_to_blocks("___")
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "divider"
+
+    def test_divider_asterisks(self) -> None:
+        blocks = _markdown_to_blocks("***")
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "divider"
+
+    def test_code_block(self) -> None:
+        md = "```python\nprint('hello')\n```"
+        blocks = _markdown_to_blocks(md)
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "code"
+        assert blocks[0]["code"]["language"] == "python"
+        assert blocks[0]["code"]["rich_text"][0]["text"]["content"] == "print('hello')"
+
+    def test_code_block_no_language(self) -> None:
+        md = "```\nsome code\n```"
+        blocks = _markdown_to_blocks(md)
+        assert len(blocks) == 1
+        assert blocks[0]["code"]["language"] == "plain text"
+
+    def test_code_block_multiline(self) -> None:
+        md = "```js\nconst x = 1;\nconst y = 2;\n```"
+        blocks = _markdown_to_blocks(md)
+        assert blocks[0]["code"]["rich_text"][0]["text"]["content"] == "const x = 1;\nconst y = 2;"
+
+    def test_mixed_content(self) -> None:
+        md = "# Title\n\nSome text\n\n- Item 1\n- Item 2\n\n> A quote\n\n---\n\n1. Numbered"
+        blocks = _markdown_to_blocks(md)
+        types = [b["type"] for b in blocks]
+        assert types == [
+            "heading_1",
+            "paragraph",
+            "bulleted_list_item",
+            "bulleted_list_item",
+            "quote",
+            "divider",
+            "numbered_list_item",
+        ]
+
+    def test_skips_blank_lines(self) -> None:
+        blocks = _markdown_to_blocks("\n\n\nHello\n\n\n")
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "paragraph"
+
+    def test_consecutive_paragraph_lines_merged(self) -> None:
+        blocks = _markdown_to_blocks("Line one\nLine two\nLine three")
+        assert len(blocks) == 1
+        assert "Line one\nLine two\nLine three" in blocks[0]["paragraph"]["rich_text"][0]["text"]["content"]
+
+    def test_paragraph_stops_at_heading(self) -> None:
+        blocks = _markdown_to_blocks("Text\n# Heading")
+        assert len(blocks) == 2
+        assert blocks[0]["type"] == "paragraph"
+        assert blocks[1]["type"] == "heading_1"
+
+
+# ---------------------------------------------------------------------------
+# NotionCreatePageParams validation
+# ---------------------------------------------------------------------------
+
+
+class TestNotionCreatePageParams:
+    def test_database_id_only(self) -> None:
+        params = NotionCreatePageParams(
+            database_id="db-123", properties={"Name": "Test"}
+        )
+        assert params.database_id == "db-123"
+        assert params.page_id is None
+
+    def test_page_id_only(self) -> None:
+        params = NotionCreatePageParams(
+            page_id="page-123", properties={"title": "Test"}
+        )
+        assert params.page_id == "page-123"
+        assert params.database_id is None
+
+    def test_both_raises(self) -> None:
+        with pytest.raises(ValueError, match="not both"):
+            NotionCreatePageParams(
+                database_id="db-123", page_id="page-123", properties={"Name": "Test"}
+            )
+
+    def test_neither_raises(self) -> None:
+        with pytest.raises(ValueError, match="required"):
+            NotionCreatePageParams(properties={"Name": "Test"})
+
+
+# ---------------------------------------------------------------------------
+# notion_create_page — child page under page
+# ---------------------------------------------------------------------------
+
+
+class TestNotionCreateChildPage:
+    async def test_child_page_under_page(self) -> None:
+        page = _make_page()
+        client = _mock_client()
+        client.pages.create.return_value = page
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_create_page(
+                page_id="parent-page-id",
+                properties={"title": "Child Page"},
+            )
+
+        assert result.success
+        create_kwargs = client.pages.create.call_args.kwargs
+        assert create_kwargs["parent"] == {"page_id": "parent-page-id"}
+        # Should have formatted the title property
+        assert "title" in create_kwargs["properties"]
+        title_rt = create_kwargs["properties"]["title"]["title"]
+        assert title_rt[0]["text"]["content"] == "Child Page"
+
+    async def test_child_page_with_name_key(self) -> None:
+        page = _make_page()
+        client = _mock_client()
+        client.pages.create.return_value = page
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_create_page(
+                page_id="parent-page-id",
+                properties={"Name": "Named Child"},
+            )
+
+        assert result.success
+        create_kwargs = client.pages.create.call_args.kwargs
+        title_rt = create_kwargs["properties"]["title"]["title"]
+        assert title_rt[0]["text"]["content"] == "Named Child"
+
+    async def test_child_page_missing_title(self) -> None:
+        with patch("src.tools.notion_tools._get_client", return_value=_mock_client()):
+            result = await notion_create_page(
+                page_id="parent-page-id",
+                properties={"Status": "Active"},
+            )
+
+        assert not result.success
+        assert "title" in result.error.lower()
+
+    async def test_child_page_with_content(self) -> None:
+        page = _make_page()
+        client = _mock_client()
+        client.pages.create.return_value = page
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_create_page(
+                page_id="parent-page-id",
+                properties={"title": "Child"},
+                content="# Heading\n\nBody text",
+            )
+
+        assert result.success
+        create_kwargs = client.pages.create.call_args.kwargs
+        assert "children" in create_kwargs
+        assert create_kwargs["children"][0]["type"] == "heading_1"
+
+
+# ---------------------------------------------------------------------------
+# _build_schema_payload
+# ---------------------------------------------------------------------------
+
+
+class TestBuildSchemaPayload:
+    def test_simple_types(self) -> None:
+        schema = _build_schema_payload({
+            "Name": "title",
+            "Notes": "rich_text",
+            "Count": "number",
+            "Due": "date",
+        })
+        assert schema["Name"] == {"title": {}}
+        assert schema["Notes"] == {"rich_text": {}}
+        assert schema["Count"] == {"number": {}}
+        assert schema["Due"] == {"date": {}}
+
+    def test_select_with_options(self) -> None:
+        schema = _build_schema_payload({
+            "Status": {"select": ["Todo", "Done"]},
+        })
+        assert schema["Status"] == {
+            "select": {"options": [{"name": "Todo"}, {"name": "Done"}]},
+        }
+
+    def test_multi_select_with_options(self) -> None:
+        schema = _build_schema_payload({
+            "Tags": {"multi_select": ["Red", "Blue"]},
+        })
+        assert schema["Tags"] == {
+            "multi_select": {"options": [{"name": "Red"}, {"name": "Blue"}]},
+        }
+
+    def test_status_with_options(self) -> None:
+        schema = _build_schema_payload({
+            "Status": {"status": ["Not Started", "In Progress", "Done"]},
+        })
+        assert schema["Status"]["status"]["options"][0]["name"] == "Not Started"
+
+    def test_empty_type_dict(self) -> None:
+        schema = _build_schema_payload({"Check": {"checkbox": {}}})
+        assert schema["Check"] == {"checkbox": {}}
+
+    def test_fallback_to_rich_text(self) -> None:
+        schema = _build_schema_payload({"Weird": 12345})
+        assert schema["Weird"] == {"rich_text": {}}
+
+
+# ---------------------------------------------------------------------------
+# notion_create_database
+# ---------------------------------------------------------------------------
+
+
+class TestNotionCreateDatabase:
+    async def test_basic_create(self) -> None:
+        client = _mock_client()
+        client.request.return_value = {
+            "id": "new-db-id",
+            "title": [{"plain_text": "My DB"}],
+            "url": "https://notion.so/new-db-id",
+            "properties": {
+                "Name": {"type": "title"},
+                "Status": {"type": "select"},
+            },
+        }
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_create_database(
+                page_id="parent-page",
+                title="My DB",
+                properties={"Name": "title", "Status": {"select": ["Todo", "Done"]}},
+            )
+
+        assert result.success
+        assert result.data["id"] == "new-db-id"
+        assert result.data["title"] == "My DB"
+
+        # Verify API call
+        call_kwargs = client.request.call_args.kwargs
+        assert call_kwargs["path"] == "databases"
+        assert call_kwargs["method"] == "POST"
+        body = call_kwargs["body"]
+        assert body["parent"] == {"page_id": "parent-page"}
+        assert body["is_inline"] is True
+
+    async def test_auto_adds_title_property(self) -> None:
+        client = _mock_client()
+        client.request.return_value = {
+            "id": "db-id",
+            "title": [{"plain_text": "DB"}],
+            "url": "",
+            "properties": {"Name": {"type": "title"}, "Count": {"type": "number"}},
+        }
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            # No title property in schema — should auto-add "Name"
+            await notion_create_database(
+                page_id="parent",
+                title="DB",
+                properties={"Count": "number"},
+            )
+
+        body = client.request.call_args.kwargs["body"]
+        assert "Name" in body["properties"]
+        assert "title" in body["properties"]["Name"]
+
+    async def test_does_not_duplicate_title(self) -> None:
+        client = _mock_client()
+        client.request.return_value = {
+            "id": "db-id",
+            "title": [{"plain_text": "DB"}],
+            "url": "",
+            "properties": {"Task": {"type": "title"}},
+        }
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            await notion_create_database(
+                page_id="parent",
+                title="DB",
+                properties={"Task": "title"},
+            )
+
+        body = client.request.call_args.kwargs["body"]
+        # Should NOT have added an extra "Name" since "Task" is already title
+        assert "Name" not in body["properties"]
+        assert "Task" in body["properties"]
+
+    async def test_full_page_database(self) -> None:
+        client = _mock_client()
+        client.request.return_value = {
+            "id": "db-id",
+            "title": [{"plain_text": "DB"}],
+            "url": "",
+            "properties": {},
+        }
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            await notion_create_database(
+                page_id="parent",
+                title="DB",
+                properties={"Name": "title"},
+                is_inline=False,
+            )
+
+        body = client.request.call_args.kwargs["body"]
+        assert body["is_inline"] is False
+
+    async def test_api_error(self) -> None:
+        exc = Exception("error")
+        exc.message = "Cannot create"  # type: ignore[attr-defined]
+        client = _mock_client()
+        client.request.side_effect = exc
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_create_database(
+                page_id="parent",
+                title="DB",
+                properties={"Name": "title"},
+            )
+
+        assert not result.success
+
+    async def test_missing_config(self) -> None:
+        with patch("src.tools.notion_tools._get_client", side_effect=ValueError("no key")):
+            result = await notion_create_database(
+                page_id="parent",
+                title="DB",
+                properties={"Name": "title"},
             )
         assert not result.success

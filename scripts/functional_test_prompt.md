@@ -223,6 +223,14 @@ Skip create_contact and update_contact — we don't want to create or modify rea
 
 13.11. **notion_archive_page** — Archive the page from 13.4. (Requires confirmation.)
 
+13.12. **notion_create_page** (child page) — Create a child page under any existing page (not a database). Use page_id instead of database_id. Title it "Nella Child Page Test" with body content using markdown: a heading, a bullet list, and a paragraph. (Requires confirmation.)
+
+13.13. **notion_read_page_content** — Read the child page from 13.12. Confirm the heading and bullets appear in the body.
+
+13.14. **notion_create_database** — Create an inline database inside the child page from 13.12 with title "Test DB" and properties: Name (title), Status (select: Todo, Done), Due Date (date). (Requires confirmation.)
+
+13.15. **notion_archive_page** — Archive the child page from 13.12 to clean up. (Requires confirmation.)
+
 ## 14. Browser
 
 14.1. **browse_web** — Browse https://example.com with task "Read the page title and main content." This is a safe, stable URL that should return quickly.
@@ -237,7 +245,7 @@ Skip create_contact and update_contact — we don't want to create or modify rea
 
 Skip linkedin_create_post and linkedin_post_comment — these post publicly and can't be undone. Just confirm whether the LinkedIn integration is enabled or disabled, and report that.
 
-Note: If Notion is disabled (NOTION_API_KEY not set), report scenarios 13.1-13.11 as "DISABLED" and move on.
+Note: If Notion is disabled (NOTION_API_KEY not set), report scenarios 13.1-13.15 as "DISABLED" and move on.
 Note: If browser automation is disabled (BROWSER_ENABLED=false), report scenario 14.1 as "DISABLED" and move on.
 Note: If OpenAI image generation is disabled (OPENAI_API_KEY not set), report scenarios 15.1-15.2 as "DISABLED" and move on.
 

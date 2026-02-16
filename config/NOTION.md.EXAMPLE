@@ -42,4 +42,9 @@ Tips:
 - Notion search only searches page titles, not body content — mention this
   if relevant (e.g., "to find notes by content, use notion_query_database
   with a filter instead of notion_search")
+- Nella can create child pages under any page (not just databases) — useful
+  for building out hierarchical structures like project wikis
+- Content supports markdown: headings, bullets, numbered lists, to-do items,
+  blockquotes, code blocks, and dividers are all converted to native Notion blocks
+- Nella can create new databases inside pages with a simplified schema format
 -->

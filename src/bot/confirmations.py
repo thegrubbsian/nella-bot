@@ -397,6 +397,8 @@ def _fmt_notion_create_page(inp: dict[str, Any]) -> str:
             break
     if inp.get("database_id"):
         lines.append(f"Database: ...{inp['database_id'][-8:]}")
+    elif inp.get("page_id"):
+        lines.append(f"Parent page: ...{inp['page_id'][-8:]}")
     if inp.get("content"):
         lines.append(f"Content: {_trunc(inp['content'])}")
     return "\n".join(lines)
@@ -431,6 +433,20 @@ def _fmt_notion_append_content(inp: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _fmt_notion_create_database(inp: dict[str, Any]) -> str:
+    lines = ["Create Notion database"]
+    if inp.get("title"):
+        lines.append(f"Title: {inp['title']}")
+    if inp.get("page_id"):
+        lines.append(f"Parent page: ...{inp['page_id'][-8:]}")
+    props = inp.get("properties", {})
+    if props:
+        lines.append(f"Properties: {', '.join(props.keys())}")
+    if inp.get("is_inline") is False:
+        lines.append("Type: full-page")
+    return "\n".join(lines)
+
+
 _TOOL_FORMATTERS: dict[str, Any] = {
     "send_email": _fmt_send_email,
     "reply_to_email": _fmt_reply_to_email,
@@ -458,6 +474,7 @@ _TOOL_FORMATTERS: dict[str, Any] = {
     "notion_update_page": _fmt_notion_update_page,
     "notion_archive_page": _fmt_notion_archive_page,
     "notion_append_content": _fmt_notion_append_content,
+    "notion_create_database": _fmt_notion_create_database,
 }
 
 
