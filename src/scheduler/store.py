@@ -32,6 +32,14 @@ CREATE TABLE IF NOT EXISTS scheduled_tasks (
 )
 """
 
+# Explicit column list for SELECT queries.  Using SELECT * breaks when
+# the 'model' column was added via ALTER TABLE (appended at the end)
+# instead of being in the CREATE TABLE position (index 7).
+_COLUMNS = (
+    "id, name, task_type, schedule, action, description, "
+    "notification_channel, model, active, created_at, last_run_at, next_run_at"
+)
+
 
 class TaskStore:
     """Persists scheduled tasks in SQLite / Turso.
@@ -100,7 +108,7 @@ class TaskStore:
         db = await self._connect()
         try:
             cursor = await db.execute(
-                "SELECT * FROM scheduled_tasks WHERE id = ?", (task_id,)
+                f"SELECT {_COLUMNS} FROM scheduled_tasks WHERE id = ?", (task_id,)
             )
             row = await cursor.fetchone()
             return ScheduledTask.from_row(row) if row else None
@@ -112,7 +120,7 @@ class TaskStore:
         db = await self._connect()
         try:
             cursor = await db.execute(
-                "SELECT * FROM scheduled_tasks WHERE active = 1 ORDER BY created_at"
+                f"SELECT {_COLUMNS} FROM scheduled_tasks WHERE active = 1 ORDER BY created_at"
             )
             rows = await cursor.fetchall()
             return [ScheduledTask.from_row(row) for row in rows]
@@ -140,8 +148,8 @@ class TaskStore:
         try:
             pattern = f"%{query}%"
             cursor = await db.execute(
-                """
-                SELECT * FROM scheduled_tasks
+                f"""
+                SELECT {_COLUMNS} FROM scheduled_tasks
                 WHERE active = 1 AND (name LIKE ? OR description LIKE ?)
                 ORDER BY created_at
                 """,
