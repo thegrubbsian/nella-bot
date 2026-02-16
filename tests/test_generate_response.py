@@ -1,4 +1,4 @@
-"""Tests for generate_response() — specifically text retraction on confirmation rounds."""
+"""Tests for generate_response() — text retraction and error handling."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import anthropic
 
 from src.llm.client import generate_response
 from src.tools.base import ToolResult
@@ -234,3 +236,147 @@ async def test_text_not_retracted_for_non_confirmation_tools() -> None:
     assert "Here are your tasks." in full_streamed
     assert "Let me look that up." in result
     assert "Here are your tasks." in result
+
+
+# ---------------------------------------------------------------------------
+# Content filter handling
+# ---------------------------------------------------------------------------
+
+
+class _ContentFilterStream:
+    """Stream that yields some text then raises a content filter error."""
+
+    def __init__(self, text_before_error: list[str]) -> None:
+        self._text_before = text_before_error
+
+    @property
+    async def text_stream(self):
+        for chunk in self._text_before:
+            yield chunk
+        raise anthropic.APIStatusError(
+            message="Output blocked by content filtering policy",
+            response=MagicMock(
+                status_code=400,
+                headers={},
+                json=MagicMock(return_value={
+                    "type": "error",
+                    "error": {
+                        "type": "invalid_request_error",
+                        "message": "Output blocked by content filtering policy",
+                    },
+                }),
+            ),
+            body={
+                "type": "error",
+                "error": {
+                    "type": "invalid_request_error",
+                    "message": "Output blocked by content filtering policy",
+                },
+            },
+        )
+
+
+async def test_content_filter_returns_friendly_message() -> None:
+    """Content filter error mid-stream returns a user-friendly message."""
+    client = MagicMock()
+    stream_obj = _ContentFilterStream(["Partial text"])
+
+    @asynccontextmanager
+    async def _stream(**kwargs):
+        yield stream_obj
+
+    client.messages.stream = _stream
+
+    mock_registry = MagicMock()
+    mock_registry.get_schemas.return_value = []
+
+    streamed: list[str] = []
+
+    async def on_text_delta(text: str) -> None:
+        streamed.append(text)
+
+    with (
+        patch("src.llm.client._get_client", return_value=client),
+        patch("src.llm.client.build_system_prompt", new_callable=AsyncMock, return_value="system"),
+        patch("src.llm.client.registry", mock_registry),
+    ):
+        result = await generate_response(
+            [{"role": "user", "content": "tell me something"}],
+            on_text_delta=on_text_delta,
+        )
+
+    assert "content filter" in result.lower()
+    assert "rephras" in result.lower()
+    # Partial text is preserved
+    assert "Partial text" in result
+    # The friendly message was also streamed
+    assert any("content filter" in s.lower() for s in streamed)
+
+
+async def test_content_filter_no_partial_text() -> None:
+    """Content filter with no text streamed yet returns just the message."""
+    client = MagicMock()
+    stream_obj = _ContentFilterStream([])
+
+    @asynccontextmanager
+    async def _stream(**kwargs):
+        yield stream_obj
+
+    client.messages.stream = _stream
+
+    mock_registry = MagicMock()
+    mock_registry.get_schemas.return_value = []
+
+    with (
+        patch("src.llm.client._get_client", return_value=client),
+        patch("src.llm.client.build_system_prompt", new_callable=AsyncMock, return_value="system"),
+        patch("src.llm.client.registry", mock_registry),
+    ):
+        result = await generate_response(
+            [{"role": "user", "content": "something"}],
+        )
+
+    assert "content filter" in result.lower()
+    assert result.startswith("My response")
+
+
+async def test_non_content_filter_api_error_reraises() -> None:
+    """Non-content-filter APIStatusError still propagates."""
+    client = MagicMock()
+
+    class _ErrorStream:
+        @property
+        async def text_stream(self):
+            raise anthropic.APIStatusError(
+                message="Rate limit exceeded",
+                response=MagicMock(status_code=429, headers={}),
+                body={
+                    "type": "error",
+                    "error": {"type": "rate_limit_error", "message": "Rate limit exceeded"},
+                },
+            )
+            yield  # make it a generator  # noqa: RET503
+
+    @asynccontextmanager
+    async def _stream(**kwargs):
+        yield _ErrorStream()
+
+    client.messages.stream = _stream
+
+    mock_registry = MagicMock()
+    mock_registry.get_schemas.return_value = []
+
+    with (
+        patch("src.llm.client._get_client", return_value=client),
+        patch("src.llm.client.build_system_prompt", new_callable=AsyncMock, return_value="system"),
+        patch("src.llm.client.registry", mock_registry),
+    ):
+        try:
+            await generate_response(
+                [{"role": "user", "content": "hi"}],
+            )
+            raised = False
+        except anthropic.APIStatusError:
+            raised = True
+
+    assert raised, "Non-content-filter APIStatusError should propagate"

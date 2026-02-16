@@ -141,23 +141,39 @@ async def generate_response(
         # Save length so we can retract text if this round has confirmation tools.
         pre_round_len = len(full_text)
 
-        async with client.messages.stream(**kwargs) as stream:
-            first_chunk = True
-            async for text in stream.text_stream:
-                # Insert a visual separator between streaming rounds so
-                # text from successive tool-calling rounds doesn't run
-                # together into an unreadable blob.
-                if first_chunk and round_num > 0 and full_text and not full_text.endswith("\n"):
-                    full_text += "\n\n"
+        try:
+            async with client.messages.stream(**kwargs) as stream:
+                first_chunk = True
+                async for text in stream.text_stream:
+                    # Insert a visual separator between streaming rounds so
+                    # text from successive tool-calling rounds doesn't run
+                    # together into an unreadable blob.
+                    if first_chunk and round_num > 0 and full_text and not full_text.endswith("\n"):
+                        full_text += "\n\n"
+                        if on_text_delta:
+                            await on_text_delta("\n\n")
+                        first_chunk = False
+                    full_text += text
                     if on_text_delta:
-                        await on_text_delta("\n\n")
+                        await on_text_delta(text)
                     first_chunk = False
-                full_text += text
-                if on_text_delta:
-                    await on_text_delta(text)
-                first_chunk = False
 
-            response = await stream.get_final_message()
+                response = await stream.get_final_message()
+        except anthropic.APIStatusError as exc:
+            if "content filtering" in str(exc).lower():
+                logger.warning(
+                    "Response blocked by content filter (round %d)", round_num + 1
+                )
+                msg = (
+                    "My response was blocked by a content filter. "
+                    "Could you try rephrasing?"
+                )
+                if on_text_delta:
+                    if full_text:
+                        await on_text_delta("\n\n")
+                    await on_text_delta(msg)
+                return f"{full_text}\n\n{msg}".strip()
+            raise
 
         tool_use_blocks = [b for b in response.content if b.type == "tool_use"]
 
