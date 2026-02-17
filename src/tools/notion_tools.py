@@ -920,7 +920,7 @@ async def _read_blocks_recursive(
     ),
     category="notion",
     params_model=NotionCreatePageParams,
-    requires_confirmation=True,
+
 )
 async def notion_create_page(
     properties: dict[str, Any],
@@ -971,7 +971,7 @@ async def notion_create_page(
     ),
     category="notion",
     params_model=NotionUpdatePageParams,
-    requires_confirmation=True,
+
 )
 async def notion_update_page(
     page_id: str,
@@ -999,7 +999,7 @@ async def notion_update_page(
     ),
     category="notion",
     params_model=NotionArchivePageParams,
-    requires_confirmation=True,
+
 )
 async def notion_archive_page(page_id: str) -> ToolResult:
     try:
@@ -1022,7 +1022,7 @@ async def notion_archive_page(page_id: str) -> ToolResult:
     ),
     category="notion",
     params_model=NotionAppendContentParams,
-    requires_confirmation=True,
+
 )
 async def notion_append_content(
     page_id: str,
@@ -1111,7 +1111,7 @@ async def notion_list_blocks(
     ),
     category="notion",
     params_model=NotionDeleteBlockParams,
-    requires_confirmation=True,
+
 )
 async def notion_delete_block(block_id: str) -> ToolResult:
     try:
@@ -1140,7 +1140,7 @@ async def notion_delete_block(block_id: str) -> ToolResult:
     ),
     category="notion",
     params_model=NotionUpdateBlockParams,
-    requires_confirmation=True,
+
 )
 async def notion_update_block(
     block_id: str,
@@ -1238,7 +1238,7 @@ class NotionCreateDatabaseParams(ToolParams):
     ),
     category="notion",
     params_model=NotionCreateDatabaseParams,
-    requires_confirmation=True,
+
 )
 async def notion_create_database(
     page_id: str,

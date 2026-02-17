@@ -73,12 +73,14 @@ def _serialize_content(content: list[Any]) -> list[dict[str, Any]]:
         if block.type == "text":
             result.append({"type": "text", "text": block.text})
         elif block.type == "tool_use":
-            result.append({
-                "type": "tool_use",
-                "id": block.id,
-                "name": block.name,
-                "input": block.input,
-            })
+            result.append(
+                {
+                    "type": "tool_use",
+                    "id": block.id,
+                    "name": block.name,
+                    "input": block.input,
+                }
+            )
     return result
 
 
@@ -93,9 +95,9 @@ async def generate_response(
 
     Streams text to the caller via ``on_text_delta``. When Claude calls
     tools, they are executed automatically and the results fed back.
-    Tools marked ``requires_confirmation`` will invoke ``on_confirm``
-    first; if the callback returns False (or is not provided), the tool
-    call is denied.
+    Tools configured for confirmation in ``TOOL_CONFIRMATIONS.toml``
+    will invoke ``on_confirm`` first; if the callback returns False
+    (or is not provided), the tool call is denied.
 
     Text from rounds that contain confirmation-requiring tools is
     retracted from the return value (since Claude writes it before
@@ -161,13 +163,8 @@ async def generate_response(
                 response = await stream.get_final_message()
         except anthropic.APIStatusError as exc:
             if "content filtering" in str(exc).lower():
-                logger.warning(
-                    "Response blocked by content filter (round %d)", round_num + 1
-                )
-                msg = (
-                    "My response was blocked by a content filter. "
-                    "Could you try rephrasing?"
-                )
+                logger.warning("Response blocked by content filter (round %d)", round_num + 1)
+                msg = "My response was blocked by a content filter. Could you try rephrasing?"
                 if on_text_delta:
                     if full_text:
                         await on_text_delta("\n\n")
@@ -186,10 +183,7 @@ async def generate_response(
         # The next round will produce correct text based on actual results.
         # (The text was already streamed to on_text_delta, but the handler's
         # final edit_text(result_text) will replace it with the clean version.)
-        has_confirmation = any(
-            (td := registry.get(b.name)) and td.requires_confirmation
-            for b in tool_use_blocks
-        )
+        has_confirmation = any(registry.requires_confirmation(b.name) for b in tool_use_blocks)
         if has_confirmation:
             full_text = full_text[:pre_round_len]
 
@@ -201,10 +195,12 @@ async def generate_response(
         )
 
         # Append the assistant turn (with tool_use blocks) to the loop
-        loop_messages.append({
-            "role": "assistant",
-            "content": _serialize_content(response.content),
-        })
+        loop_messages.append(
+            {
+                "role": "assistant",
+                "content": _serialize_content(response.content),
+            }
+        )
 
         # Execute each tool call
         tool_results: list[dict[str, Any]] = []
@@ -212,7 +208,7 @@ async def generate_response(
             tool_def = registry.get(block.name)
 
             # Confirmation gate
-            if tool_def and tool_def.requires_confirmation:
+            if tool_def and registry.requires_confirmation(block.name):
                 approved = False
                 if on_confirm:
                     pending = PendingToolCall(
@@ -224,24 +220,26 @@ async def generate_response(
                     approved = await on_confirm(pending)
 
                 if not approved:
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": json.dumps({"error": "User denied this action."}),
-                        "is_error": True,
-                    })
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": json.dumps({"error": "User denied this action."}),
+                            "is_error": True,
+                        }
+                    )
                     continue
 
-            result = await registry.execute(
-                block.name, block.input, msg_context=msg_context
-            )
+            result = await registry.execute(block.name, block.input, msg_context=msg_context)
 
-            tool_results.append({
-                "type": "tool_result",
-                "tool_use_id": block.id,
-                "content": result.to_content(),
-                "is_error": not result.success,
-            })
+            tool_results.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": result.to_content(),
+                    "is_error": not result.success,
+                }
+            )
 
         loop_messages.append({"role": "user", "content": tool_results})
 

@@ -10,6 +10,8 @@ credentials.json
 # Config files (personal — use .EXAMPLE files as templates)
 config/*.md
 !config/*.md.EXAMPLE
+config/*.toml
+!config/*.toml.EXAMPLE
 
 # Python
 __pycache__/

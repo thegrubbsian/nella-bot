@@ -172,7 +172,7 @@ class WipeFilesParams(ToolParams):
     ),
     category="files",
     params_model=WipeFilesParams,
-    requires_confirmation=True,
+
 )
 async def wipe_files() -> ToolResult:
     scratch = ScratchSpace.get()

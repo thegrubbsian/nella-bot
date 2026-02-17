@@ -1,8 +1,8 @@
 """Telegram inline-keyboard confirmation for tool calls.
 
-When Claude invokes a tool that has ``requires_confirmation=True``, the
-bot sends an inline-keyboard prompt (Approve / Deny) and waits for the
-user to tap before allowing execution.
+When Claude invokes a tool configured for confirmation in
+``TOOL_CONFIRMATIONS.toml``, the bot sends an inline-keyboard prompt
+(Approve / Deny) and waits for the user to tap before allowing execution.
 """
 
 from __future__ import annotations

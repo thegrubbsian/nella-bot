@@ -307,7 +307,7 @@ class SendEmailParams(GoogleToolParams):
     description="Compose and send an email.",
     category=_CATEGORY,
     params_model=SendEmailParams,
-    requires_confirmation=True,
+
 )
 async def send_email(
     to: str,
@@ -362,7 +362,7 @@ class ReplyToEmailParams(GoogleToolParams):
     description="Reply to an existing email, maintaining the thread.",
     category=_CATEGORY,
     params_model=ReplyToEmailParams,
-    requires_confirmation=True,
+
 )
 async def reply_to_email(
     message_id: str,
@@ -421,7 +421,7 @@ class ArchiveEmailParams(GoogleToolParams):
     description="Archive a single email (remove from inbox).",
     category=_CATEGORY,
     params_model=ArchiveEmailParams,
-    requires_confirmation=True,
+
 )
 async def archive_email(message_id: str, account: str | None = None) -> ToolResult:
     service = _auth(account).gmail()
@@ -448,7 +448,7 @@ class ArchiveEmailsParams(GoogleToolParams):
     description="Archive multiple emails at once (remove from inbox).",
     category=_CATEGORY,
     params_model=ArchiveEmailsParams,
-    requires_confirmation=True,
+
 )
 async def archive_emails(message_ids: list[str], account: str | None = None) -> ToolResult:
     service = _auth(account).gmail()
@@ -481,7 +481,7 @@ class TrashEmailParams(GoogleToolParams):
     ),
     category=_CATEGORY,
     params_model=TrashEmailParams,
-    requires_confirmation=True,
+
 )
 async def trash_email(message_id: str, account: str | None = None) -> ToolResult:
     service = _auth(account).gmail()
@@ -763,7 +763,7 @@ class DeleteLabelParams(GoogleToolParams):
     ),
     category=_CATEGORY,
     params_model=DeleteLabelParams,
-    requires_confirmation=True,
+
 )
 async def delete_label(
     label_name: str, account: str | None = None

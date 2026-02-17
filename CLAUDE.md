@@ -51,9 +51,9 @@ tests/            # pytest + pytest-asyncio
 - Environment variables in `.env`, never committed.
 - All database access through `libsql` (wrapped async in `src/db.py`).
 - Pydantic models for all structured data crossing boundaries.
-- Tools that perform destructive or externally-visible actions should set
-  `requires_confirmation=True`. This triggers an inline keyboard confirmation
-  prompt in Telegram before execution. See `src/bot/confirmations.py`.
+- Tool confirmation is configured via `config/TOOL_CONFIRMATIONS.toml` (not
+  in code). Copy `.EXAMPLE` to `.toml` and set tools to `true`/`false`. Changes
+  take effect immediately (no restart). See `src/bot/confirmations.py`.
 - Google tools use `GoogleToolParams` (from `src/tools/base.py`) as their param
   base class. This adds an optional `account` parameter to every Google tool.
   Named accounts are configured via `GOOGLE_ACCOUNTS` in `.env`, with token

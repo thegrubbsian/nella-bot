@@ -1,0 +1,130 @@
+# Tool Confirmation Settings
+#
+# Every tool MUST be listed here. Controls which tools prompt
+# Approve/Deny before executing. Unlisted tools will error.
+# Copy to TOOL_CONFIRMATIONS.toml and customize.
+# Changes take effect immediately (no restart needed).
+
+[tools]
+
+# --- Gmail (18) ---
+search_emails = false
+read_email = false
+read_thread = false
+send_email = true
+reply_to_email = true
+archive_email = true
+archive_emails = true
+trash_email = true
+mark_as_read = false
+mark_as_unread = false
+star_email = false
+unstar_email = false
+add_label = false
+remove_label = false
+create_label = false
+delete_label = true
+list_labels = false
+download_email_attachment = false
+
+# --- Calendar (7) ---
+list_events = false
+get_todays_schedule = false
+create_event = true
+update_event = true
+delete_event = true
+get_events_by_date_range = false
+check_availability = false
+
+# --- Drive (7) ---
+search_files = false
+list_recent_files = false
+list_folder = false
+read_file = false
+delete_file = true
+download_drive_file = false
+upload_to_drive = true
+
+# --- Docs (4) ---
+read_document = false
+create_document = true
+update_document = true
+append_to_document = true
+
+# --- People (6) ---
+search_contacts = false
+get_contact = false
+create_contact = true
+update_contact = true
+update_contact_notes = false
+search_contact_notes = false
+
+# --- Notion (14) ---
+notion_search = false
+notion_list_databases = false
+notion_get_database = false
+notion_query_database = false
+notion_get_page = false
+notion_read_page_content = false
+notion_create_page = true
+notion_update_page = true
+notion_archive_page = true
+notion_append_content = true
+notion_list_blocks = false
+notion_delete_block = true
+notion_update_block = true
+notion_create_database = true
+
+# --- GitHub (8) ---
+github_get_repo = false
+github_list_directory = false
+github_read_file = false
+github_search_code = false
+github_list_commits = false
+github_get_commit = false
+github_list_issues = false
+github_get_issue = false
+
+# --- Scheduler (4) ---
+schedule_task = true
+list_scheduled_tasks = false
+cancel_scheduled_task = true
+update_scheduled_task = false
+
+# --- Memory (4) ---
+remember_this = false
+forget_this = false
+recall = false
+save_reference = false
+
+# --- Files (6) ---
+scratch_write = false
+scratch_read = false
+scratch_list = false
+scratch_delete = false
+scratch_wipe = true
+scratch_download = false
+
+# --- Research (3) ---
+web_search = false
+read_webpage = false
+browse_web = false
+
+# --- LinkedIn (2) ---
+linkedin_create_post = true
+linkedin_post_comment = true
+
+# --- Observability (1) ---
+query_logs = false
+
+# --- Image (1) ---
+analyze_image = false
+
+# --- Creative (1) ---
+generate_image = false
+
+# --- Utility (4) ---
+get_current_datetime = false
+save_note = false
+search_notes = false
+delete_note = true

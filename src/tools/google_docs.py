@@ -108,7 +108,7 @@ class CreateDocumentParams(GoogleToolParams):
     description="Create a new Google Docs document.",
     category=_CATEGORY,
     params_model=CreateDocumentParams,
-    requires_confirmation=True,
+
 )
 async def create_document(title: str, content: str = "", account: str | None = None) -> ToolResult:
     service = _auth(account).docs()
@@ -156,7 +156,7 @@ class UpdateDocumentParams(GoogleToolParams):
     description="Replace the entire content of a Google Docs document.",
     category=_CATEGORY,
     params_model=UpdateDocumentParams,
-    requires_confirmation=True,
+
 )
 async def update_document(document_id: str, content: str, account: str | None = None) -> ToolResult:
     service = _auth(account).docs()
@@ -207,7 +207,7 @@ class AppendToDocumentParams(GoogleToolParams):
     description="Append content to the end of a Google Docs document.",
     category=_CATEGORY,
     params_model=AppendToDocumentParams,
-    requires_confirmation=True,
+
 )
 async def append_to_document(
     document_id: str, content: str, account: str | None = None

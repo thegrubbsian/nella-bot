@@ -207,7 +207,7 @@ Claude has access to 90 tools organized into categories. When Claude decides it 
 
 Tools opt into receiving `MessageContext` by adding it to their function signature — the registry uses introspection to detect this. Existing tools don't need any changes.
 
-**Tool confirmation.** Tools that perform destructive or externally-visible actions (sending email, deleting files, creating calendar events, etc.) set `requires_confirmation=True`. When Claude calls one of these tools, the bot sends a separate Telegram message with an inline keyboard showing **Approve** and **Deny** buttons. The user has 120 seconds to tap; if they don't, the action is automatically denied. Any text Claude generated alongside the tool call is retracted from the final response — since Claude writes that text before knowing the outcome, it often claims premature success. After the tool executes, Claude generates a fresh response reflecting the actual result.
+**Tool confirmation.** Tools that perform destructive or externally-visible actions (sending email, deleting files, creating calendar events, etc.) are configured for confirmation in `config/TOOL_CONFIRMATIONS.toml`. When Claude calls one of these tools, the bot sends a separate Telegram message with an inline keyboard showing **Approve** and **Deny** buttons. The user has 120 seconds to tap; if they don't, the action is automatically denied. Any text Claude generated alongside the tool call is retracted from the final response — since Claude writes that text before knowing the outcome, it often claims premature success. After the tool executes, Claude generates a fresh response reflecting the actual result. You can change which tools require confirmation by editing the TOML file — changes take effect immediately without restarting.
 
 ### Configuration Files
 
@@ -221,8 +221,9 @@ The `config/` directory contains markdown files that shape Nella's behavior:
 | `MEMORY.md` | Explicit long-term facts you want Nella to always know | Human-editable memory store. Edit directly when you want to add/remove persistent facts. |
 | `MEMORY_RULES.md` | Rules for the automatic memory extraction system | Controls what the background extraction picks up. Change this if Nella is remembering too much or too little. |
 | `NOTION.md` | Notion database IDs, schemas, and usage hints | Loaded when `NOTION_API_KEY` is set. Tells Nella which databases exist and how to use them. |
+| `TOOL_CONFIRMATIONS.toml` | Per-tool confirmation toggle (true/false) | Read on every tool call. Controls which tools show Approve/Deny before executing. |
 
-The actual `.md` files are gitignored (they contain personal data). The repo ships `.md.EXAMPLE` templates — copy them to get started:
+The actual `.md` and `.toml` files are gitignored (they contain personal data). The repo ships `.EXAMPLE` templates — copy them to get started:
 
 ```bash
 for f in config/*.md.EXAMPLE; do cp "$f" "${f%.EXAMPLE}"; done
@@ -313,8 +314,9 @@ nellabot/
 │   ├── TOOLS.md.EXAMPLE             # Tool usage preferences and disambiguation (template)
 │   ├── MEMORY.md.EXAMPLE            # Explicit long-term facts (template)
 │   ├── MEMORY_RULES.md.EXAMPLE      # Auto-extraction rules (template)
-│   └── NOTION.md.EXAMPLE            # Notion database IDs and schema hints (template)
-│   # Copy .EXAMPLE → .md and customize. Actual .md files are gitignored.
+│   ├── NOTION.md.EXAMPLE            # Notion database IDs and schema hints (template)
+│   └── TOOL_CONFIRMATIONS.toml.EXAMPLE  # Per-tool confirmation toggle (template)
+│   # Copy .EXAMPLE → .md/.toml and customize. Actual .md/.toml files are gitignored.
 │
 ├── tests/                           # 920+ tests
 │   ├── test_google_*.py             # Google auth + integrations (6 files)
@@ -645,7 +647,7 @@ from src.tools import memory_tools, utility, my_tool  # noqa: F401
 
 That's it. The `@registry.tool()` decorator runs when the module is imported, which registers the tool. Claude will see it on the next message.
 
-If the tool performs a destructive or externally-visible action (sends messages, creates/deletes resources, etc.), add `requires_confirmation=True` to the decorator. This makes the bot prompt the user with inline Approve/Deny buttons before executing.
+If the tool performs a destructive or externally-visible action (sends messages, creates/deletes resources, etc.), add it to `config/TOOL_CONFIRMATIONS.toml` with `= true`. This makes the bot prompt the user with inline Approve/Deny buttons before executing. Every tool must be listed in the TOML file — the drift test will catch any omissions.
 
 ### Accessing MessageContext (optional)
 

@@ -5,7 +5,9 @@ from __future__ import annotations
 import inspect
 import logging
 import time
+import tomllib
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from src.tools.base import BaseTool, ToolParams, ToolResult
@@ -17,6 +19,22 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+_CONFIRMATIONS_PATH = _CONFIG_DIR / "TOOL_CONFIRMATIONS.toml"
+
+
+def _load_confirmation_config() -> dict[str, bool]:
+    """Read tool confirmation settings from TOML config."""
+    if not _CONFIRMATIONS_PATH.exists():
+        return {}
+    try:
+        with _CONFIRMATIONS_PATH.open("rb") as f:
+            data = tomllib.load(f)
+        return {k: bool(v) for k, v in data.get("tools", {}).items()}
+    except Exception:
+        logger.warning("Failed to parse %s", _CONFIRMATIONS_PATH, exc_info=True)
+        return {}
+
 
 @dataclass
 class ToolDef:
@@ -27,7 +45,6 @@ class ToolDef:
     category: str
     handler: Callable[..., Awaitable[ToolResult]]
     params_model: type[ToolParams] | None = None
-    requires_confirmation: bool = False
 
 
 class ToolRegistry:
@@ -63,7 +80,6 @@ class ToolRegistry:
         description: str,
         category: str,
         params_model: type[ToolParams] | None = None,
-        requires_confirmation: bool = False,
     ) -> Callable:
         """Decorator to register an async function as a tool."""
 
@@ -78,7 +94,6 @@ class ToolRegistry:
                 category=category,
                 handler=fn,
                 params_model=params_model,
-                requires_confirmation=requires_confirmation,
             )
             return fn
 
@@ -92,8 +107,23 @@ class ToolRegistry:
             category=tool_instance.category,
             handler=tool_instance.execute,
             params_model=tool_instance.params_model,
-            requires_confirmation=tool_instance.requires_confirmation,
         )
+
+    def requires_confirmation(self, name: str) -> bool:
+        """Check if a tool requires user confirmation before executing.
+
+        Reads config/TOOL_CONFIRMATIONS.toml on every call so changes
+        take effect without restart. If the tool is not listed, logs a
+        warning and returns True (safe default).
+        """
+        config = _load_confirmation_config()
+        if name in config:
+            return config[name]
+        logger.warning(
+            "Tool '%s' not listed in TOOL_CONFIRMATIONS.toml — defaulting to confirmation required",
+            name,
+        )
+        return True
 
     def get(self, name: str) -> ToolDef | None:
         """Look up a tool by name."""
@@ -141,9 +171,7 @@ class ToolRegistry:
             else:
                 kwargs = dict(arguments)
 
-            if msg_context is not None and _accepts_param(
-                tool_def.handler, "msg_context"
-            ):
+            if msg_context is not None and _accepts_param(tool_def.handler, "msg_context"):
                 kwargs["msg_context"] = msg_context
 
             result = await tool_def.handler(**kwargs)

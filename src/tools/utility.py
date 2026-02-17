@@ -126,7 +126,7 @@ class DeleteNoteParams(ToolParams):
     description="Delete a saved note by its ID.",
     category="utility",
     params_model=DeleteNoteParams,
-    requires_confirmation=True,
+
 )
 async def delete_note(note_id: int) -> ToolResult:
     db = await _ensure_notes_table()

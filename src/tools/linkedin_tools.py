@@ -77,7 +77,7 @@ class PostCommentParams(ToolParams):
         "Supports PUBLIC or CONNECTIONS visibility."
     ),
     category="linkedin",
-    requires_confirmation=True,
+
     params_model=CreatePostParams,
 )
 async def linkedin_create_post(
@@ -133,7 +133,7 @@ async def linkedin_create_post(
         "Provide the LinkedIn post URL and the comment text."
     ),
     category="linkedin",
-    requires_confirmation=True,
+
     params_model=PostCommentParams,
 )
 async def linkedin_post_comment(

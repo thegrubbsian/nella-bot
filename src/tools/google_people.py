@@ -147,7 +147,7 @@ class CreateContactParams(GoogleToolParams):
     description="Create a new Google Contact. Optionally attach local notes.",
     category=_CATEGORY,
     params_model=CreateContactParams,
-    requires_confirmation=True,
+
 )
 async def create_contact(
     given_name: str,
@@ -220,7 +220,7 @@ class UpdateContactParams(GoogleToolParams):
     description="Update an existing Google Contact's fields.",
     category=_CATEGORY,
     params_model=UpdateContactParams,
-    requires_confirmation=True,
+
 )
 async def update_contact(
     resource_name: str,

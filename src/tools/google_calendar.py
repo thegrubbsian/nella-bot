@@ -143,7 +143,7 @@ class CreateEventParams(GoogleToolParams):
     description="Create a new calendar event.",
     category=_CATEGORY,
     params_model=CreateEventParams,
-    requires_confirmation=True,
+
 )
 async def create_event(
     title: str,
@@ -202,7 +202,7 @@ class UpdateEventParams(GoogleToolParams):
     description="Update an existing calendar event. Only specified fields are changed.",
     category=_CATEGORY,
     params_model=UpdateEventParams,
-    requires_confirmation=True,
+
 )
 async def update_event(
     event_id: str,
@@ -264,7 +264,7 @@ class DeleteEventParams(GoogleToolParams):
     description="Delete a calendar event.",
     category=_CATEGORY,
     params_model=DeleteEventParams,
-    requires_confirmation=True,
+
 )
 async def delete_event(
     event_id: str,

@@ -162,30 +162,3 @@ def test_scheduler_tools_registered() -> None:
     assert registry.get("schedule_task") is not None
     assert registry.get("list_scheduled_tasks") is not None
     assert registry.get("cancel_scheduled_task") is not None
-
-
-def test_schedule_task_requires_confirmation() -> None:
-    """schedule_task should require confirmation."""
-    from src.tools.registry import registry
-
-    tool_def = registry.get("schedule_task")
-    assert tool_def is not None
-    assert tool_def.requires_confirmation is True
-
-
-def test_cancel_task_requires_confirmation() -> None:
-    """cancel_scheduled_task should require confirmation."""
-    from src.tools.registry import registry
-
-    tool_def = registry.get("cancel_scheduled_task")
-    assert tool_def is not None
-    assert tool_def.requires_confirmation is True
-
-
-def test_list_tasks_no_confirmation() -> None:
-    """list_scheduled_tasks should not require confirmation."""
-    from src.tools.registry import registry
-
-    tool_def = registry.get("list_scheduled_tasks")
-    assert tool_def is not None
-    assert tool_def.requires_confirmation is False

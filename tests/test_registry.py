@@ -1,10 +1,16 @@
 """Tests for the tool registry."""
 
+import sys
+from pathlib import Path
+
 import pytest
 from pydantic import Field
 
 from src.tools.base import BaseTool, ToolParams, ToolResult
 from src.tools.registry import ToolRegistry
+
+# Get the actual module (not shadowed by src.tools.__init__)
+_reg_mod = sys.modules["src.tools.registry"]
 
 # -- Fixtures ----------------------------------------------------------------
 
@@ -169,28 +175,34 @@ def test_tools_by_category(reg: ToolRegistry) -> None:
     assert len(groups["beta"]) == 1
 
 
-# -- Confirmation flag -------------------------------------------------------
+# -- TOML-based confirmation -------------------------------------------------
 
 
-def test_requires_confirmation_flag(reg: ToolRegistry) -> None:
-    @reg.tool(
-        name="danger",
-        description="Dangerous",
-        category="test",
-        requires_confirmation=True,
-    )
+def test_requires_confirmation_from_toml(
+    reg: ToolRegistry, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Tool listed as true in TOML should require confirmation."""
+    toml_file = tmp_path / "TOOL_CONFIRMATIONS.toml"
+    toml_file.write_text("[tools]\ndanger = true\nsafe = false\n")
+
+    @reg.tool(name="danger", description="Dangerous", category="test")
     async def danger() -> ToolResult:
         return ToolResult()
 
-    assert reg.get("danger").requires_confirmation is True
+    monkeypatch.setattr(_reg_mod, "_CONFIRMATIONS_PATH", toml_file)
+    assert reg.requires_confirmation("danger") is True
+    assert reg.requires_confirmation("safe") is False
 
 
-def test_default_no_confirmation(reg: ToolRegistry) -> None:
-    @reg.tool(name="safe", description="Safe", category="test")
-    async def safe() -> ToolResult:
-        return ToolResult()
+def test_requires_confirmation_unlisted_defaults_true(
+    reg: ToolRegistry, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Tool not listed in TOML should default to True (safe)."""
+    toml_file = tmp_path / "TOOL_CONFIRMATIONS.toml"
+    toml_file.write_text("[tools]\nother = false\n")
 
-    assert reg.get("safe").requires_confirmation is False
+    monkeypatch.setattr(_reg_mod, "_CONFIRMATIONS_PATH", toml_file)
+    assert reg.requires_confirmation("unlisted_tool") is True
 
 
 # -- ToolResult serialization ------------------------------------------------

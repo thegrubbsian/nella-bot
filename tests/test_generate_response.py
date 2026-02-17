@@ -42,9 +42,11 @@ class _FakeStream:
     async def get_final_message(self):
         msg = MagicMock()
         msg.content = self._content_blocks
-        msg.stop_reason = "end_turn" if not any(
-            b.type == "tool_use" for b in self._content_blocks
-        ) else "tool_use"
+        msg.stop_reason = (
+            "end_turn"
+            if not any(b.type == "tool_use" for b in self._content_blocks)
+            else "tool_use"
+        )
         return msg
 
 
@@ -102,7 +104,6 @@ async def test_confirmation_text_retracted_from_result() -> None:
         description="Cancel a task",
         category="scheduler",
         handler=AsyncMock(return_value=ToolResult(data={"cancelled": True})),
-        requires_confirmation=True,
     )
 
     streamed: list[str] = []
@@ -116,9 +117,8 @@ async def test_confirmation_text_retracted_from_result() -> None:
     mock_registry = MagicMock()
     mock_registry.get_schemas.return_value = [{"name": "cancel_scheduled_task"}]
     mock_registry.get.return_value = tool_def
-    mock_registry.execute = AsyncMock(
-        return_value=ToolResult(data={"cancelled": True})
-    )
+    mock_registry.requires_confirmation.side_effect = lambda name: name == "cancel_scheduled_task"
+    mock_registry.execute = AsyncMock(return_value=ToolResult(data={"cancelled": True}))
 
     with (
         patch("src.llm.client._get_client", return_value=mock_client),
@@ -205,7 +205,6 @@ async def test_text_not_retracted_for_non_confirmation_tools() -> None:
         description="List tasks",
         category="scheduler",
         handler=AsyncMock(return_value=ToolResult(data={"tasks": []})),
-        requires_confirmation=False,
     )
 
     streamed: list[str] = []
@@ -216,9 +215,8 @@ async def test_text_not_retracted_for_non_confirmation_tools() -> None:
     mock_registry = MagicMock()
     mock_registry.get_schemas.return_value = [{"name": "list_scheduled_tasks"}]
     mock_registry.get.return_value = tool_def
-    mock_registry.execute = AsyncMock(
-        return_value=ToolResult(data={"tasks": []})
-    )
+    mock_registry.requires_confirmation.return_value = False
+    mock_registry.execute = AsyncMock(return_value=ToolResult(data={"tasks": []}))
 
     with (
         patch("src.llm.client._get_client", return_value=mock_client),
@@ -258,13 +256,15 @@ class _ContentFilterStream:
             response=MagicMock(
                 status_code=400,
                 headers={},
-                json=MagicMock(return_value={
-                    "type": "error",
-                    "error": {
-                        "type": "invalid_request_error",
-                        "message": "Output blocked by content filtering policy",
-                    },
-                }),
+                json=MagicMock(
+                    return_value={
+                        "type": "error",
+                        "error": {
+                            "type": "invalid_request_error",
+                            "message": "Output blocked by content filtering policy",
+                        },
+                    }
+                ),
             ),
             body={
                 "type": "error",

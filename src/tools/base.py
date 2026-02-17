@@ -74,7 +74,6 @@ class BaseTool(ABC):
     name: str = ""
     description: str = ""
     category: str = ""
-    requires_confirmation: bool = False
     params_model: type[ToolParams] | None = None
 
     @abstractmethod

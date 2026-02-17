@@ -100,7 +100,7 @@ class ScheduleTaskParams(ToolParams):
     ),
     category=_CATEGORY,
     params_model=ScheduleTaskParams,
-    requires_confirmation=True,
+
 )
 async def schedule_task(
     name: str,
@@ -236,7 +236,7 @@ class CancelScheduledTaskParams(ToolParams):
     ),
     category=_CATEGORY,
     params_model=CancelScheduledTaskParams,
-    requires_confirmation=True,
+
 )
 async def cancel_scheduled_task(
     task_id: str | None = None,

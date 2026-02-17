@@ -268,7 +268,7 @@ class DeleteFileParams(GoogleToolParams):
     description="Move a Google Drive file to trash.",
     category=_CATEGORY,
     params_model=DeleteFileParams,
-    requires_confirmation=True,
+
 )
 async def delete_file(file_id: str, account: str | None = None) -> ToolResult:
     service = _auth(account).drive()
@@ -372,7 +372,7 @@ class UploadToDriveParams(GoogleToolParams):
     description="Upload a file from scratch space to Google Drive.",
     category=_CATEGORY,
     params_model=UploadToDriveParams,
-    requires_confirmation=True,
+
 )
 async def upload_to_drive(
     path: str,
