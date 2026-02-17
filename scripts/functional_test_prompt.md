@@ -219,17 +219,29 @@ Skip create_contact and update_contact — we don't want to create or modify rea
 
 13.9. **notion_read_page_content** — Read the page again and confirm the appended text is there.
 
-13.10. **notion_update_page** — Update a property on the page from 13.4 (e.g. change status or add a tag). (Requires confirmation.)
+13.10. **notion_list_blocks** — List the blocks of the page from 13.4. Confirm at least 2 blocks are returned (the original content and the appended content) and that each block has an id, type, and text field.
 
-13.11. **notion_archive_page** — Archive the page from 13.4. (Requires confirmation.)
+13.11. **notion_update_block** — Update the text of the first paragraph block from 13.10 to "Updated by functional test." (Requires confirmation.)
 
-13.12. **notion_create_page** (child page) — Create a child page under any existing page (not a database). Use page_id instead of database_id. Title it "Nella Child Page Test" with body content using markdown: a heading, a bullet list, and a paragraph. (Requires confirmation.)
+13.12. **notion_list_blocks** — List blocks again and confirm the first paragraph now says "Updated by functional test."
 
-13.13. **notion_read_page_content** — Read the child page from 13.12. Confirm the heading and bullets appear in the body.
+13.13. **notion_append_content** (with `after`) — Using the ID of the first block from 13.10, append "Inserted after first block." with the `after` parameter set to that block ID. (Requires confirmation.)
 
-13.14. **notion_create_database** — Create an inline database inside the child page from 13.12 with title "Test DB" and properties: Name (title), Status (select: Todo, Done), Due Date (date). (Requires confirmation.)
+13.14. **notion_list_blocks** — List blocks again and confirm the inserted block appears after the first block.
 
-13.15. **notion_archive_page** — Archive the child page from 13.12 to clean up. (Requires confirmation.)
+13.15. **notion_delete_block** — Delete the block you inserted in 13.13 by its ID. (Requires confirmation.)
+
+13.16. **notion_update_page** — Update a property on the page from 13.4 (e.g. change status or add a tag). (Requires confirmation.)
+
+13.17. **notion_archive_page** — Archive the page from 13.4. (Requires confirmation.)
+
+13.18. **notion_create_page** (child page) — Create a child page under any existing page (not a database). Use page_id instead of database_id. Title it "Nella Child Page Test" with body content using markdown: a heading, a bullet list, and a paragraph. (Requires confirmation.)
+
+13.19. **notion_read_page_content** — Read the child page from 13.18. Confirm the heading and bullets appear in the body.
+
+13.20. **notion_create_database** — Create an inline database inside the child page from 13.18 with title "Test DB" and properties: Name (title), Status (select: Todo, Done), Due Date (date). (Requires confirmation.)
+
+13.21. **notion_archive_page** — Archive the child page from 13.18 to clean up. (Requires confirmation.)
 
 ## 14. Browser
 

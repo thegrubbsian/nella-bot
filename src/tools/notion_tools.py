@@ -108,14 +108,16 @@ def _markdown_to_blocks(text: str) -> list[dict[str, Any]]:
                     break
                 code_lines.append(lines[i])
                 i += 1
-            blocks.append({
-                "object": "block",
-                "type": "code",
-                "code": {
-                    "rich_text": _plain_to_rich_text("\n".join(code_lines)),
-                    "language": language,
-                },
-            })
+            blocks.append(
+                {
+                    "object": "block",
+                    "type": "code",
+                    "code": {
+                        "rich_text": _plain_to_rich_text("\n".join(code_lines)),
+                        "language": language,
+                    },
+                }
+            )
             continue
 
         # Divider
@@ -129,11 +131,13 @@ def _markdown_to_blocks(text: str) -> list[dict[str, Any]]:
         if m:
             level = len(m.group(1))
             heading_type = f"heading_{level}"
-            blocks.append({
-                "object": "block",
-                "type": heading_type,
-                heading_type: {"rich_text": _plain_to_rich_text(m.group(2))},
-            })
+            blocks.append(
+                {
+                    "object": "block",
+                    "type": heading_type,
+                    heading_type: {"rich_text": _plain_to_rich_text(m.group(2))},
+                }
+            )
             i += 1
             continue
 
@@ -141,47 +145,55 @@ def _markdown_to_blocks(text: str) -> list[dict[str, Any]]:
         m = _TODO_RE.match(stripped)
         if m:
             checked = m.group(1).lower() == "x"
-            blocks.append({
-                "object": "block",
-                "type": "to_do",
-                "to_do": {
-                    "rich_text": _plain_to_rich_text(m.group(2)),
-                    "checked": checked,
-                },
-            })
+            blocks.append(
+                {
+                    "object": "block",
+                    "type": "to_do",
+                    "to_do": {
+                        "rich_text": _plain_to_rich_text(m.group(2)),
+                        "checked": checked,
+                    },
+                }
+            )
             i += 1
             continue
 
         # Bulleted list item
         m = _BULLET_RE.match(stripped)
         if m:
-            blocks.append({
-                "object": "block",
-                "type": "bulleted_list_item",
-                "bulleted_list_item": {"rich_text": _plain_to_rich_text(m.group(1))},
-            })
+            blocks.append(
+                {
+                    "object": "block",
+                    "type": "bulleted_list_item",
+                    "bulleted_list_item": {"rich_text": _plain_to_rich_text(m.group(1))},
+                }
+            )
             i += 1
             continue
 
         # Numbered list item
         m = _NUMBERED_RE.match(stripped)
         if m:
-            blocks.append({
-                "object": "block",
-                "type": "numbered_list_item",
-                "numbered_list_item": {"rich_text": _plain_to_rich_text(m.group(1))},
-            })
+            blocks.append(
+                {
+                    "object": "block",
+                    "type": "numbered_list_item",
+                    "numbered_list_item": {"rich_text": _plain_to_rich_text(m.group(1))},
+                }
+            )
             i += 1
             continue
 
         # Blockquote
         m = _QUOTE_RE.match(stripped)
         if m:
-            blocks.append({
-                "object": "block",
-                "type": "quote",
-                "quote": {"rich_text": _plain_to_rich_text(m.group(1))},
-            })
+            blocks.append(
+                {
+                    "object": "block",
+                    "type": "quote",
+                    "quote": {"rich_text": _plain_to_rich_text(m.group(1))},
+                }
+            )
             i += 1
             continue
 
@@ -205,11 +217,13 @@ def _markdown_to_blocks(text: str) -> list[dict[str, Any]]:
                 break
             para_lines.append(next_stripped)
             i += 1
-        blocks.append({
-            "object": "block",
-            "type": "paragraph",
-            "paragraph": {"rich_text": _plain_to_rich_text("\n".join(para_lines))},
-        })
+        blocks.append(
+            {
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {"rich_text": _plain_to_rich_text("\n".join(para_lines))},
+            }
+        )
 
     return blocks
 
@@ -229,6 +243,57 @@ def _extract_block_text(block: dict[str, Any]) -> str:
     if "title" in type_data:
         return type_data["title"]
     return ""
+
+
+# Block types that support rich_text updates
+_RICH_TEXT_BLOCK_TYPES = frozenset(
+    {
+        "paragraph",
+        "heading_1",
+        "heading_2",
+        "heading_3",
+        "bulleted_list_item",
+        "numbered_list_item",
+        "quote",
+        "callout",
+        "toggle",
+        "to_do",
+        "code",
+    }
+)
+
+
+def _build_block_update_payload(
+    block_type: str,
+    content: str,
+    *,
+    checked: bool | None = None,
+    language: str | None = None,
+) -> dict[str, Any]:
+    """Build the type-specific payload for a block update PATCH request.
+
+    Raises ``ValueError`` for unsupported block types.
+    """
+    if block_type not in _RICH_TEXT_BLOCK_TYPES:
+        supported = ", ".join(sorted(_RICH_TEXT_BLOCK_TYPES))
+        msg = f"Cannot update block type '{block_type}'. Supported types: {supported}"
+        raise ValueError(msg)
+
+    rich_text = _plain_to_rich_text(content)
+
+    if block_type == "to_do":
+        payload: dict[str, Any] = {"rich_text": rich_text}
+        if checked is not None:
+            payload["checked"] = checked
+        return {"to_do": payload}
+
+    if block_type == "code":
+        code_payload: dict[str, Any] = {"rich_text": rich_text}
+        if language is not None:
+            code_payload["language"] = language
+        return {"code": code_payload}
+
+    return {block_type: {"rich_text": rich_text}}
 
 
 # ---------------------------------------------------------------------------
@@ -277,16 +342,10 @@ def _format_property_value(prop: dict[str, Any]) -> Any:
     if ptype == "relation":
         return [item["id"] for item in prop.get("relation", [])]
     if ptype == "people":
-        return [
-            person.get("name", person.get("id", ""))
-            for person in prop.get("people", [])
-        ]
+        return [person.get("name", person.get("id", "")) for person in prop.get("people", [])]
     if ptype == "files":
         files = prop.get("files", [])
-        return [
-            f.get("name", f.get("external", {}).get("url", ""))
-            for f in files
-        ]
+        return [f.get("name", f.get("external", {}).get("url", "")) for f in files]
     if ptype == "unique_id":
         uid = prop.get("unique_id", {})
         prefix = uid.get("prefix", "")
@@ -486,8 +545,7 @@ class NotionCreatePageParams(ToolParams):
     page_id: str | None = Field(
         default=None,
         description=(
-            "Parent page ID to create a child page under "
-            "(mutually exclusive with database_id)"
+            "Parent page ID to create a child page under (mutually exclusive with database_id)"
         ),
     )
     properties: dict[str, Any] = Field(
@@ -537,6 +595,53 @@ class NotionAppendContentParams(ToolParams):
             "numbered lists, to-do items, quotes, code blocks, dividers, paragraphs)"
         ),
     )
+    after: str | None = Field(
+        default=None,
+        description=(
+            "Block ID to insert after. When provided, new content is inserted "
+            "after this block instead of at the end of the page."
+        ),
+    )
+
+
+class NotionListBlocksParams(ToolParams):
+    block_id: str = Field(
+        description="The ID of the page or block whose children to list",
+    )
+    page_size: int = Field(
+        default=100,
+        description="Maximum blocks to return (1-100)",
+        ge=1,
+        le=100,
+    )
+    start_cursor: str | None = Field(
+        default=None,
+        description="Pagination cursor from a previous call's next_cursor",
+    )
+
+
+class NotionDeleteBlockParams(ToolParams):
+    block_id: str = Field(description="The ID of the block to delete (archive)")
+
+
+class NotionUpdateBlockParams(ToolParams):
+    block_id: str = Field(description="The ID of the block to update")
+    content: str = Field(description="New text content for the block")
+    block_type: str | None = Field(
+        default=None,
+        description=(
+            "Block type (e.g. 'paragraph', 'heading_1', 'to_do'). "
+            "Auto-detected from the existing block if omitted."
+        ),
+    )
+    checked: bool | None = Field(
+        default=None,
+        description="For to_do blocks: set the checked state",
+    )
+    language: str | None = Field(
+        default=None,
+        description="For code blocks: set the language (e.g. 'python', 'javascript')",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -566,11 +671,13 @@ async def notion_search(
             kwargs["filter"] = {"value": filter_type, "property": "object"}
         response = await client.search(**kwargs)
         results = [_format_page_summary(item) for item in response.get("results", [])]
-        return ToolResult(data={
-            "results": results,
-            "count": len(results),
-            "has_more": response.get("has_more", False),
-        })
+        return ToolResult(
+            data={
+                "results": results,
+                "count": len(results),
+                "has_more": response.get("has_more", False),
+            }
+        )
     except ValueError as exc:
         return ToolResult(error=str(exc))
     except Exception as exc:
@@ -606,29 +713,27 @@ async def notion_list_databases(
                 # Include select/status options for discoverability
                 ptype = prop.get("type", "")
                 if ptype == "select" and prop.get("select", {}).get("options"):
-                    prop_info["options"] = [
-                        opt["name"] for opt in prop["select"]["options"]
-                    ]
+                    prop_info["options"] = [opt["name"] for opt in prop["select"]["options"]]
                 elif ptype == "multi_select" and prop.get("multi_select", {}).get("options"):
-                    prop_info["options"] = [
-                        opt["name"] for opt in prop["multi_select"]["options"]
-                    ]
+                    prop_info["options"] = [opt["name"] for opt in prop["multi_select"]["options"]]
                 elif ptype == "status" and prop.get("status", {}).get("options"):
-                    prop_info["options"] = [
-                        opt["name"] for opt in prop["status"]["options"]
-                    ]
+                    prop_info["options"] = [opt["name"] for opt in prop["status"]["options"]]
                 props[name] = prop_info
-            databases.append({
-                "id": db["id"],
-                "title": title,
-                "url": db.get("url", ""),
-                "properties": props,
-            })
-        return ToolResult(data={
-            "databases": databases,
-            "count": len(databases),
-            "has_more": response.get("has_more", False),
-        })
+            databases.append(
+                {
+                    "id": db["id"],
+                    "title": title,
+                    "url": db.get("url", ""),
+                    "properties": props,
+                }
+            )
+        return ToolResult(
+            data={
+                "databases": databases,
+                "count": len(databases),
+                "has_more": response.get("has_more", False),
+            }
+        )
     except ValueError as exc:
         return ToolResult(error=str(exc))
     except Exception as exc:
@@ -655,24 +760,20 @@ async def notion_get_database(database_id: str) -> ToolResult:
             prop_info: dict[str, Any] = {"type": prop.get("type", "")}
             ptype = prop.get("type", "")
             if ptype == "select" and prop.get("select", {}).get("options"):
-                prop_info["options"] = [
-                    opt["name"] for opt in prop["select"]["options"]
-                ]
+                prop_info["options"] = [opt["name"] for opt in prop["select"]["options"]]
             elif ptype == "multi_select" and prop.get("multi_select", {}).get("options"):
-                prop_info["options"] = [
-                    opt["name"] for opt in prop["multi_select"]["options"]
-                ]
+                prop_info["options"] = [opt["name"] for opt in prop["multi_select"]["options"]]
             elif ptype == "status" and prop.get("status", {}).get("options"):
-                prop_info["options"] = [
-                    opt["name"] for opt in prop["status"]["options"]
-                ]
+                prop_info["options"] = [opt["name"] for opt in prop["status"]["options"]]
             props[name] = prop_info
-        return ToolResult(data={
-            "id": db["id"],
-            "title": title,
-            "url": db.get("url", ""),
-            "properties": props,
-        })
+        return ToolResult(
+            data={
+                "id": db["id"],
+                "title": title,
+                "url": db.get("url", ""),
+                "properties": props,
+            }
+        )
     except ValueError as exc:
         return ToolResult(error=str(exc))
     except Exception as exc:
@@ -712,12 +813,14 @@ async def notion_query_database(
             body=body,
         )
         pages = [_format_page_summary(page) for page in response.get("results", [])]
-        return ToolResult(data={
-            "pages": pages,
-            "count": len(pages),
-            "has_more": response.get("has_more", False),
-            "next_cursor": response.get("next_cursor"),
-        })
+        return ToolResult(
+            data={
+                "pages": pages,
+                "count": len(pages),
+                "has_more": response.get("has_more", False),
+                "next_cursor": response.get("next_cursor"),
+            }
+        )
     except ValueError as exc:
         return ToolResult(error=str(exc))
     except Exception as exc:
@@ -762,11 +865,13 @@ async def notion_read_page_content(page_id: str) -> ToolResult:
         if len(blocks_text) > MAX_CONTENT_CHARS:
             blocks_text = blocks_text[:MAX_CONTENT_CHARS]
             truncated = True
-        return ToolResult(data={
-            "page_id": page_id,
-            "content": blocks_text,
-            "truncated": truncated,
-        })
+        return ToolResult(
+            data={
+                "page_id": page_id,
+                "content": blocks_text,
+                "truncated": truncated,
+            }
+        )
     except ValueError as exc:
         return ToolResult(error=str(exc))
     except Exception as exc:
@@ -795,9 +900,7 @@ async def _read_blocks_recursive(
             if text:
                 lines.append(f"{indent}{text}")
             if block.get("has_children"):
-                child_text = await _read_blocks_recursive(
-                    client, block["id"], depth + 1, max_depth
-                )
+                child_text = await _read_blocks_recursive(client, block["id"], depth + 1, max_depth)
                 if child_text:
                     lines.append(child_text)
         if not response.get("has_more"):
@@ -914,23 +1017,155 @@ async def notion_archive_page(page_id: str) -> ToolResult:
     description=(
         "Append content to the body of a Notion page. "
         "Supports markdown: headings, bullets, numbered lists, "
-        "to-do items, quotes, code blocks, dividers, and paragraphs."
+        "to-do items, quotes, code blocks, dividers, and paragraphs. "
+        "Optionally insert after a specific block (use notion_list_blocks to get block IDs)."
     ),
     category="notion",
     params_model=NotionAppendContentParams,
     requires_confirmation=True,
 )
-async def notion_append_content(page_id: str, content: str) -> ToolResult:
+async def notion_append_content(
+    page_id: str,
+    content: str,
+    after: str | None = None,
+) -> ToolResult:
     try:
         client = _get_client()
         blocks = _text_to_blocks(content)
         if not blocks:
             return ToolResult(error="No content to append (empty or whitespace-only text).")
-        response = await client.blocks.children.append(block_id=page_id, children=blocks)
-        return ToolResult(data={
-            "page_id": page_id,
-            "blocks_added": len(response.get("results", [])),
-        })
+        kwargs: dict[str, Any] = {"block_id": page_id, "children": blocks}
+        if after is not None:
+            kwargs["after"] = after
+        response = await client.blocks.children.append(**kwargs)
+        return ToolResult(
+            data={
+                "page_id": page_id,
+                "blocks_added": len(response.get("results", [])),
+            }
+        )
+    except ValueError as exc:
+        return ToolResult(error=str(exc))
+    except Exception as exc:
+        return ToolResult(error=_notion_error_message(exc))
+
+
+# ---------------------------------------------------------------------------
+# Block-level tools
+# ---------------------------------------------------------------------------
+
+
+@registry.tool(
+    name="notion_list_blocks",
+    description=(
+        "List child blocks of a Notion page or block. Returns block IDs, types, "
+        "text content, and has_children flags. Use this to discover block IDs "
+        "before updating or deleting individual blocks. Flat list only — call "
+        "again with a child block's ID to drill down into nested content."
+    ),
+    category="notion",
+    params_model=NotionListBlocksParams,
+)
+async def notion_list_blocks(
+    block_id: str,
+    page_size: int = 100,
+    start_cursor: str | None = None,
+) -> ToolResult:
+    try:
+        client = _get_client()
+        kwargs: dict[str, Any] = {"block_id": block_id, "page_size": page_size}
+        if start_cursor is not None:
+            kwargs["start_cursor"] = start_cursor
+        response = await client.blocks.children.list(**kwargs)
+        blocks = []
+        for block in response.get("results", []):
+            blocks.append(
+                {
+                    "id": block["id"],
+                    "type": block.get("type", ""),
+                    "text": _extract_block_text(block),
+                    "has_children": block.get("has_children", False),
+                }
+            )
+        return ToolResult(
+            data={
+                "parent_id": block_id,
+                "blocks": blocks,
+                "count": len(blocks),
+                "has_more": response.get("has_more", False),
+                "next_cursor": response.get("next_cursor"),
+            }
+        )
+    except ValueError as exc:
+        return ToolResult(error=str(exc))
+    except Exception as exc:
+        return ToolResult(error=_notion_error_message(exc))
+
+
+@registry.tool(
+    name="notion_delete_block",
+    description=(
+        "Delete (archive) a Notion block by ID. The block is soft-deleted "
+        "and can be recovered from Notion's trash. Use notion_list_blocks "
+        "to find block IDs."
+    ),
+    category="notion",
+    params_model=NotionDeleteBlockParams,
+    requires_confirmation=True,
+)
+async def notion_delete_block(block_id: str) -> ToolResult:
+    try:
+        client = _get_client()
+        result = await client.blocks.delete(block_id=block_id)
+        return ToolResult(
+            data={
+                "deleted": True,
+                "id": result.get("id", block_id),
+                "type": result.get("type", ""),
+            }
+        )
+    except ValueError as exc:
+        return ToolResult(error=str(exc))
+    except Exception as exc:
+        return ToolResult(error=_notion_error_message(exc))
+
+
+@registry.tool(
+    name="notion_update_block",
+    description=(
+        "Update the text content of an existing Notion block. Supported types: "
+        "paragraph, heading_1-3, bulleted/numbered_list_item, quote, callout, "
+        "toggle, to_do, code. Use notion_list_blocks to find block IDs. "
+        "Block type is auto-detected if not provided."
+    ),
+    category="notion",
+    params_model=NotionUpdateBlockParams,
+    requires_confirmation=True,
+)
+async def notion_update_block(
+    block_id: str,
+    content: str,
+    block_type: str | None = None,
+    checked: bool | None = None,
+    language: str | None = None,
+) -> ToolResult:
+    try:
+        client = _get_client()
+        # Auto-detect block type if not provided
+        if block_type is None:
+            existing = await client.blocks.retrieve(block_id=block_id)
+            block_type = existing.get("type", "")
+        payload = _build_block_update_payload(
+            block_type, content, checked=checked, language=language
+        )
+        updated = await client.blocks.update(block_id=block_id, **payload)
+        return ToolResult(
+            data={
+                "id": updated.get("id", block_id),
+                "type": updated.get("type", block_type),
+                "text": _extract_block_text(updated),
+            }
+        )
     except ValueError as exc:
         return ToolResult(error=str(exc))
     except Exception as exc:
@@ -960,13 +1195,9 @@ def _build_schema_payload(properties: dict[str, Any]) -> dict[str, Any]:
             # Expanded definition with options
             for ptype, options in definition.items():
                 if ptype in ("select", "multi_select") and isinstance(options, list):
-                    schema[name] = {
-                        ptype: {"options": [{"name": str(o)} for o in options]}
-                    }
+                    schema[name] = {ptype: {"options": [{"name": str(o)} for o in options]}}
                 elif ptype == "status" and isinstance(options, list):
-                    schema[name] = {
-                        "status": {"options": [{"name": str(o)} for o in options]}
-                    }
+                    schema[name] = {"status": {"options": [{"name": str(o)} for o in options]}}
                 else:
                     schema[name] = {ptype: options if options else {}}
                 break  # Only the first key matters
@@ -1019,9 +1250,7 @@ async def notion_create_database(
         client = _get_client()
         schema = _build_schema_payload(properties)
         # Ensure there's exactly one title property
-        has_title = any(
-            "title" in prop_def for prop_def in schema.values()
-        )
+        has_title = any("title" in prop_def for prop_def in schema.values())
         if not has_title:
             schema["Name"] = {"title": {}}
 
@@ -1043,12 +1272,14 @@ async def notion_create_database(
         props = {}
         for name, prop in response.get("properties", {}).items():
             props[name] = {"type": prop.get("type", "")}
-        return ToolResult(data={
-            "id": response["id"],
-            "title": db_title,
-            "url": response.get("url", ""),
-            "properties": props,
-        })
+        return ToolResult(
+            data={
+                "id": response["id"],
+                "title": db_title,
+                "url": response.get("url", ""),
+                "properties": props,
+            }
+        )
     except ValueError as exc:
         return ToolResult(error=str(exc))
     except Exception as exc:
@@ -1058,9 +1289,6 @@ async def notion_create_database(
 # ---------------------------------------------------------------------------
 # Future work
 # ---------------------------------------------------------------------------
-# - notion_delete_block — delete/archive individual blocks
-# - notion_update_block — modify existing block content
 # - notion_list_comments + notion_create_comment — comments API
 # - notion_update_database — modify database schema/title
-# - Append position control (insert at beginning or after specific block)
 # - Inline markdown formatting (bold, italic, links within rich text)

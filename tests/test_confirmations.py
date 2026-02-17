@@ -7,6 +7,7 @@ from src.bot.confirmations import (
     _action_label,
     _enrich_cancel_task,
     _enrich_notion_archive,
+    _enrich_notion_delete_block,
     _humanize_cron,
     _humanize_datetime,
     _pending,
@@ -146,9 +147,7 @@ def test_format_cancel_scheduled_task() -> None:
 
 
 def test_format_cancel_scheduled_task_search() -> None:
-    text = format_tool_summary(
-        "cancel_scheduled_task", {"search_query": "morning"}, "Cancel"
-    )
+    text = format_tool_summary("cancel_scheduled_task", {"search_query": "morning"}, "Cancel")
     assert "Search: morning" in text
 
 
@@ -235,9 +234,7 @@ async def test_enrich_cancel_task_dashed_uuid() -> None:
     mock_store.get_task = AsyncMock(return_value=task)
 
     with patch("src.scheduler.store.TaskStore.get", return_value=mock_store):
-        result = await _enrich_cancel_task(
-            {"task_id": "6e79f4b7-c1dc-4ce0-80c6-eaa496b13dca"}
-        )
+        result = await _enrich_cancel_task({"task_id": "6e79f4b7-c1dc-4ce0-80c6-eaa496b13dca"})
 
     assert result["_task_name"] == "Morning check"
     # Verify the store was called with the normalized (dashless) ID
@@ -613,7 +610,10 @@ async def test_request_timeout_returns_false() -> None:
     pending_tool = _make_pending_tool()
 
     result = await request_confirmation(
-        bot, chat_id=123, pending_tool=pending_tool, timeout=0.05,
+        bot,
+        chat_id=123,
+        pending_tool=pending_tool,
+        timeout=0.05,
     )
     assert result is False
     # Timed out confirmation should have been edited
@@ -626,7 +626,10 @@ async def test_request_cleans_up_after_timeout() -> None:
     before = len(_pending)
 
     await request_confirmation(
-        bot, chat_id=123, pending_tool=pending_tool, timeout=0.05,
+        bot,
+        chat_id=123,
+        pending_tool=pending_tool,
+        timeout=0.05,
     )
     assert len(_pending) == before  # Cleaned up
 
@@ -742,4 +745,119 @@ async def test_enrich_notion_archive_api_error() -> None:
 
 async def test_enrich_notion_archive_no_page_id() -> None:
     result = await _enrich_notion_archive({})
+    assert result == {}
+
+
+# -- Notion block-level formatters -----------------------------------------
+
+
+def test_format_notion_delete_block_enriched() -> None:
+    inp = {
+        "block_id": "block12345678",
+        "_block_type": "paragraph",
+        "_block_text": "Some paragraph content",
+    }
+    text = format_tool_summary("notion_delete_block", inp, "Delete block")
+    assert "Delete Notion block" in text
+    assert "Type: paragraph" in text
+    assert "Some paragraph content" in text
+
+
+def test_format_notion_delete_block_without_enrichment() -> None:
+    inp = {"block_id": "block12345678"}
+    text = format_tool_summary("notion_delete_block", inp, "Delete block")
+    assert "Delete Notion block" in text
+    assert "...12345678" in text
+
+
+def test_format_notion_update_block() -> None:
+    inp = {
+        "block_id": "block12345678",
+        "content": "New content here",
+        "block_type": "paragraph",
+    }
+    text = format_tool_summary("notion_update_block", inp, "Update block")
+    assert "Update Notion block" in text
+    assert "...12345678" in text
+    assert "Type: paragraph" in text
+    assert "New content here" in text
+
+
+def test_format_notion_update_block_no_type() -> None:
+    inp = {"block_id": "block12345678", "content": "Updated"}
+    text = format_tool_summary("notion_update_block", inp, "Update block")
+    assert "Update Notion block" in text
+    assert "Type:" not in text
+
+
+def test_format_notion_append_content_with_after() -> None:
+    inp = {
+        "page_id": "page12345678",
+        "content": "Inserted text",
+        "after": "block99887766",
+    }
+    text = format_tool_summary("notion_append_content", inp, "Append")
+    assert "Append to Notion page" in text
+    assert "After block: ...99887766" in text
+    assert "Inserted text" in text
+
+
+def test_format_notion_append_content_without_after() -> None:
+    inp = {"page_id": "page12345678", "content": "Appended text"}
+    text = format_tool_summary("notion_append_content", inp, "Append")
+    assert "After block:" not in text
+
+
+# -- _enrich_notion_delete_block -------------------------------------------
+
+
+async def test_enrich_notion_delete_block_success() -> None:
+    block = {
+        "id": "block-1",
+        "type": "paragraph",
+        "paragraph": {"rich_text": [{"plain_text": "Hello world"}]},
+    }
+    client = AsyncMock()
+    client.blocks = AsyncMock()
+    client.blocks.retrieve = AsyncMock(return_value=block)
+
+    with patch("src.tools.notion_tools._get_client", return_value=client):
+        result = await _enrich_notion_delete_block({"block_id": "block-1"})
+
+    assert result["_block_type"] == "paragraph"
+    assert result["_block_text"] == "Hello world"
+    assert result["block_id"] == "block-1"
+
+
+async def test_enrich_notion_delete_block_no_text() -> None:
+    block = {
+        "id": "block-1",
+        "type": "divider",
+        "divider": {},
+    }
+    client = AsyncMock()
+    client.blocks = AsyncMock()
+    client.blocks.retrieve = AsyncMock(return_value=block)
+
+    with patch("src.tools.notion_tools._get_client", return_value=client):
+        result = await _enrich_notion_delete_block({"block_id": "block-1"})
+
+    assert result["_block_type"] == "divider"
+    assert "_block_text" not in result
+
+
+async def test_enrich_notion_delete_block_api_error() -> None:
+    client = AsyncMock()
+    client.blocks = AsyncMock()
+    client.blocks.retrieve = AsyncMock(side_effect=Exception("API error"))
+
+    with patch("src.tools.notion_tools._get_client", return_value=client):
+        result = await _enrich_notion_delete_block({"block_id": "block-1"})
+
+    assert "_block_type" not in result
+    assert result["block_id"] == "block-1"
+
+
+async def test_enrich_notion_delete_block_no_block_id() -> None:
+    result = await _enrich_notion_delete_block({})
     assert result == {}

@@ -1,12 +1,15 @@
 """Tests for src/tools/notion_tools."""
 
-import pytest
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from src.tools.notion_tools import (
+    _RICH_TEXT_BLOCK_TYPES,
     MAX_CONTENT_CHARS,
     RICH_TEXT_CHAR_LIMIT,
     NotionCreatePageParams,
+    _build_block_update_payload,
     _build_properties_payload,
     _build_schema_payload,
     _extract_block_text,
@@ -24,12 +27,15 @@ from src.tools.notion_tools import (
     notion_archive_page,
     notion_create_database,
     notion_create_page,
+    notion_delete_block,
     notion_get_database,
     notion_get_page,
+    notion_list_blocks,
     notion_list_databases,
     notion_query_database,
     notion_read_page_content,
     notion_search,
+    notion_update_block,
     notion_update_page,
 )
 
@@ -50,6 +56,9 @@ def _mock_client():
     client.pages.create = AsyncMock()
     client.pages.update = AsyncMock()
     client.blocks = AsyncMock()
+    client.blocks.retrieve = AsyncMock()
+    client.blocks.delete = AsyncMock()
+    client.blocks.update = AsyncMock()
     client.blocks.children = AsyncMock()
     client.blocks.children.list = AsyncMock()
     client.blocks.children.append = AsyncMock()
@@ -445,13 +454,15 @@ class TestBuildPropertiesPayload:
         assert result == props
 
     async def test_with_database_id_formats_values(self) -> None:
-        db = _make_db(properties={
-            "Name": {"type": "title", "title": {}},
-            "Status": {
-                "type": "status",
-                "status": {"options": [{"name": "Done"}]},
-            },
-        })
+        db = _make_db(
+            properties={
+                "Name": {"type": "title", "title": {}},
+                "Status": {
+                    "type": "status",
+                    "status": {"options": [{"name": "Done"}]},
+                },
+            }
+        )
         client = _mock_client()
         client.databases.retrieve.return_value = db
 
@@ -572,12 +583,14 @@ class TestNotionListDatabases:
         assert "Status" in result.data["databases"][0]["properties"]
 
     async def test_includes_select_options(self) -> None:
-        db = _make_db(properties={
-            "Priority": {
-                "type": "select",
-                "select": {"options": [{"name": "High"}, {"name": "Low"}]},
-            },
-        })
+        db = _make_db(
+            properties={
+                "Priority": {
+                    "type": "select",
+                    "select": {"options": [{"name": "High"}, {"name": "Low"}]},
+                },
+            }
+        )
         client = _mock_client()
         client.search.return_value = {"results": [db], "has_more": False}
 
@@ -933,9 +946,12 @@ class TestNotionUpdatePage:
     async def test_success(self) -> None:
         page = _make_page()
         db = _make_db()
-        updated_page = {**page, "properties": {
-            "Name": {"type": "title", "title": [{"plain_text": "Updated"}]},
-        }}
+        updated_page = {
+            **page,
+            "properties": {
+                "Name": {"type": "title", "title": [{"plain_text": "Updated"}]},
+            },
+        }
         client = _mock_client()
         client.pages.retrieve.return_value = page
         client.databases.retrieve.return_value = db
@@ -1206,7 +1222,8 @@ class TestMarkdownToBlocks:
     def test_consecutive_paragraph_lines_merged(self) -> None:
         blocks = _markdown_to_blocks("Line one\nLine two\nLine three")
         assert len(blocks) == 1
-        assert "Line one\nLine two\nLine three" in blocks[0]["paragraph"]["rich_text"][0]["text"]["content"]
+        text = blocks[0]["paragraph"]["rich_text"][0]["text"]["content"]
+        assert "Line one\nLine two\nLine three" in text
 
     def test_paragraph_stops_at_heading(self) -> None:
         blocks = _markdown_to_blocks("Text\n# Heading")
@@ -1222,16 +1239,12 @@ class TestMarkdownToBlocks:
 
 class TestNotionCreatePageParams:
     def test_database_id_only(self) -> None:
-        params = NotionCreatePageParams(
-            database_id="db-123", properties={"Name": "Test"}
-        )
+        params = NotionCreatePageParams(database_id="db-123", properties={"Name": "Test"})
         assert params.database_id == "db-123"
         assert params.page_id is None
 
     def test_page_id_only(self) -> None:
-        params = NotionCreatePageParams(
-            page_id="page-123", properties={"title": "Test"}
-        )
+        params = NotionCreatePageParams(page_id="page-123", properties={"title": "Test"})
         assert params.page_id == "page-123"
         assert params.database_id is None
 
@@ -1322,37 +1335,45 @@ class TestNotionCreateChildPage:
 
 class TestBuildSchemaPayload:
     def test_simple_types(self) -> None:
-        schema = _build_schema_payload({
-            "Name": "title",
-            "Notes": "rich_text",
-            "Count": "number",
-            "Due": "date",
-        })
+        schema = _build_schema_payload(
+            {
+                "Name": "title",
+                "Notes": "rich_text",
+                "Count": "number",
+                "Due": "date",
+            }
+        )
         assert schema["Name"] == {"title": {}}
         assert schema["Notes"] == {"rich_text": {}}
         assert schema["Count"] == {"number": {}}
         assert schema["Due"] == {"date": {}}
 
     def test_select_with_options(self) -> None:
-        schema = _build_schema_payload({
-            "Status": {"select": ["Todo", "Done"]},
-        })
+        schema = _build_schema_payload(
+            {
+                "Status": {"select": ["Todo", "Done"]},
+            }
+        )
         assert schema["Status"] == {
             "select": {"options": [{"name": "Todo"}, {"name": "Done"}]},
         }
 
     def test_multi_select_with_options(self) -> None:
-        schema = _build_schema_payload({
-            "Tags": {"multi_select": ["Red", "Blue"]},
-        })
+        schema = _build_schema_payload(
+            {
+                "Tags": {"multi_select": ["Red", "Blue"]},
+            }
+        )
         assert schema["Tags"] == {
             "multi_select": {"options": [{"name": "Red"}, {"name": "Blue"}]},
         }
 
     def test_status_with_options(self) -> None:
-        schema = _build_schema_payload({
-            "Status": {"status": ["Not Started", "In Progress", "Done"]},
-        })
+        schema = _build_schema_payload(
+            {
+                "Status": {"status": ["Not Started", "In Progress", "Done"]},
+            }
+        )
         assert schema["Status"]["status"]["options"][0]["name"] == "Not Started"
 
     def test_empty_type_dict(self) -> None:
@@ -1486,3 +1507,419 @@ class TestNotionCreateDatabase:
                 properties={"Name": "title"},
             )
         assert not result.success
+
+
+# ---------------------------------------------------------------------------
+# _build_block_update_payload
+# ---------------------------------------------------------------------------
+
+
+class TestBuildBlockUpdatePayload:
+    def test_paragraph(self) -> None:
+        payload = _build_block_update_payload("paragraph", "Hello world")
+        assert "paragraph" in payload
+        assert payload["paragraph"]["rich_text"][0]["text"]["content"] == "Hello world"
+
+    def test_heading_1(self) -> None:
+        payload = _build_block_update_payload("heading_1", "Title")
+        assert "heading_1" in payload
+        assert payload["heading_1"]["rich_text"][0]["text"]["content"] == "Title"
+
+    def test_heading_2(self) -> None:
+        payload = _build_block_update_payload("heading_2", "Subtitle")
+        assert "heading_2" in payload
+
+    def test_heading_3(self) -> None:
+        payload = _build_block_update_payload("heading_3", "Section")
+        assert "heading_3" in payload
+
+    def test_bulleted_list_item(self) -> None:
+        payload = _build_block_update_payload("bulleted_list_item", "Item")
+        assert "bulleted_list_item" in payload
+
+    def test_numbered_list_item(self) -> None:
+        payload = _build_block_update_payload("numbered_list_item", "Step 1")
+        assert "numbered_list_item" in payload
+
+    def test_quote(self) -> None:
+        payload = _build_block_update_payload("quote", "A wise quote")
+        assert "quote" in payload
+
+    def test_callout(self) -> None:
+        payload = _build_block_update_payload("callout", "Note")
+        assert "callout" in payload
+
+    def test_toggle(self) -> None:
+        payload = _build_block_update_payload("toggle", "Click me")
+        assert "toggle" in payload
+
+    def test_to_do_without_checked(self) -> None:
+        payload = _build_block_update_payload("to_do", "Buy milk")
+        assert "to_do" in payload
+        assert payload["to_do"]["rich_text"][0]["text"]["content"] == "Buy milk"
+        assert "checked" not in payload["to_do"]
+
+    def test_to_do_with_checked(self) -> None:
+        payload = _build_block_update_payload("to_do", "Buy milk", checked=True)
+        assert payload["to_do"]["checked"] is True
+
+    def test_to_do_unchecked(self) -> None:
+        payload = _build_block_update_payload("to_do", "Buy milk", checked=False)
+        assert payload["to_do"]["checked"] is False
+
+    def test_code_without_language(self) -> None:
+        payload = _build_block_update_payload("code", "print('hi')")
+        assert "code" in payload
+        assert payload["code"]["rich_text"][0]["text"]["content"] == "print('hi')"
+        assert "language" not in payload["code"]
+
+    def test_code_with_language(self) -> None:
+        payload = _build_block_update_payload("code", "print('hi')", language="python")
+        assert payload["code"]["language"] == "python"
+
+    def test_unsupported_type_raises(self) -> None:
+        with pytest.raises(ValueError, match="Cannot update block type 'divider'"):
+            _build_block_update_payload("divider", "")
+
+    def test_unsupported_image_raises(self) -> None:
+        with pytest.raises(ValueError, match="Cannot update block type 'image'"):
+            _build_block_update_payload("image", "")
+
+    def test_rich_text_block_types_constant(self) -> None:
+        assert "paragraph" in _RICH_TEXT_BLOCK_TYPES
+        assert "heading_1" in _RICH_TEXT_BLOCK_TYPES
+        assert "to_do" in _RICH_TEXT_BLOCK_TYPES
+        assert "code" in _RICH_TEXT_BLOCK_TYPES
+        assert "divider" not in _RICH_TEXT_BLOCK_TYPES
+
+
+# ---------------------------------------------------------------------------
+# notion_list_blocks
+# ---------------------------------------------------------------------------
+
+
+class TestNotionListBlocks:
+    async def test_success(self) -> None:
+        client = _mock_client()
+        client.blocks.children.list.return_value = {
+            "results": [
+                {
+                    "id": "block-1",
+                    "type": "paragraph",
+                    "paragraph": {"rich_text": [{"plain_text": "Hello"}]},
+                    "has_children": False,
+                },
+                {
+                    "id": "block-2",
+                    "type": "heading_1",
+                    "heading_1": {"rich_text": [{"plain_text": "Title"}]},
+                    "has_children": True,
+                },
+            ],
+            "has_more": False,
+        }
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_list_blocks(block_id="page-123")
+
+        assert result.success
+        assert result.data["count"] == 2
+        assert result.data["parent_id"] == "page-123"
+        blocks = result.data["blocks"]
+        assert blocks[0]["id"] == "block-1"
+        assert blocks[0]["type"] == "paragraph"
+        assert blocks[0]["text"] == "Hello"
+        assert blocks[0]["has_children"] is False
+        assert blocks[1]["id"] == "block-2"
+        assert blocks[1]["has_children"] is True
+
+    async def test_pagination(self) -> None:
+        client = _mock_client()
+        client.blocks.children.list.return_value = {
+            "results": [
+                {
+                    "id": "block-1",
+                    "type": "paragraph",
+                    "paragraph": {"rich_text": [{"plain_text": "First"}]},
+                    "has_children": False,
+                },
+            ],
+            "has_more": True,
+            "next_cursor": "cursor-abc",
+        }
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_list_blocks(block_id="page-123", page_size=1)
+
+        assert result.success
+        assert result.data["has_more"] is True
+        assert result.data["next_cursor"] == "cursor-abc"
+
+    async def test_with_start_cursor(self) -> None:
+        client = _mock_client()
+        client.blocks.children.list.return_value = {
+            "results": [],
+            "has_more": False,
+        }
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            await notion_list_blocks(
+                block_id="page-123",
+                start_cursor="cursor-xyz",
+            )
+
+        call_kwargs = client.blocks.children.list.call_args.kwargs
+        assert call_kwargs["start_cursor"] == "cursor-xyz"
+
+    async def test_empty_page(self) -> None:
+        client = _mock_client()
+        client.blocks.children.list.return_value = {
+            "results": [],
+            "has_more": False,
+        }
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_list_blocks(block_id="page-123")
+
+        assert result.success
+        assert result.data["count"] == 0
+        assert result.data["blocks"] == []
+
+    async def test_api_error(self) -> None:
+        exc = Exception("error")
+        exc.message = "Block not found"  # type: ignore[attr-defined]
+        client = _mock_client()
+        client.blocks.children.list.side_effect = exc
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_list_blocks(block_id="bad-id")
+
+        assert not result.success
+        assert "not found" in result.error.lower()
+
+    async def test_missing_config(self) -> None:
+        with patch("src.tools.notion_tools._get_client", side_effect=ValueError("no key")):
+            result = await notion_list_blocks(block_id="page-123")
+        assert not result.success
+
+
+# ---------------------------------------------------------------------------
+# notion_delete_block
+# ---------------------------------------------------------------------------
+
+
+class TestNotionDeleteBlock:
+    async def test_success(self) -> None:
+        client = _mock_client()
+        client.blocks.delete.return_value = {
+            "id": "block-1",
+            "type": "paragraph",
+            "archived": True,
+        }
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_delete_block(block_id="block-1")
+
+        assert result.success
+        assert result.data["deleted"] is True
+        assert result.data["id"] == "block-1"
+        assert result.data["type"] == "paragraph"
+        client.blocks.delete.assert_awaited_once_with(block_id="block-1")
+
+    async def test_api_error(self) -> None:
+        exc = Exception("error")
+        exc.message = "Block not found"  # type: ignore[attr-defined]
+        client = _mock_client()
+        client.blocks.delete.side_effect = exc
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_delete_block(block_id="bad-id")
+
+        assert not result.success
+
+    async def test_missing_config(self) -> None:
+        with patch("src.tools.notion_tools._get_client", side_effect=ValueError("no key")):
+            result = await notion_delete_block(block_id="block-1")
+        assert not result.success
+
+
+# ---------------------------------------------------------------------------
+# notion_update_block
+# ---------------------------------------------------------------------------
+
+
+class TestNotionUpdateBlock:
+    async def test_success_with_explicit_type(self) -> None:
+        client = _mock_client()
+        client.blocks.update.return_value = {
+            "id": "block-1",
+            "type": "paragraph",
+            "paragraph": {"rich_text": [{"plain_text": "Updated text"}]},
+        }
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_update_block(
+                block_id="block-1",
+                content="Updated text",
+                block_type="paragraph",
+            )
+
+        assert result.success
+        assert result.data["id"] == "block-1"
+        assert result.data["type"] == "paragraph"
+        assert result.data["text"] == "Updated text"
+        # Should NOT have called blocks.retrieve since type was provided
+        client.blocks.retrieve.assert_not_awaited()
+
+    async def test_auto_detects_type(self) -> None:
+        client = _mock_client()
+        client.blocks.retrieve.return_value = {
+            "id": "block-1",
+            "type": "heading_1",
+            "heading_1": {"rich_text": [{"plain_text": "Old title"}]},
+        }
+        client.blocks.update.return_value = {
+            "id": "block-1",
+            "type": "heading_1",
+            "heading_1": {"rich_text": [{"plain_text": "New title"}]},
+        }
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_update_block(
+                block_id="block-1",
+                content="New title",
+            )
+
+        assert result.success
+        client.blocks.retrieve.assert_awaited_once_with(block_id="block-1")
+        # Verify the update payload used heading_1
+        call_kwargs = client.blocks.update.call_args.kwargs
+        assert "heading_1" in call_kwargs
+
+    async def test_to_do_with_checked(self) -> None:
+        client = _mock_client()
+        client.blocks.update.return_value = {
+            "id": "block-1",
+            "type": "to_do",
+            "to_do": {
+                "rich_text": [{"plain_text": "Done task"}],
+                "checked": True,
+            },
+        }
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_update_block(
+                block_id="block-1",
+                content="Done task",
+                block_type="to_do",
+                checked=True,
+            )
+
+        assert result.success
+        call_kwargs = client.blocks.update.call_args.kwargs
+        assert call_kwargs["to_do"]["checked"] is True
+
+    async def test_code_with_language(self) -> None:
+        client = _mock_client()
+        client.blocks.update.return_value = {
+            "id": "block-1",
+            "type": "code",
+            "code": {
+                "rich_text": [{"plain_text": "print('hi')"}],
+                "language": "python",
+            },
+        }
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_update_block(
+                block_id="block-1",
+                content="print('hi')",
+                block_type="code",
+                language="python",
+            )
+
+        assert result.success
+        call_kwargs = client.blocks.update.call_args.kwargs
+        assert call_kwargs["code"]["language"] == "python"
+
+    async def test_unsupported_type_returns_error(self) -> None:
+        client = _mock_client()
+        client.blocks.retrieve.return_value = {
+            "id": "block-1",
+            "type": "image",
+            "image": {},
+        }
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_update_block(
+                block_id="block-1",
+                content="text",
+            )
+
+        assert not result.success
+        assert "Cannot update block type 'image'" in result.error
+
+    async def test_api_error(self) -> None:
+        exc = Exception("error")
+        exc.message = "Block not found"  # type: ignore[attr-defined]
+        client = _mock_client()
+        client.blocks.update.side_effect = exc
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_update_block(
+                block_id="bad-id",
+                content="text",
+                block_type="paragraph",
+            )
+
+        assert not result.success
+
+    async def test_missing_config(self) -> None:
+        with patch("src.tools.notion_tools._get_client", side_effect=ValueError("no key")):
+            result = await notion_update_block(
+                block_id="block-1",
+                content="text",
+                block_type="paragraph",
+            )
+        assert not result.success
+
+
+# ---------------------------------------------------------------------------
+# notion_append_content — `after` parameter
+# ---------------------------------------------------------------------------
+
+
+class TestNotionAppendContentAfter:
+    async def test_with_after_param(self) -> None:
+        client = _mock_client()
+        client.blocks.children.append.return_value = {
+            "results": [{"id": "block-new", "type": "paragraph"}],
+        }
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_append_content(
+                page_id="page-123",
+                content="Inserted text",
+                after="block-42",
+            )
+
+        assert result.success
+        call_kwargs = client.blocks.children.append.call_args.kwargs
+        assert call_kwargs["after"] == "block-42"
+        assert call_kwargs["block_id"] == "page-123"
+
+    async def test_without_after_param_unchanged(self) -> None:
+        client = _mock_client()
+        client.blocks.children.append.return_value = {
+            "results": [{"id": "block-new", "type": "paragraph"}],
+        }
+
+        with patch("src.tools.notion_tools._get_client", return_value=client):
+            result = await notion_append_content(
+                page_id="page-123",
+                content="Appended text",
+            )
+
+        assert result.success
+        call_kwargs = client.blocks.children.append.call_args.kwargs
+        assert "after" not in call_kwargs

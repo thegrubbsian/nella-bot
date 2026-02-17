@@ -87,8 +87,11 @@ def _humanize_cron(expr: str) -> str:
 
     # "0 9 * * 0,6" → "Weekends at 9:00 AM"
     if (
-        dom == "*" and month == "*" and dow in ("0,6", "6,0")
-        and minute.isdigit() and hour.isdigit()
+        dom == "*"
+        and month == "*"
+        and dow in ("0,6", "6,0")
+        and minute.isdigit()
+        and hour.isdigit()
     ):
         return f"Weekends at {_fmt_time(int(hour), int(minute))}"
 
@@ -428,8 +431,32 @@ def _fmt_notion_append_content(inp: dict[str, Any]) -> str:
     lines = ["Append to Notion page"]
     if inp.get("page_id"):
         lines.append(f"Page: ...{inp['page_id'][-8:]}")
+    if inp.get("after"):
+        lines.append(f"After block: ...{inp['after'][-8:]}")
     if inp.get("content"):
         lines.append(f"Content: {_trunc(inp['content'])}")
+    return "\n".join(lines)
+
+
+def _fmt_notion_delete_block(inp: dict[str, Any]) -> str:
+    lines = ["Delete Notion block"]
+    if inp.get("_block_type"):
+        lines.append(f"Type: {inp['_block_type']}")
+    if inp.get("_block_text"):
+        lines.append(f"Content: {_trunc(inp['_block_text'], 100)}")
+    elif inp.get("block_id"):
+        lines.append(f"Block: ...{inp['block_id'][-8:]}")
+    return "\n".join(lines)
+
+
+def _fmt_notion_update_block(inp: dict[str, Any]) -> str:
+    lines = ["Update Notion block"]
+    if inp.get("block_id"):
+        lines.append(f"Block: ...{inp['block_id'][-8:]}")
+    if inp.get("block_type"):
+        lines.append(f"Type: {inp['block_type']}")
+    if inp.get("content"):
+        lines.append(f"New content: {_trunc(inp['content'])}")
     return "\n".join(lines)
 
 
@@ -474,6 +501,8 @@ _TOOL_FORMATTERS: dict[str, Any] = {
     "notion_update_page": _fmt_notion_update_page,
     "notion_archive_page": _fmt_notion_archive_page,
     "notion_append_content": _fmt_notion_append_content,
+    "notion_delete_block": _fmt_notion_delete_block,
+    "notion_update_block": _fmt_notion_update_block,
     "notion_create_database": _fmt_notion_create_database,
 }
 
@@ -531,9 +560,31 @@ async def _enrich_notion_archive(inp: dict[str, Any]) -> dict[str, Any]:
     return inp
 
 
+async def _enrich_notion_delete_block(inp: dict[str, Any]) -> dict[str, Any]:
+    """Look up block type and text preview before showing delete confirmation."""
+    block_id = inp.get("block_id")
+    if not block_id:
+        return inp
+    try:
+        from src.tools.notion_tools import _extract_block_text, _get_client
+
+        client = _get_client()
+        block = await client.blocks.retrieve(block_id=block_id)
+        block_type = block.get("type", "")
+        text = _extract_block_text(block)
+        enriched = {**inp, "_block_type": block_type}
+        if text:
+            enriched["_block_text"] = text
+        return enriched
+    except Exception:
+        pass
+    return inp
+
+
 _ENRICHERS: dict[str, Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]] = {
     "cancel_scheduled_task": _enrich_cancel_task,
     "notion_archive_page": _enrich_notion_archive,
+    "notion_delete_block": _enrich_notion_delete_block,
 }
 
 
@@ -598,12 +649,14 @@ async def request_confirmation(
         pending_tool.description,
     )
 
-    keyboard = InlineKeyboardMarkup([
+    keyboard = InlineKeyboardMarkup(
         [
-            InlineKeyboardButton("Approve", callback_data=f"cfm:{conf_id}:y"),
-            InlineKeyboardButton("Deny", callback_data=f"cfm:{conf_id}:n"),
+            [
+                InlineKeyboardButton("Approve", callback_data=f"cfm:{conf_id}:y"),
+                InlineKeyboardButton("Deny", callback_data=f"cfm:{conf_id}:n"),
+            ]
         ]
-    ])
+    )
 
     safe_summary = html.escape(summary)
     msg = await bot.send_message(
