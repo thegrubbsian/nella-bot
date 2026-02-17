@@ -68,7 +68,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 Optional model settings (defaults are fine to start):
 
 ```env
-CLAUDE_MODEL=claude-sonnet-4-5-20250929
+CLAUDE_MODEL=claude-sonnet-4-6
 DEFAULT_CHAT_MODEL=sonnet
 DEFAULT_MEMORY_MODEL=haiku
 ```

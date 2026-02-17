@@ -413,7 +413,7 @@ Then edit `.env` with your actual values:
 | `TELEGRAM_BOT_TOKEN` | Yes | Get this from [@BotFather](https://t.me/BotFather) on Telegram |
 | `ALLOWED_USER_IDS` | Yes | Comma-separated Telegram user IDs. Only these users can talk to Nella. Find yours by messaging [@userinfobot](https://t.me/userinfobot) |
 | `ANTHROPIC_API_KEY` | Yes | Your Claude API key from [console.anthropic.com](https://console.anthropic.com) |
-| `CLAUDE_MODEL` | No | Full model ID. Default: `claude-sonnet-4-5-20250929` |
+| `CLAUDE_MODEL` | No | Full model ID. Default: `claude-sonnet-4-6` |
 | `DEFAULT_CHAT_MODEL` | No | Friendly name: `haiku`, `sonnet`, or `opus`. Default: `sonnet` |
 | `DEFAULT_MEMORY_MODEL` | No | Model for memory extraction. Default: `haiku` |
 | `GOOGLE_CREDENTIALS_PATH` | No | Path to Google OAuth credentials file. Default: `credentials.json` |

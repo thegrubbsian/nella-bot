@@ -240,8 +240,8 @@ class TestResolveModel:
         assert "sonnet" in result
 
     def test_full_model_id(self):
-        result = BrowserAgent._resolve_model("claude-sonnet-4-5-20250929")
-        assert result == "claude-sonnet-4-5-20250929"
+        result = BrowserAgent._resolve_model("claude-sonnet-4-6")
+        assert result == "claude-sonnet-4-6"
 
     def test_unknown_falls_back_to_sonnet(self):
         result = BrowserAgent._resolve_model("nonexistent-model")

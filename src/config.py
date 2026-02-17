@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # Anthropic
     anthropic_api_key: str = Field(default="")
-    claude_model: str = Field(default="claude-sonnet-4-5-20250929")
+    claude_model: str = Field(default="claude-sonnet-4-6")
     default_chat_model: str = Field(default="sonnet")
     default_memory_model: str = Field(default="haiku")
 
