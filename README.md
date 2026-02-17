@@ -68,7 +68,7 @@ She also has access to her own logs and source code so she can help fix issues w
 | `src/bot/` | Telegram bot setup, message handlers, session management, user security | You want to change how messages are received or how the bot responds |
 | `src/llm/` | Claude API client, system prompt assembly, model switching | You want to change how Claude is called, what it sees, or the tool-calling loop |
 | `src/memory/` | Mem0 integration, automatic memory extraction, data models | You want to change how Nella remembers things |
-| `src/browser/` | Playwright browser automation — headless Chromium agent for JS-heavy sites | You want to change how interactive browsing works |
+| `src/browser/` | Playwright browser automation — persistent profile, stealth evasions, headless Chromium agent for JS-heavy sites | You want to change how interactive browsing works |
 | `src/tools/` | Tool registry, all 90 tool implementations, base classes | You want to add a new tool or modify an existing one |
 | `src/integrations/` | Google OAuth multi-account manager, LinkedIn OAuth | You want to add a new Google API, add an account, or fix auth issues |
 | `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
@@ -217,6 +217,7 @@ The `config/` directory contains markdown files that shape Nella's behavior:
 |------|---------|--------|
 | `SOUL.md` | Nella's personality, tone, and behavioral rules | Loaded into every system prompt. Changing this changes how Nella talks and acts. |
 | `USER.md` | Owner profile — your name, timezone, preferences, work info | Loaded into every system prompt. Fill this in so Nella knows about you. |
+| `TOOLS.md` | Tool usage preferences and disambiguation rules | Loaded into every system prompt. Guides tool selection (e.g. "when I say delete, use trash"). |
 | `MEMORY.md` | Explicit long-term facts you want Nella to always know | Human-editable memory store. Edit directly when you want to add/remove persistent facts. |
 | `MEMORY_RULES.md` | Rules for the automatic memory extraction system | Controls what the background extraction picks up. Change this if Nella is remembering too much or too little. |
 | `NOTION.md` | Notion database IDs, schemas, and usage hints | Loaded when `NOTION_API_KEY` is set. Tells Nella which databases exist and how to use them. |
@@ -257,7 +258,7 @@ nellabot/
 │   │   └── store.py                 # PeopleStore — libsql CRUD for people_notes
 │   ├── browser/
 │   │   ├── __init__.py              # Package init
-│   │   ├── session.py               # BrowserSession — Playwright lifecycle (headless Chromium)
+│   │   ├── session.py               # BrowserSession — Playwright lifecycle (persistent profile + stealth)
 │   │   └── agent.py                 # BrowserAgent — autonomous vision-based navigation loop
 │   ├── watchdog.py                      # Systemd watchdog integration (sd_notify, READY, WATCHDOG pings)
 │   ├── db.py                            # Async wrapper over libsql (local SQLite or remote Turso)
@@ -309,12 +310,13 @@ nellabot/
 ├── config/
 │   ├── SOUL.md.EXAMPLE              # Nella's personality (template)
 │   ├── USER.md.EXAMPLE              # Owner profile (template — fill this in)
+│   ├── TOOLS.md.EXAMPLE             # Tool usage preferences and disambiguation (template)
 │   ├── MEMORY.md.EXAMPLE            # Explicit long-term facts (template)
 │   ├── MEMORY_RULES.md.EXAMPLE      # Auto-extraction rules (template)
 │   └── NOTION.md.EXAMPLE            # Notion database IDs and schema hints (template)
 │   # Copy .EXAMPLE → .md and customize. Actual .md files are gitignored.
 │
-├── tests/                           # 820+ tests
+├── tests/                           # 920+ tests
 │   ├── test_google_*.py             # Google auth + integrations (6 files)
 │   ├── test_linkedin_*.py           # LinkedIn tools
 │   ├── test_github_*.py             # GitHub tools
@@ -439,11 +441,12 @@ Then edit `.env` with your actual values:
 | `LINKEDIN_CLIENT_ID` | No | LinkedIn OAuth client ID. Required for LinkedIn tools (`create_post`, `post_comment`). Create an app at [linkedin.com/developers](https://www.linkedin.com/developers/apps). |
 | `LINKEDIN_CLIENT_SECRET` | No | LinkedIn OAuth client secret. |
 | `OPENAI_API_KEY` | No | OpenAI API key. Enables the `generate_image` tool (GPT-Image-1). Get one at [platform.openai.com](https://platform.openai.com/api-keys). |
-| `NOTION_API_KEY` | No | Notion internal integration token. Enables 11 Notion tools (database CRUD, page management, database creation). Create at [notion.so/profile/integrations](https://www.notion.so/profile/integrations), then share databases with the integration. |
-| `BROWSER_ENABLED` | No | Enable the `browse_web` tool (Playwright). Requires Chromium: `uv run playwright install chromium`. Default: `false` |
+| `NOTION_API_KEY` | No | Notion internal integration token. Enables 14 Notion tools (database CRUD, page management, content blocks, database creation). Create at [notion.so/profile/integrations](https://www.notion.so/profile/integrations), then share databases with the integration. |
+| `BROWSER_ENABLED` | No | Enable the `browse_web` tool (Playwright + stealth evasions). Requires Chromium: `uv run playwright install chromium`. Default: `false` |
 | `BROWSER_MODEL` | No | Claude model for browser vision agent (friendly name). Default: `sonnet` |
 | `BROWSER_TIMEOUT_MS` | No | Page navigation timeout in milliseconds. Default: `30000` |
 | `BROWSER_MAX_STEPS` | No | Max navigation steps per browse_web call. Default: `15` |
+| `BROWSER_PROFILE_DIR` | No | Persistent browser profile directory (cookies/state survive across calls). Default: `data/browser_profile` |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, or `ERROR`. Default: `INFO` |
 
 ### 3. Set up Google OAuth (optional)

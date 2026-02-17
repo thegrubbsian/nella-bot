@@ -254,6 +254,9 @@ chown nella:nella /home/nella/app/data
 mkdir -p /home/nella/app/data/scratch
 chown nella:nella /home/nella/app/data/scratch
 
+mkdir -p /home/nella/app/data/browser_profile
+chown nella:nella /home/nella/app/data/browser_profile
+
 # Create config files from .EXAMPLE templates if they don't exist
 for example in /home/nella/app/config/*.md.EXAMPLE; do
     target="${example%.EXAMPLE}"

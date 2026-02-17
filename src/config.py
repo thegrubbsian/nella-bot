@@ -79,6 +79,7 @@ class Settings(BaseSettings):
     browser_model: str = Field(default="sonnet")
     browser_timeout_ms: int = Field(default=30000)
     browser_max_steps: int = Field(default=15)
+    browser_profile_dir: Path = Field(default=Path("data/browser_profile"))
 
     # LinkedIn
     linkedin_client_id: str = Field(default="")
