@@ -50,7 +50,7 @@ async def handle_clear(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if not is_allowed(update):
         return
 
-    session = get_session(update.effective_chat.id)
+    session = get_session(str(update.effective_chat.id))
     count = session.clear()
     await update.message.reply_text(f"Cleared {count} messages. Starting fresh.")
 
@@ -60,7 +60,7 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if not is_allowed(update):
         return
 
-    session = get_session(update.effective_chat.id)
+    session = get_session(str(update.effective_chat.id))
     msg_count = len(session.messages)
     window = session.window_size
     mm = ModelManager.get()
@@ -114,7 +114,7 @@ async def _process_message(
     """Shared pipeline: add to session, stream Claude response, extract memory."""
     chat_id = update.effective_chat.id
 
-    session = get_session(chat_id)
+    session = get_session(str(chat_id))
     session.add("user", user_message)
 
     # Send a placeholder that we'll edit as the stream arrives
@@ -140,7 +140,9 @@ async def _process_message(
 
     async def on_confirm(pending_tool):
         return await request_confirmation(
-            bot=context.bot, chat_id=chat_id, pending_tool=pending_tool,
+            bot=context.bot,
+            chat_id=chat_id,
+            pending_tool=pending_tool,
         )
 
     try:

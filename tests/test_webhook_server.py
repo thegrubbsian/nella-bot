@@ -14,9 +14,17 @@ TEST_SECRET = "test-secret-123"
 
 
 class _FakeSettings:
-    def __init__(self, webhook_secret: str = TEST_SECRET, webhook_port: int = 8443) -> None:
+    def __init__(
+        self,
+        webhook_secret: str = TEST_SECRET,
+        webhook_port: int = 8443,
+        telnyx_api_key: str = "",
+        sms_owner_phone: str = "",
+    ) -> None:
         self.webhook_secret = webhook_secret
         self.webhook_port = webhook_port
+        self.telnyx_api_key = telnyx_api_key
+        self.sms_owner_phone = sms_owner_phone
 
 
 async def _make_client(app=None):

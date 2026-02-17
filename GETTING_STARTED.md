@@ -269,6 +269,33 @@ openssl rand -hex 32
 The deploy script installs and configures ngrok as a systemd service
 automatically.
 
+### SMS via Telnyx (Conversational Texting)
+
+Enables conversational SMS as an alternative to Telegram. SMS uses separate
+sessions but shares the same memory, config, and tool access. Tools that
+require confirmation are auto-denied (SMS can't do inline keyboards).
+
+1. Create an account at [telnyx.com](https://telnyx.com).
+2. Complete 10DLC sole proprietor registration (~$4 brand + $15 campaign
+   one-time, $2/month ongoing).
+3. Buy a phone number ($1.10/month).
+4. In your messaging profile, set the webhook URL to
+   `https://<NGROK_DOMAIN>/sms/inbound`.
+5. Set the env vars:
+
+```env
+TELNYX_API_KEY=KEY...
+TELNYX_PHONE_NUMBER=+15551234567
+SMS_OWNER_PHONE=+15559876543
+```
+
+`SMS_OWNER_PHONE` is a security gate — only messages from this number are
+processed (similar to `ALLOWED_USER_IDS` for Telegram). Use E.164 format
+(country code + number, e.g. `+1` for US).
+
+Cost is roughly $0.004 per message segment (160 chars). Nella caps responses
+at ~1,600 chars (~10 segments) to keep costs low.
+
 ---
 
 ## 4. Customize Nella
@@ -368,6 +395,7 @@ Send Nella a message on Telegram. If she responds, you're done.
 | SolarWinds | `query_logs` | No |
 | Turso | Hosted database (replaces local SQLite) | No |
 | ngrok | HTTPS webhooks for external services | No |
+| Telnyx | SMS conversational channel (alternative to Telegram) | No |
 
 Tools that aren't configured are simply not loaded — Nella works fine without
 them and won't show errors. Add services incrementally as you need them.

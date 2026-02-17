@@ -37,6 +37,12 @@ def _init_notifications(app: Application) -> None:
     router = NotificationRouter.get()
     telegram_channel = TelegramChannel(app.bot)
     router.register_channel(telegram_channel)
+    if settings.telnyx_api_key and settings.telnyx_phone_number:
+        from src.notifications.sms_channel import SMSChannel
+
+        sms_channel = SMSChannel()
+        router.register_channel(sms_channel)
+
     router.set_default_channel(settings.default_notification_channel)
     logger.info(
         "Notifications initialized: channels=%s, default=%s",
@@ -124,12 +130,7 @@ async def _post_shutdown(app: Application) -> None:
 
 def create_app() -> Application:
     """Build and configure the Telegram application."""
-    app = (
-        Application.builder()
-        .token(settings.telegram_bot_token)
-        .concurrent_updates(True)
-        .build()
-    )
+    app = Application.builder().token(settings.telegram_bot_token).concurrent_updates(True).build()
 
     _init_notifications(app)
 
@@ -137,12 +138,8 @@ def create_app() -> Application:
     app.add_handler(CommandHandler("clear", handle_clear))
     app.add_handler(CommandHandler("status", handle_status))
     app.add_handler(CommandHandler("model", handle_model))
-    app.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
-    )
-    app.add_handler(
-        MessageHandler(filters.PHOTO | filters.Document.ALL, handle_upload)
-    )
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, handle_upload))
     app.add_handler(CallbackQueryHandler(handle_callback_query))
 
     # Scheduler lifecycle hooks

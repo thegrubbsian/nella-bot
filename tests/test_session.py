@@ -39,10 +39,10 @@ def test_session_clear() -> None:
 
 
 def test_get_session_creates_and_reuses() -> None:
-    """get_session should return the same session for the same chat_id."""
-    s1 = get_session(99999)
-    s2 = get_session(99999)
+    """get_session should return the same session for the same session_id."""
+    s1 = get_session("99999")
+    s2 = get_session("99999")
     assert s1 is s2
 
-    s3 = get_session(88888)
+    s3 = get_session("88888")
     assert s3 is not s1

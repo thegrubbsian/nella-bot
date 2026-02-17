@@ -1,6 +1,6 @@
 # Nella
 
-Nella is an always-on personal AI assistant that interfaces through Telegram. She uses Claude as her brain, Mem0 for persistent memory, has a task scheduling system, supports webhooks for Zapier integrations, and wires up a number of tools (Gmail, Calendar, Drive, Docs, Notion, LinkedIn, Github, image generation, etc) so she can actually do things in the real world — not just talk about them. She's single-user by design: one owner, one bot, full context.
+Nella is an always-on personal AI assistant that interfaces through Telegram and SMS. She uses Claude as her brain, Mem0 for persistent memory, has a task scheduling system, supports webhooks for Zapier integrations, and wires up a number of tools (Gmail, Calendar, Drive, Docs, Notion, LinkedIn, Github, image generation, etc) so she can actually do things in the real world — not just talk about them. She's single-user by design: one owner, one bot, full context.
 
 She also has access to her own logs and source code so she can help fix issues when things go awry. All you need is a VPS :)
 
@@ -20,7 +20,11 @@ She also has access to her own logs and source code so she can help fix issues w
 │ Telegram ├─────────────►│           LLM Client              │
 │  User    │◄─────────────┤  (prompt assembly, tool loop,     │
 └──────────┘  streaming   │   message context forwarding)     │
-              edits       └────────┬──────────────┬───────────┘
+              edits       │                                   │
+┌──────────┐   messages   │                                   │
+│   SMS    ├─────────────►│                                   │
+│ (Telnyx) │◄─────────────┤                                   │
+└──────────┘  full reply  └────────┬──────────────┬───────────┘
                                    │              │
                     ┌──────────────┴──┐    ┌──────┴──────────────┐
                     │  System Prompt  │    │   Tool Registry     │
@@ -45,7 +49,7 @@ She also has access to her own logs and source code so she can help fix issues w
                     │  Auto-extract   │    │ Notification Router  │
                     └─────────────────┘    │                     │
                                            │  TelegramChannel    │
-                    ┌─────────────────┐    │  (future: SMS, etc.)│
+                    ┌─────────────────┐    │  SMSChannel (Telnyx)│
                     │    Scheduler    │    └─────────────────────┘
                     │                 │
                     │  APScheduler    │    ┌─────────────────────┐
@@ -53,6 +57,7 @@ She also has access to her own logs and source code so she can help fix issues w
                     └─────────────────┘    │                     │
                                            │  aiohttp on :8443   │
                                            │  /webhooks/{source} │
+                                           │  /sms/inbound       │
                     ┌─────────────────┐    └─────────────────────┘
                     │  External       │               │
                     │  Services       ├───────────────┘
@@ -71,9 +76,10 @@ She also has access to her own logs and source code so she can help fix issues w
 | `src/browser/` | Playwright browser automation — persistent profile, stealth evasions, headless Chromium agent for JS-heavy sites | You want to change how interactive browsing works |
 | `src/tools/` | Tool registry, all 90 tool implementations, base classes | You want to add a new tool or modify an existing one |
 | `src/integrations/` | Google OAuth multi-account manager, LinkedIn OAuth | You want to add a new Google API, add an account, or fix auth issues |
-| `src/notifications/` | Channel protocol, message routing, Telegram channel | You want to add a new delivery channel (SMS, voice, etc.) |
+| `src/sms/` | Telnyx SMS client, inbound SMS handler | You want to change how SMS messaging works |
+| `src/notifications/` | Channel protocol, message routing, Telegram + SMS channels | You want to add a new delivery channel or modify routing |
 | `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
-| `src/webhooks/` | Inbound HTTP server, handler registry, per-integration handlers | You want to receive webhooks from external services (Zapier, Plaud, etc.) |
+| `src/webhooks/` | Inbound HTTP server, handler registry, per-integration handlers, SMS inbound route | You want to receive webhooks from external services or modify SMS routing |
 | `config/` | Markdown files that define personality, user profile, memory rules. `.md.EXAMPLE` files are templates checked into git; actual `.md` files are gitignored. | You want to change how Nella behaves or what she knows about you |
 
 ### How a Message Flows
@@ -157,7 +163,7 @@ Nella runs a lightweight HTTP server (aiohttp) alongside the Telegram polling bo
 
 **Key details:**
 - **Port**: configurable via `WEBHOOK_PORT` (default 8443). The VPS firewall must allow inbound traffic on this port (`sudo ufw allow 8443/tcp`).
-- **Disabled by default**: if `WEBHOOK_SECRET` is empty, the server doesn't start. No open ports, no attack surface.
+- **Disabled by default**: if `WEBHOOK_SECRET` is empty and SMS is not configured, the server doesn't start. No open ports, no attack surface. The server also starts when `TELNYX_API_KEY` is set (for SMS), even without `WEBHOOK_SECRET`.
 - **Health check**: `GET /health` returns `{"status": "ok"}` — useful for uptime monitoring.
 - **Lifecycle**: starts in `_post_init` (after the Telegram app is ready), stops in `_post_shutdown` (graceful cleanup).
 
@@ -175,6 +181,34 @@ async def handle_plaud(payload: dict) -> None:
 ```
 
 Then import it in `src/webhooks/handlers/__init__.py` so it registers on startup. The handler will receive any POST to `/webhooks/plaud` that passes secret validation.
+
+### How SMS Works
+
+Nella supports conversational SMS via Telnyx as an alternative to Telegram. SMS is for **conversations only** — scheduled tasks and webhook notifications stay on Telegram. SMS and Telegram get separate sessions but share the same memory system, config files, and tool access.
+
+**Inbound flow:**
+1. You send an SMS to Nella's Telnyx phone number.
+2. Telnyx POSTs the message to `/sms/inbound` on the webhook server.
+3. The handler validates the sender phone number against `SMS_OWNER_PHONE`.
+4. A session is created/retrieved (keyed by phone number, separate from Telegram sessions).
+5. `generate_response()` is called — no streaming, no tool confirmations.
+6. The full response is sent back as a single SMS via the Telnyx REST API.
+7. Background memory extraction fires (same as Telegram).
+
+**Key details:**
+- **No confirmations**: SMS can't do inline keyboards, so tools that require confirmation are auto-denied (existing behavior when `on_confirm=None`).
+- **No streaming**: the full response is sent as one message.
+- **Response truncation**: capped at 1,600 chars (~10 SMS segments) to avoid excessive costs and delivery issues.
+- **Separate route**: `/sms/inbound` is on the same aiohttp server as webhooks but doesn't use `X-Webhook-Secret` (Telnyx doesn't send custom headers). Security is via phone number validation.
+- **SMSChannel**: registered in the notification router so tools that send via `msg_context.source_channel` (e.g., `generate_image`) work correctly. Default channel stays Telegram.
+
+**Setup:**
+1. Create a Telnyx account at [telnyx.com](https://telnyx.com).
+2. Complete 10DLC sole proprietor registration (~$4 brand + $15 campaign one-time, $2/month).
+3. Buy a phone number ($1.10/month).
+4. Configure the messaging profile webhook URL to `https://{NGROK_DOMAIN}/sms/inbound`.
+5. Set `TELNYX_API_KEY`, `TELNYX_PHONE_NUMBER`, `SMS_OWNER_PHONE` in `.env`.
+6. Restart Nella.
 
 ### How Plaud Transcript Processing Works
 
@@ -261,6 +295,10 @@ nellabot/
 │   │   ├── __init__.py              # Package init
 │   │   ├── session.py               # BrowserSession — Playwright lifecycle (persistent profile + stealth)
 │   │   └── agent.py                 # BrowserAgent — autonomous vision-based navigation loop
+│   ├── sms/
+│   │   ├── __init__.py              # Package init
+│   │   ├── client.py                # Telnyx SMS API client (aiohttp, send_sms)
+│   │   └── handler.py               # Inbound SMS processing pipeline
 │   ├── watchdog.py                      # Systemd watchdog integration (sd_notify, READY, WATCHDOG pings)
 │   ├── db.py                            # Async wrapper over libsql (local SQLite or remote Turso)
 │   ├── scratch.py                       # ScratchSpace — sandboxed local filesystem for temp files
@@ -291,7 +329,8 @@ nellabot/
 │   │   ├── channels.py              # NotificationChannel protocol
 │   │   ├── context.py               # MessageContext dataclass
 │   │   ├── router.py                # NotificationRouter singleton
-│   │   └── telegram_channel.py      # Telegram implementation
+│   │   ├── telegram_channel.py      # Telegram implementation
+│   │   └── sms_channel.py           # SMS implementation (Telnyx)
 │   ├── scheduler/
 │   │   ├── __init__.py              # Package exports
 │   │   ├── models.py                # ScheduledTask dataclass, make_task_id()
@@ -318,10 +357,11 @@ nellabot/
 │   └── TOOL_CONFIRMATIONS.toml.EXAMPLE  # Per-tool confirmation toggle (template)
 │   # Copy .EXAMPLE → .md/.toml and customize. Actual .md/.toml files are gitignored.
 │
-├── tests/                           # 920+ tests
+├── tests/                           # 950+ tests
 │   ├── test_google_*.py             # Google auth + integrations (6 files)
 │   ├── test_linkedin_*.py           # LinkedIn tools
 │   ├── test_github_*.py             # GitHub tools
+│   ├── test_sms_*.py                # SMS channel (4 files: client, handler, channel, webhook)
 │   ├── test_people_store.py         # PeopleStore CRUD
 │   ├── test_notification_*.py       # Notification system (3 files)
 │   ├── test_memory_*.py             # Memory system (2 files)
@@ -449,6 +489,9 @@ Then edit `.env` with your actual values:
 | `BROWSER_TIMEOUT_MS` | No | Page navigation timeout in milliseconds. Default: `30000` |
 | `BROWSER_MAX_STEPS` | No | Max navigation steps per browse_web call. Default: `15` |
 | `BROWSER_PROFILE_DIR` | No | Persistent browser profile directory (cookies/state survive across calls). Default: `data/browser_profile` |
+| `TELNYX_API_KEY` | No | Telnyx API key. Enables the SMS channel. Create at [telnyx.com](https://telnyx.com). |
+| `TELNYX_PHONE_NUMBER` | No | Your Telnyx phone number in E.164 format (e.g. `+15551234567`). Required for SMS. |
+| `SMS_OWNER_PHONE` | No | Owner's mobile phone number in E.164 format. Only messages from this number are processed. |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, or `ERROR`. Default: `INFO` |
 
 ### 3. Set up Google OAuth (optional)

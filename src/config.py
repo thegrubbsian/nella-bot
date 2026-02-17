@@ -91,6 +91,11 @@ class Settings(BaseSettings):
     # Notion
     notion_api_key: str = Field(default="")
 
+    # SMS (Telnyx)
+    telnyx_api_key: str = Field(default="")
+    telnyx_phone_number: str = Field(default="")  # E.164 format, e.g. "+15551234567"
+    sms_owner_phone: str = Field(default="")  # Owner's mobile in E.164 format
+
     # Plaud
     plaud_drive_folder_id: str = Field(default="")
 

@@ -21,6 +21,7 @@ src/
 ├── llm/          # Claude API client, prompt assembly, tool dispatch
 ├── memory/       # Mem0 integration, SQLite conversation store, file-based memory
 ├── integrations/ # Google OAuth multi-account manager
+├── sms/          # Telnyx SMS client + inbound handler (alternative to Telegram)
 ├── tools/        # Tool definitions for Claude function calling
 └── webhooks/     # Inbound webhook HTTP server + handler registry
 

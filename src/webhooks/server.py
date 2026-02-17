@@ -71,11 +71,59 @@ async def _health(request: web.Request) -> web.Response:
     return web.json_response({"status": "ok"})
 
 
+async def _handle_sms_inbound(request: web.Request) -> web.Response:
+    """Handle inbound SMS from Telnyx."""
+    try:
+        payload: dict[str, Any] = await request.json()
+    except Exception:
+        return web.json_response({"error": "invalid JSON"}, status=400)
+
+    # Telnyx sends multiple event types — only process inbound messages
+    event_type = payload.get("data", {}).get("event_type", "")
+    if event_type != "message.received":
+        return web.json_response({"ok": True})
+
+    msg_payload = payload.get("data", {}).get("payload", {})
+    from_number = msg_payload.get("from", {}).get("phone_number", "")
+    text = msg_payload.get("text", "")
+
+    if not from_number:
+        logger.warning("SMS webhook: missing from phone number")
+        return web.json_response({"ok": True})
+
+    # Validate sender is the owner
+    if from_number != settings.sms_owner_phone:
+        logger.warning("SMS rejected: from=%s is not the owner", from_number)
+        return web.json_response({"ok": True})
+
+    import asyncio
+
+    asyncio.create_task(_run_sms_handler(from_number, text))
+
+    return web.json_response({"ok": True})
+
+
+async def _run_sms_handler(from_number: str, text: str) -> None:
+    """Execute the SMS handler with error logging."""
+    try:
+        from src.sms.handler import handle_inbound_sms
+
+        await handle_inbound_sms(from_number, text)
+    except Exception:
+        logger.exception("SMS handler failed: from=%s", from_number)
+
+
 def _create_web_app() -> web.Application:
     """Build the aiohttp Application with routes."""
     app = web.Application()
     app.router.add_get("/health", _health)
     app.router.add_post("/webhooks/{source}", _handle_webhook)
+
+    # SMS inbound route (separate from webhook secret system)
+    if settings.telnyx_api_key:
+        app.router.add_post("/sms/inbound", _handle_sms_inbound)
+        logger.info("SMS inbound route registered at /sms/inbound")
+
     return app
 
 
@@ -87,13 +135,16 @@ class WebhookServer:
         self._runner: web.AppRunner | None = None
 
     async def start(self) -> None:
-        """Start listening for incoming webhooks."""
-        if not settings.webhook_secret:
-            logger.warning("WEBHOOK_SECRET is empty — webhook server disabled")
+        """Start listening for incoming webhooks and/or SMS."""
+        sms_enabled = bool(settings.telnyx_api_key)
+
+        if not settings.webhook_secret and not sms_enabled:
+            logger.warning("WEBHOOK_SECRET empty and SMS not configured — server disabled")
             return
 
         # Import handlers so they register with the webhook_registry.
-        import src.webhooks.handlers  # noqa: F401
+        if settings.webhook_secret:
+            import src.webhooks.handlers  # noqa: F401
 
         app = _create_web_app()
         self._runner = web.AppRunner(app)
