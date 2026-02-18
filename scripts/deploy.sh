@@ -200,6 +200,15 @@ phase_sync_secrets() {
         scp -q auth_tokens/*.json "$SSH_TARGET:$APP_DIR/auth_tokens/"
     fi
 
+    # Config files (.md and .toml — personal, gitignored)
+    local config_files=()
+    for f in config/*.md config/*.toml; do
+        [[ -f "$f" ]] && config_files+=("$f")
+    done
+    if [[ ${#config_files[@]} -gt 0 ]]; then
+        scp -q "${config_files[@]}" "$SSH_TARGET:$APP_DIR/config/"
+    fi
+
     # Lock down permissions
     run_remote bash -s <<'REMOTE_SCRIPT'
 set -euo pipefail
@@ -213,6 +222,9 @@ if [[ -d auth_tokens ]]; then
         [[ -f "$f" ]] && chmod 600 "$f" && chown nella:nella "$f"
     done
 fi
+for f in config/*.md config/*.toml; do
+    [[ -f "$f" ]] && chmod 600 "$f" && chown nella:nella "$f"
+done
 REMOTE_SCRIPT
 
     log "Secrets synced"
@@ -258,7 +270,7 @@ mkdir -p /home/nella/app/data/browser_profile
 chown nella:nella /home/nella/app/data/browser_profile
 
 # Create config files from .EXAMPLE templates if they don't exist
-for example in /home/nella/app/config/*.md.EXAMPLE; do
+for example in /home/nella/app/config/*.EXAMPLE; do
     target="${example%.EXAMPLE}"
     if [[ ! -f "$target" ]]; then
         cp "$example" "$target"
