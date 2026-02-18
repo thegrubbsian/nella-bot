@@ -97,6 +97,63 @@ def test_format_memories_with_entries() -> None:
     assert "555-1234" in result
 
 
+# -- Channel awareness -------------------------------------------------------
+
+
+async def test_sms_channel_injects_constraint_block() -> None:
+    """SMS channel should inject a channel constraints block."""
+    blocks = await build_system_prompt(source_channel="sms")
+    # Channel block comes after static (0) and time (1)
+    assert len(blocks) >= 3
+    channel_block = blocks[2]["text"]
+    assert "Current Channel: SMS" in channel_block
+    assert "auto-denied" in channel_block
+    assert "1,600 characters" in channel_block
+    assert "plain text" in channel_block
+    assert "cache_control" not in blocks[2]
+
+
+async def test_telegram_channel_no_constraint_block() -> None:
+    """Telegram channel should NOT inject a channel constraints block."""
+    blocks = await build_system_prompt(source_channel="telegram")
+    # Should only have static + time (no channel block)
+    texts = " ".join(b["text"] for b in blocks)
+    assert "Current Channel: SMS" not in texts
+
+
+async def test_empty_channel_no_constraint_block() -> None:
+    """Empty source_channel should NOT inject a channel constraints block."""
+    blocks = await build_system_prompt(source_channel="")
+    texts = " ".join(b["text"] for b in blocks)
+    assert "Current Channel: SMS" not in texts
+
+
+async def test_sms_channel_block_ordering() -> None:
+    """Block order: static (cached), time, channel, memories."""
+    mock_store = AsyncMock()
+    mock_store.enabled = True
+    mock_store.search.return_value = [
+        MemoryEntry(
+            id="1",
+            content="Test memory",
+            source="automatic",
+            category="fact",
+        ),
+    ]
+
+    with patch("src.memory.store.MemoryStore.get", return_value=mock_store):
+        blocks = await build_system_prompt(
+            user_message="test",
+            source_channel="sms",
+        )
+
+    assert len(blocks) == 4
+    assert "cache_control" in blocks[0]  # static
+    assert "Current time:" in blocks[1]["text"]  # time
+    assert "Current Channel: SMS" in blocks[2]["text"]  # channel
+    assert "Test memory" in blocks[3]["text"]  # memories
+
+
 # -- Notion prompt injection ------------------------------------------------
 
 

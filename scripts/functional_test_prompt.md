@@ -257,6 +257,16 @@ Skip create_contact and update_contact — we don't want to create or modify rea
 
 Skip linkedin_create_post and linkedin_post_comment — these post publicly and can't be undone. Just confirm whether the LinkedIn integration is enabled or disabled, and report that.
 
+## 17. SMS Channel
+
+This section verifies SMS configuration — it can't be functionally tested from Telegram.
+
+17.1. **SMS configuration check** — Check if Telnyx SMS is configured by looking for `TELNYX_API_KEY`, `TELNYX_PHONE_NUMBER`, and `SMS_OWNER_PHONE` in your settings. Report ENABLED (with the configured phone number) or DISABLED.
+
+17.2. **Channel awareness** — Confirm you are currently responding on the Telegram channel (you should NOT see any SMS constraints in your system prompt). Report PASS if you're aware you're on Telegram, FAIL if you think you're on SMS.
+
+Note: Full SMS functional testing requires sending a text message to Nella's Telnyx phone number separately.
+
 Note: If Notion is disabled (NOTION_API_KEY not set), report scenarios 13.1-13.15 as "DISABLED" and move on.
 Note: If browser automation is disabled (BROWSER_ENABLED=false), report scenario 14.1 as "DISABLED" and move on.
 Note: If OpenAI image generation is disabled (OPENAI_API_KEY not set), report scenarios 15.1-15.2 as "DISABLED" and move on.

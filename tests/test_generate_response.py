@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import anthropic
 
 from src.llm.client import generate_response
+from src.notifications.context import MessageContext
 from src.tools.base import ToolResult
 from src.tools.registry import ToolDef
 
@@ -380,3 +381,40 @@ async def test_non_content_filter_api_error_reraises() -> None:
             raised = True
 
     assert raised, "Non-content-filter APIStatusError should propagate"
+
+
+# ---------------------------------------------------------------------------
+# Channel awareness
+# ---------------------------------------------------------------------------
+
+
+async def test_source_channel_forwarded_to_build_system_prompt() -> None:
+    """When msg_context has source_channel='sms', build_system_prompt gets it."""
+    round1 = _make_stream(
+        "Hello!",
+        [_FakeBlock(type="text", text="Hello!")],
+    )
+
+    mock_client = _make_mock_client([round1])
+
+    mock_registry = MagicMock()
+    mock_registry.get_schemas.return_value = []
+
+    mock_build = AsyncMock(return_value="system")
+
+    ctx = MessageContext(user_id="123", source_channel="sms")
+
+    with (
+        patch("src.llm.client._get_client", return_value=mock_client),
+        patch("src.llm.client.build_system_prompt", mock_build),
+        patch("src.llm.client.registry", mock_registry),
+    ):
+        await generate_response(
+            [{"role": "user", "content": "hi"}],
+            msg_context=ctx,
+        )
+
+    mock_build.assert_called_once_with(
+        user_message="hi",
+        source_channel="sms",
+    )

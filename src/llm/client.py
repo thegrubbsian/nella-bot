@@ -124,7 +124,11 @@ async def generate_response(
         if isinstance(last.get("content"), str):
             user_msg_text = last["content"]
 
-    system_prompt = await build_system_prompt(user_message=user_msg_text)
+    source_channel = msg_context.source_channel if msg_context else ""
+    system_prompt = await build_system_prompt(
+        user_message=user_msg_text,
+        source_channel=source_channel,
+    )
 
     loop_messages = list(messages)
     full_text = ""

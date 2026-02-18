@@ -52,7 +52,10 @@ async def _retrieve_memories(user_message: str) -> str:
         return ""
 
 
-async def build_system_prompt(user_message: str = "") -> list[dict]:
+async def build_system_prompt(
+    user_message: str = "",
+    source_channel: str = "",
+) -> list[dict]:
     """Assemble the system prompt with optional memory context.
 
     The static parts (SOUL.md, USER.md, TOOLS.md, MEMORY.md) get ``cache_control``
@@ -134,9 +137,21 @@ async def build_system_prompt(user_message: str = "") -> list[dict]:
     tz = zoneinfo.ZoneInfo(settings.scheduler_timezone)
     now = datetime.now(tz)
     time_text = (
-        f"Current time: {now.strftime('%A, %B %d, %Y %I:%M %p %Z')} "
-        f"({settings.scheduler_timezone})"
+        f"Current time: {now.strftime('%A, %B %d, %Y %I:%M %p %Z')} ({settings.scheduler_timezone})"
     )
+
+    # Channel constraints — tell Claude about limitations of the current channel
+    channel_text = ""
+    if source_channel == "sms":
+        channel_text = (
+            "Current Channel: SMS\n\n"
+            "You are responding via SMS. Keep these constraints in mind:\n"
+            "- No inline keyboards or buttons — tools requiring confirmation are auto-denied\n"
+            "- No images, photos, or file attachments\n"
+            "- No rich formatting (no markdown, bold, italics) — use plain text only\n"
+            "- Keep responses concise — messages are truncated at 1,600 characters\n"
+            "- Do not suggest Telegram-specific commands (/clear, /status, /model)"
+        )
 
     # Retrieve relevant memories
     memory_text = ""
@@ -154,6 +169,9 @@ async def build_system_prompt(user_message: str = "") -> list[dict]:
             "text": time_text,
         },
     ]
+
+    if channel_text:
+        blocks.append({"type": "text", "text": channel_text})
 
     if memory_text:
         blocks.append({"type": "text", "text": memory_text})

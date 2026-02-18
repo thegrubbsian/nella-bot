@@ -116,6 +116,8 @@ Here's what happens when you send "What's on my calendar today?" in Telegram:
 
 11. **Background memory extraction**: `extract_and_save()` fires as an async task (non-blocking). It sends the exchange to Claude Haiku with the rules from `MEMORY_RULES.md`, extracts facts/preferences/action items, and saves the important ones to Mem0.
 
+**SMS variant:** When a message arrives via SMS instead of Telegram, the flow is similar but with key differences: no streaming (full response sent as a single SMS), no tool confirmations (auto-denied since SMS can't show inline keyboards), and responses are truncated at 1,600 characters. The system prompt also includes channel-specific constraints so Claude adapts its response style. See [How SMS Works](#how-sms-works) for the full flow.
+
 ### How the Memory System Works
 
 Nella has two memory pathways:
