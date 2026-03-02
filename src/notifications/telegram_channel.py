@@ -7,6 +7,8 @@ import logging
 import telegram
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from src.notifications.chunking import split_message
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,11 +23,17 @@ class TelegramChannel:
         return "telegram"
 
     async def send(self, user_id: str, message: str) -> bool:
-        """Send a plain text message to a Telegram chat."""
+        """Send a plain text message to a Telegram chat.
+
+        Long messages are automatically split at logical boundaries
+        (paragraphs, headers, sentences) to stay within Telegram's
+        4,096-character limit.
+        """
         try:
-            await self._bot.send_message(
-                chat_id=int(user_id), text=message, parse_mode="Markdown"
-            )
+            for chunk in split_message(message):
+                await self._bot.send_message(
+                    chat_id=int(user_id), text=chunk, parse_mode="Markdown"
+                )
             return True
         except Exception:
             logger.exception("TelegramChannel.send failed for user_id=%s", user_id)
@@ -39,7 +47,11 @@ class TelegramChannel:
         buttons: list[list[dict[str, str]]] | None = None,
         parse_mode: str | None = None,
     ) -> bool:
-        """Send a message with optional inline keyboard buttons."""
+        """Send a message with optional inline keyboard buttons.
+
+        For multi-chunk messages, buttons are attached only to the final
+        chunk so the conversation reads naturally.
+        """
         try:
             markup = None
             if buttons:
@@ -55,10 +67,22 @@ class TelegramChannel:
                     for row in buttons
                 ])
 
+            chunks = split_message(message)
+            mode = parse_mode or "Markdown"
+
+            # Send leading chunks without buttons
+            for chunk in chunks[:-1]:
+                await self._bot.send_message(
+                    chat_id=int(user_id),
+                    text=chunk,
+                    parse_mode=mode,
+                )
+
+            # Final chunk gets the reply_markup (buttons)
             await self._bot.send_message(
                 chat_id=int(user_id),
-                text=message,
-                parse_mode=parse_mode or "Markdown",
+                text=chunks[-1],
+                parse_mode=mode,
                 reply_markup=markup,
             )
             return True

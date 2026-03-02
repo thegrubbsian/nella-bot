@@ -78,7 +78,7 @@ She also has access to her own logs and source code so she can help fix issues w
 | `src/integrations/` | Google OAuth multi-account manager, LinkedIn OAuth | You want to add a new Google API, add an account, or fix auth issues |
 | `src/sms/` | Telnyx SMS client, inbound SMS handler | You want to change how SMS messaging works |
 | `src/notifications/` | Channel protocol, message routing, Telegram + SMS channels | You want to add a new delivery channel or modify routing |
-| `src/scheduler/` | APScheduler engine, task store, executor, data models | You want to change how scheduled/recurring tasks work |
+| `src/scheduler/` | APScheduler engine, task store, executor, data models, event listeners for observability | You want to change how scheduled/recurring tasks work |
 | `src/webhooks/` | Inbound HTTP server, handler registry, per-integration handlers, SMS inbound route | You want to receive webhooks from external services or modify SMS routing |
 | `config/` | Markdown files that define personality, user profile, memory rules. `.md.EXAMPLE` files are templates checked into git; actual `.md` files are gitignored. | You want to change how Nella behaves or what she knows about you |
 
@@ -145,10 +145,15 @@ Nella can schedule tasks to run at a specific time or on a recurring schedule. C
 - **`ai_task`** — runs a prompt through the full LLM pipeline (with tool access) and sends the result. Good for tasks like "check my email and summarize anything important." Each task can optionally specify a model override (e.g. "use opus for this daily report") without affecting the main conversation's model.
 
 **Lifecycle:**
-1. On bot startup, `SchedulerEngine.start()` loads all active tasks from SQLite and creates APScheduler jobs for each.
+1. On bot startup, `SchedulerEngine.start()` loads all active tasks from SQLite and creates APScheduler jobs for each. Each loaded task is logged with its schedule, channel, and next run time.
 2. When a task fires, the executor looks it up, dispatches to the correct handler, and updates `last_run_at`.
 3. One-off tasks are automatically deactivated after execution. Recurring tasks update their `next_run_at`.
 4. On bot shutdown, `SchedulerEngine.stop()` shuts down APScheduler gracefully.
+
+**Observability:**
+- APScheduler event listeners log job errors, misfires, and max-instance rejections at WARNING/ERROR level — these catch silent failures the application-level try/except cannot.
+- `ai_task` execution has a 5-minute timeout to prevent indefinite hangs (e.g., if Claude or a tool call stalls).
+- Notification delivery results are checked — if the router fails to send the task output, an ERROR is logged (previously the return value was silently ignored).
 
 Tasks are persisted in the `scheduled_tasks` table in the same SQLite database used for notes. The scheduler engine uses APScheduler's `AsyncIOScheduler` with the timezone from `SCHEDULER_TIMEZONE` (default: `America/Chicago`). Notifications are routed through the same `NotificationRouter` used by the rest of the system, so tasks can target any registered channel.
 
@@ -337,8 +342,8 @@ nellabot/
 │   │   ├── __init__.py              # Package exports
 │   │   ├── models.py                # ScheduledTask dataclass, make_task_id()
 │   │   ├── store.py                 # TaskStore — libsql CRUD for scheduled_tasks
-│   │   ├── executor.py              # TaskExecutor — dispatches simple_message and ai_task
-│   │   ├── engine.py                # SchedulerEngine — APScheduler lifecycle and job management
+│   │   ├── executor.py              # TaskExecutor — dispatches simple_message and ai_task, timeout + send verification
+│   │   ├── engine.py                # SchedulerEngine — APScheduler lifecycle, job management, event listeners
 │   │   └── missed.py                # Missed task recovery — detect and notify on startup
 │   ├── webhooks/
 │   │   ├── __init__.py              # Package exports
@@ -359,7 +364,7 @@ nellabot/
 │   └── TOOL_CONFIRMATIONS.toml.EXAMPLE  # Per-tool confirmation toggle (template)
 │   # Copy .EXAMPLE → .md/.toml and customize. Actual .md/.toml files are gitignored.
 │
-├── tests/                           # 950+ tests
+├── tests/                           # 960+ tests
 │   ├── test_google_*.py             # Google auth + integrations (6 files)
 │   ├── test_linkedin_*.py           # LinkedIn tools
 │   ├── test_github_*.py             # GitHub tools
@@ -494,7 +499,7 @@ Then edit `.env` with your actual values:
 | `TELNYX_API_KEY` | No | Telnyx API key. Enables the SMS channel. Create at [telnyx.com](https://telnyx.com). |
 | `TELNYX_PHONE_NUMBER` | No | Your Telnyx phone number in E.164 format (e.g. `+15551234567`). Required for SMS. |
 | `SMS_OWNER_PHONE` | No | Owner's mobile phone number in E.164 format. Only messages from this number are processed. |
-| `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, or `ERROR`. Default: `INFO` |
+| `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`, or `ERROR`. Default: `INFO`. Note: `httpx` and `httpcore` loggers are pinned to WARNING regardless of this setting to prevent Telegram polling noise from overwhelming log aggregation. |
 
 ### 3. Set up Google OAuth (optional)
 

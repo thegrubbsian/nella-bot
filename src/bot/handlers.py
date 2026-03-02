@@ -15,6 +15,7 @@ from src.bot.session import get_session
 from src.llm.client import generate_response
 from src.llm.models import MODEL_MAP, ModelManager, friendly
 from src.memory.automatic import extract_and_save
+from src.notifications.chunking import split_message
 from src.notifications.context import MessageContext
 from src.scratch import ScratchSpace
 
@@ -154,8 +155,18 @@ async def _process_message(
         )
 
         if result_text:
-            with contextlib.suppress(Exception):
-                await reply.edit_text(result_text)
+            chunks = split_message(result_text)
+            if len(chunks) == 1:
+                with contextlib.suppress(Exception):
+                    await reply.edit_text(result_text)
+            else:
+                # Too long for a single Telegram message — delete the
+                # streaming placeholder and send as separate messages.
+                with contextlib.suppress(Exception):
+                    await reply.delete()
+                for chunk in chunks:
+                    with contextlib.suppress(Exception):
+                        await update.message.reply_text(chunk, parse_mode="Markdown")
             session.add("assistant", result_text)
 
             # Background memory extraction (don't block the response)

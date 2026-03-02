@@ -152,3 +152,72 @@ async def test_send_photo_returns_false_on_error() -> None:
 
     ok = await ch.send_photo("1", b"\x89PNG...")
     assert ok is False
+
+
+# -- Chunking integration ---------------------------------------------------
+
+
+async def test_send_chunks_long_message() -> None:
+    """send() with a >4000 char message results in multiple bot.send_message calls."""
+    bot = _make_mock_bot()
+    ch = TelegramChannel(bot)
+
+    long_text = "A" * 2500 + "\n\n" + "B" * 2500
+    ok = await ch.send("1", long_text)
+    assert ok is True
+    assert bot.send_message.await_count == 2
+
+
+async def test_send_short_message_single_call() -> None:
+    """send() with a short message makes exactly one call."""
+    bot = _make_mock_bot()
+    ch = TelegramChannel(bot)
+
+    ok = await ch.send("1", "Short message")
+    assert ok is True
+    assert bot.send_message.await_count == 1
+
+
+async def test_send_rich_buttons_only_on_last_chunk() -> None:
+    """send_rich() attaches buttons only to the final chunk."""
+    bot = _make_mock_bot()
+    ch = TelegramChannel(bot)
+
+    long_text = "A" * 2500 + "\n\n" + "B" * 2500
+    buttons = [[{"text": "OK", "callback_data": "ok"}]]
+
+    with patch("src.notifications.telegram_channel.InlineKeyboardMarkup") as mock_markup, \
+         patch("src.notifications.telegram_channel.InlineKeyboardButton") as mock_button:
+        mock_button.side_effect = lambda **kw: kw
+        mock_markup.return_value = "MARKUP"
+
+        ok = await ch.send_rich("1", long_text, buttons=buttons)
+        assert ok is True
+        assert bot.send_message.await_count == 2
+
+        # First chunk: no reply_markup
+        first_call = bot.send_message.call_args_list[0]
+        assert first_call.kwargs.get("reply_markup") is None
+
+        # Last chunk: has the markup
+        last_call = bot.send_message.call_args_list[1]
+        assert last_call.kwargs["reply_markup"] == "MARKUP"
+
+
+async def test_send_rich_single_chunk_has_buttons() -> None:
+    """send_rich() with a short message still attaches buttons normally."""
+    bot = _make_mock_bot()
+    ch = TelegramChannel(bot)
+
+    buttons = [[{"text": "OK", "callback_data": "ok"}]]
+
+    with patch("src.notifications.telegram_channel.InlineKeyboardMarkup") as mock_markup, \
+         patch("src.notifications.telegram_channel.InlineKeyboardButton") as mock_button:
+        mock_button.side_effect = lambda **kw: kw
+        mock_markup.return_value = "MARKUP"
+
+        ok = await ch.send_rich("1", "Short", buttons=buttons)
+        assert ok is True
+        assert bot.send_message.await_count == 1
+        call_kwargs = bot.send_message.call_args.kwargs
+        assert call_kwargs["reply_markup"] == "MARKUP"

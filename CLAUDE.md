@@ -73,6 +73,15 @@ tests/            # pytest + pytest-asyncio
   Both share the same lazy `AsyncAnthropic` singleton. New code that needs
   Claude should use one of these — do not create standalone `AsyncAnthropic`
   instances elsewhere.
+- Logging goes through Python's `logging` module with `basicConfig()` in
+  `src/bot/main.py`. The `httpx` and `httpcore` loggers are pinned to
+  WARNING — they generate ~8,640 entries/day from Telegram polling and
+  overwhelm rsyslog/SolarWinds rate limits, drowning out application logs.
+  Don't lower these back to INFO.
+- Scheduler tasks have a 5-minute timeout on `ai_task` LLM calls and
+  APScheduler event listeners for job errors, misfires, and max-instance
+  rejections. Notification send results are checked and logged at ERROR
+  if delivery fails. See `src/scheduler/engine.py` and `executor.py`.
 
 ## Maintenance, Housekeeping, Code Health
 
