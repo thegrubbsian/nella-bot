@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 
@@ -13,6 +14,9 @@ if TYPE_CHECKING:
     from src.scheduler.store import TaskStore
 
 logger = logging.getLogger(__name__)
+
+# Maximum time (seconds) for an ai_task LLM call before we give up.
+_AI_TASK_TIMEOUT = 300
 
 
 class TaskExecutor:
@@ -81,11 +85,16 @@ class TaskExecutor:
             logger.warning("simple_message task has empty message: %s", task.id)
             return
         logger.info("Sending simple_message for task '%s' (%d chars)", task.name, len(message))
-        await self._router.send(
+        sent = await self._router.send(
             self._owner_user_id,
             message,
             channel=task.notification_channel,
         )
+        if not sent:
+            logger.error(
+                "Notification send FAILED for simple_message '%s' (%s) channel=%s",
+                task.name, task.id, task.notification_channel,
+            )
 
     async def _handle_ai_task(self, task: ScheduledTask) -> None:
         """Run a prompt through the LLM and send the result."""
@@ -97,15 +106,30 @@ class TaskExecutor:
             "Running ai_task for '%s' (prompt: %d chars)", task.name, len(prompt)
         )
         messages = [{"role": "user", "content": prompt}]
-        response = await self._generate_response(messages, task.model)
+        try:
+            response = await asyncio.wait_for(
+                self._generate_response(messages, task.model),
+                timeout=_AI_TASK_TIMEOUT,
+            )
+        except TimeoutError:
+            logger.error(
+                "ai_task TIMED OUT after %ds: '%s' (%s)",
+                _AI_TASK_TIMEOUT, task.name, task.id,
+            )
+            raise
         logger.info(
             "ai_task LLM response for '%s' (%d chars)", task.name, len(response)
         )
-        await self._router.send(
+        sent = await self._router.send(
             self._owner_user_id,
             response,
             channel=task.notification_channel,
         )
+        if not sent:
+            logger.error(
+                "Notification send FAILED for ai_task '%s' (%s) channel=%s",
+                task.name, task.id, task.notification_channel,
+            )
 
     async def _send_error(self, task: ScheduledTask, task_id: str) -> None:
         """Notify the owner about a task failure instead of crashing."""

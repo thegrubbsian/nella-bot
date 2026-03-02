@@ -6,6 +6,11 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from apscheduler.events import (
+    EVENT_JOB_ERROR,
+    EVENT_JOB_MAX_INSTANCES,
+    EVENT_JOB_MISSED,
+)
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
@@ -13,6 +18,8 @@ from apscheduler.triggers.date import DateTrigger
 from src.config import settings
 
 if TYPE_CHECKING:
+    from apscheduler.events import JobEvent, JobExecutionEvent
+
     from src.scheduler.executor import TaskExecutor
     from src.scheduler.models import ScheduledTask
     from src.scheduler.store import TaskStore
@@ -54,12 +61,23 @@ class SchedulerEngine:
             job = self._add_job(task)
             next_run = getattr(job, "next_run_time", None) if job else None
             logger.info(
-                "Loaded task: %s (%s) type=%s next_run=%s",
+                "Loaded task: %s (%s) type=%s schedule=%s channel=%s next_run=%s",
                 task.name,
                 task.id,
                 task.action_type,
+                task.schedule,
+                task.notification_channel or "(default)",
                 next_run,
             )
+
+        # Listen for APScheduler job lifecycle events that indicate problems.
+        # These are the primary way to detect silent failures like misfires
+        # or max-instance rejections.
+        self._scheduler.add_listener(
+            self._on_job_event,
+            EVENT_JOB_ERROR | EVENT_JOB_MISSED | EVENT_JOB_MAX_INSTANCES,
+        )
+
         self._scheduler.start()
         self._running = True
         logger.info(
@@ -107,6 +125,35 @@ class SchedulerEngine:
             if job and job.next_run_time:
                 await self._store.update_next_run(task.id, job.next_run_time.isoformat())
         logger.info("Reloaded %d task(s)", len(tasks))
+
+    # -- Event listeners -------------------------------------------------------
+
+    def _on_job_event(self, event: JobEvent | JobExecutionEvent) -> None:
+        """Log APScheduler job lifecycle events for observability.
+
+        These catch problems that our application-level try/except in
+        ``_run_task`` cannot: misfires, max-instance rejections, and
+        executor-level errors.
+        """
+        if event.code == EVENT_JOB_ERROR:
+            logger.error(
+                "APScheduler job error: job_id=%s scheduled_run=%s exception=%s",
+                event.job_id,
+                getattr(event, "scheduled_run_time", "?"),
+                getattr(event, "exception", "?"),
+            )
+        elif event.code == EVENT_JOB_MISSED:
+            logger.warning(
+                "APScheduler job MISSED: job_id=%s scheduled_run=%s",
+                event.job_id,
+                getattr(event, "scheduled_run_time", "?"),
+            )
+        elif event.code == EVENT_JOB_MAX_INSTANCES:
+            logger.warning(
+                "APScheduler job skipped (max instances): job_id=%s — "
+                "a previous execution may still be running",
+                event.job_id,
+            )
 
     # -- Internal --------------------------------------------------------------
 

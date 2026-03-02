@@ -9,6 +9,13 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=getattr(logging, settings.log_level),
 )
+
+# Suppress noisy library loggers. httpx logs every Telegram polling
+# request at INFO (~8,640/day), which overwhelms rsyslog/SolarWinds
+# rate limits and drowns out actual application logs.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 
