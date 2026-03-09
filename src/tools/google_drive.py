@@ -16,7 +16,14 @@ logger = logging.getLogger(__name__)
 
 _CATEGORY = "google_drive"
 
-_FILE_FIELDS = "files(id,name,mimeType,modifiedTime,webViewLink)"
+_FILE_FIELDS = "files(id,name,mimeType,modifiedTime,webViewLink,parents)"
+
+# Include shared drives and files shared with the user in all queries.
+_SHARED_DRIVE_PARAMS = {
+    "supportsAllDrives": True,
+    "includeItemsFromAllDrives": True,
+    "corpora": "allDrives",
+}
 
 _EXPORT_FORMATS: dict[str, tuple[str, str]] = {
     "application/vnd.google-apps.document": ("application/pdf", ".pdf"),
@@ -37,6 +44,55 @@ def _escape_query(text: str) -> str:
     return text.replace("\\", "\\\\").replace("'", "\\'")
 
 
+async def _resolve_folder_path(
+    service,
+    folder_id: str,
+    *,
+    _cache: dict[str, str] | None = None,
+    _depth: int = 0,
+) -> str:
+    """Walk up the parent chain to build a human-readable folder path.
+
+    Returns something like ``"Tandem Clients > Epiq Solutions > Project"``.
+    Capped at 5 levels to avoid runaway API calls.  A shared *cache* dict
+    prevents duplicate fetches when multiple files share parent folders.
+    """
+    if _cache is None:
+        _cache = {}
+    if folder_id in _cache:
+        return _cache[folder_id]
+    if _depth >= 5:
+        _cache[folder_id] = "…"
+        return "…"
+
+    try:
+        meta = await asyncio.to_thread(
+            lambda fid=folder_id: service.files()
+            .get(
+                fileId=fid,
+                fields="id,name,parents",
+                supportsAllDrives=True,
+            )
+            .execute()
+        )
+    except Exception:
+        _cache[folder_id] = ""
+        return ""
+
+    name = meta.get("name", "")
+    parents = meta.get("parents", [])
+    if parents:
+        parent_path = await _resolve_folder_path(
+            service, parents[0], _cache=_cache, _depth=_depth + 1
+        )
+        full = f"{parent_path} > {name}" if parent_path and parent_path != "…" else name
+    else:
+        full = name
+
+    _cache[folder_id] = full
+    return full
+
+
 # -- search_files ------------------------------------------------------------
 
 
@@ -53,6 +109,8 @@ class SearchFilesParams(GoogleToolParams):
     name="search_files",
     description=(
         "Search Google Drive for files by name or content. "
+        "Includes shared drives and files shared with you. "
+        "Results include the folder path for context. "
         "Optionally scope to a specific folder."
     ),
     category=_CATEGORY,
@@ -74,20 +132,28 @@ async def search_files(
 
     result = await asyncio.to_thread(
         lambda: service.files()
-        .list(q=q, pageSize=max_results, fields=_FILE_FIELDS)
+        .list(q=q, pageSize=max_results, fields=_FILE_FIELDS, **_SHARED_DRIVE_PARAMS)
         .execute()
     )
 
-    files = [
-        {
+    # Resolve parent folder paths so Claude can see where files live
+    path_cache: dict[str, str] = {}
+    files = []
+    for f in result.get("files", []):
+        parents = f.get("parents", [])
+        folder_path = ""
+        if parents:
+            folder_path = await _resolve_folder_path(
+                service, parents[0], _cache=path_cache
+            )
+        files.append({
             "id": f["id"],
             "name": f["name"],
             "mime_type": f.get("mimeType", ""),
             "modified_time": f.get("modifiedTime", ""),
             "web_link": f.get("webViewLink", ""),
-        }
-        for f in result.get("files", [])
-    ]
+            "folder_path": folder_path,
+        })
 
     return ToolResult(data={"files": files, "count": len(files)})
 
@@ -111,9 +177,11 @@ async def list_recent_files(max_results: int = 10, account: str | None = None) -
     result = await asyncio.to_thread(
         lambda: service.files()
         .list(
+            q="trashed = false",
             orderBy="modifiedTime desc",
             pageSize=max_results,
             fields=_FILE_FIELDS,
+            **_SHARED_DRIVE_PARAMS,
         )
         .execute()
     )
@@ -163,6 +231,7 @@ async def list_folder(
             orderBy="modifiedTime desc",
             pageSize=max_results,
             fields=_FILE_FIELDS,
+            **_SHARED_DRIVE_PARAMS,
         )
         .execute()
     )
@@ -203,7 +272,11 @@ async def read_file(file_id: str, account: str | None = None) -> ToolResult:
     # Get file metadata
     meta = await asyncio.to_thread(
         lambda: service.files()
-        .get(fileId=file_id, fields="id,name,mimeType,modifiedTime,webViewLink,size")
+        .get(
+            fileId=file_id,
+            fields="id,name,mimeType,modifiedTime,webViewLink,size",
+            supportsAllDrives=True,
+        )
         .execute()
     )
 
@@ -240,7 +313,9 @@ async def read_file(file_id: str, account: str | None = None) -> ToolResult:
 
     if is_text:
         content_bytes = await asyncio.to_thread(
-            lambda: service.files().get_media(fileId=file_id).execute()
+            lambda: service.files()
+            .get_media(fileId=file_id, supportsAllDrives=True)
+            .execute()
         )
         content = content_bytes.decode("utf-8", errors="replace")
         # Truncate very long files
@@ -275,7 +350,7 @@ async def delete_file(file_id: str, account: str | None = None) -> ToolResult:
 
     await asyncio.to_thread(
         lambda: service.files()
-        .update(fileId=file_id, body={"trashed": True})
+        .update(fileId=file_id, body={"trashed": True}, supportsAllDrives=True)
         .execute()
     )
 
@@ -309,7 +384,11 @@ async def download_drive_file(
 
     meta = await asyncio.to_thread(
         lambda: service.files()
-        .get(fileId=file_id, fields="id,name,mimeType,webViewLink")
+        .get(
+            fileId=file_id,
+            fields="id,name,mimeType,webViewLink",
+            supportsAllDrives=True,
+        )
         .execute()
     )
 
@@ -331,7 +410,9 @@ async def download_drive_file(
         mime_type = export_mime
     else:
         data = await asyncio.to_thread(
-            lambda: service.files().get_media(fileId=file_id).execute()
+            lambda: service.files()
+            .get_media(fileId=file_id, supportsAllDrives=True)
+            .execute()
         )
         if filename is None:
             filename = drive_name
@@ -399,7 +480,12 @@ async def upload_to_drive(
 
     result = await asyncio.to_thread(
         lambda: service.files()
-        .create(body=file_metadata, media_body=media, fields="id,name,webViewLink")
+        .create(
+            body=file_metadata,
+            media_body=media,
+            fields="id,name,webViewLink",
+            supportsAllDrives=True,
+        )
         .execute()
     )
 

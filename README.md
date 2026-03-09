@@ -384,7 +384,7 @@ nellabot/
 │   │   ├── base.py                  # ToolResult, ToolParams, GoogleToolParams, SlackToolParams, BaseTool
 │   │   ├── google_gmail.py          # 19 tools: search, read, read_thread, send, create_draft, reply, archive, archive_emails, trash, mark_as_read, mark_as_unread, star, unstar, add_label, remove_label, create_label, delete_label, list_labels, download_attachment
 │   │   ├── google_calendar.py       # 7 tools: list, today, date_range, create, update, delete, availability
-│   │   ├── google_drive.py          # 7 tools: search, list recent, list folder, read, delete, download, upload
+│   │   ├── google_drive.py          # 7 tools: search (w/ shared drives + folder paths), list recent, list folder, read, delete, download, upload
 │   │   ├── google_docs.py           # 4 tools: read, create, update, append
 │   │   ├── google_people.py         # 6 tools: search, get, create, update contacts + local notes
 │   │   ├── memory_tools.py          # 4 tools: remember, forget, recall, save_reference

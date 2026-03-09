@@ -15,3 +15,13 @@ Copy this file to TOOLS.md and customize. TOOLS.md is gitignored.
 - Prefer `mark_as_read`/`mark_as_unread` over label operations with UNREAD.
 - When I ask "how many" emails match a query, report the `estimated_total` from search results, not just the number fetched.
 - For bulk email operations, use pagination (`next_page_token`) to process all results.
+
+## Google Drive
+
+- Searches cover My Drive, Shared Drives, and files shared with me.
+- `search_files` returns folder paths so you can see where files live in the hierarchy.
+- Use the folder path to pick the most relevant result when multiple matches appear.
+- If a name-based search returns too many results, add context words from the
+  project or folder name to narrow it down.
+- For files in a deep folder hierarchy, try searching for the parent folder name
+  first, then use `list_folder` to navigate into it.

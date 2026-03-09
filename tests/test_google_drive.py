@@ -19,14 +19,18 @@ def _make_file(
     file_id: str = "file1",
     name: str = "test.txt",
     mime_type: str = "text/plain",
+    parents: list[str] | None = None,
 ):
-    return {
+    f = {
         "id": file_id,
         "name": name,
         "mimeType": mime_type,
         "modifiedTime": "2025-01-15T10:00:00Z",
         "webViewLink": "https://drive.google.com/file/d/file1",
     }
+    if parents is not None:
+        f["parents"] = parents
+    return f
 
 
 @pytest.fixture
@@ -42,7 +46,13 @@ class TestSearchFiles:
         from src.tools.google_drive import search_files
 
         drive_mock.files().list().execute.return_value = {
-            "files": [_make_file()],
+            "files": [_make_file(parents=["parent1"])],
+        }
+        # Mock the parent folder resolution
+        drive_mock.files().get().execute.return_value = {
+            "id": "parent1",
+            "name": "My Folder",
+            "parents": [],
         }
 
         result = await search_files(query="test")
@@ -50,6 +60,20 @@ class TestSearchFiles:
         assert result.success
         assert result.data["count"] == 1
         assert result.data["files"][0]["name"] == "test.txt"
+        assert result.data["files"][0]["folder_path"] == "My Folder"
+
+    @pytest.mark.asyncio
+    async def test_search_files_shared_drive_params(self, drive_mock):
+        """Verify shared drive parameters are passed to the API."""
+        from src.tools.google_drive import search_files
+
+        drive_mock.files().list().execute.return_value = {"files": []}
+
+        await search_files(query="test")
+        call_args = drive_mock.files().list.call_args
+        assert call_args.kwargs.get("supportsAllDrives") is True
+        assert call_args.kwargs.get("includeItemsFromAllDrives") is True
+        assert call_args.kwargs.get("corpora") == "allDrives"
 
     @pytest.mark.asyncio
     async def test_search_files_empty(self, drive_mock):
@@ -90,6 +114,114 @@ class TestSearchFiles:
         # The single quote should be escaped
         assert "Dean\\'s Notes" in q
 
+    @pytest.mark.asyncio
+    async def test_search_files_folder_path_nested(self, drive_mock):
+        """Verify nested folder paths are resolved correctly."""
+        from src.tools.google_drive import search_files
+
+        drive_mock.files().list().execute.return_value = {
+            "files": [_make_file(parents=["child_folder"])],
+        }
+
+        # Chain: child_folder -> parent_folder -> root (no parents)
+        def mock_get(**kwargs):
+            mock = MagicMock()
+            fid = kwargs.get("fileId", "")
+            if fid == "child_folder":
+                mock.execute.return_value = {
+                    "id": "child_folder",
+                    "name": "Project",
+                    "parents": ["parent_folder"],
+                }
+            elif fid == "parent_folder":
+                mock.execute.return_value = {
+                    "id": "parent_folder",
+                    "name": "Clients",
+                    "parents": [],
+                }
+            else:
+                mock.execute.return_value = {"id": fid, "name": fid}
+            return mock
+
+        drive_mock.files().get.side_effect = mock_get
+
+        result = await search_files(query="guide")
+        assert result.data["files"][0]["folder_path"] == "Clients > Project"
+
+    @pytest.mark.asyncio
+    async def test_search_files_no_parents(self, drive_mock):
+        """Files without parents get empty folder_path."""
+        from src.tools.google_drive import search_files
+
+        drive_mock.files().list().execute.return_value = {
+            "files": [_make_file()],  # no parents key
+        }
+
+        result = await search_files(query="test")
+        assert result.data["files"][0]["folder_path"] == ""
+
+
+class TestResolveFolderPath:
+    @pytest.mark.asyncio
+    async def test_depth_limit(self, drive_mock):
+        """Paths deeper than 5 levels are truncated."""
+        from src.tools.google_drive import _resolve_folder_path
+
+        # Every folder has a parent — should stop at depth 5
+        def mock_get(**kwargs):
+            mock = MagicMock()
+            fid = kwargs.get("fileId", "")
+            depth = int(fid.replace("folder", "")) if fid.startswith("folder") else 0
+            mock.execute.return_value = {
+                "id": fid,
+                "name": f"Level{depth}",
+                "parents": [f"folder{depth + 1}"],
+            }
+            return mock
+
+        drive_mock.files().get.side_effect = mock_get
+
+        path = await _resolve_folder_path(drive_mock, "folder0")
+        # Should not go infinitely deep
+        assert path.count(">") <= 5
+
+    @pytest.mark.asyncio
+    async def test_cache_prevents_duplicate_calls(self, drive_mock):
+        """Shared cache avoids redundant API calls."""
+        from src.tools.google_drive import _resolve_folder_path
+
+        call_count = 0
+
+        def counting_get(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            mock = MagicMock()
+            mock.execute.return_value = {
+                "id": "folder1",
+                "name": "Shared",
+                "parents": [],
+            }
+            return mock
+
+        drive_mock.files().get.side_effect = counting_get
+
+        cache: dict[str, str] = {}
+        await _resolve_folder_path(drive_mock, "folder1", _cache=cache)
+        await _resolve_folder_path(drive_mock, "folder1", _cache=cache)
+
+        # Second call should use cache — only 1 API call total
+        assert call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_api_error_returns_empty(self, drive_mock):
+        """If the API call fails, return empty string gracefully."""
+        from src.tools.google_drive import _resolve_folder_path
+
+        drive_mock.files().get.side_effect = Exception("API error")
+
+        path = await _resolve_folder_path(drive_mock, "bad_folder")
+        assert path == ""
+
 
 class TestListRecentFiles:
     @pytest.mark.asyncio
@@ -103,6 +235,18 @@ class TestListRecentFiles:
         result = await list_recent_files(max_results=5)
         assert result.success
         assert result.data["count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_list_recent_shared_drive_params(self, drive_mock):
+        from src.tools.google_drive import list_recent_files
+
+        drive_mock.files().list().execute.return_value = {"files": []}
+
+        await list_recent_files()
+        call_args = drive_mock.files().list.call_args
+        assert call_args.kwargs.get("supportsAllDrives") is True
+        assert call_args.kwargs.get("includeItemsFromAllDrives") is True
+        assert call_args.kwargs.get("corpora") == "allDrives"
 
 
 class TestListFolder:
@@ -136,6 +280,18 @@ class TestListFolder:
         result = await list_folder(folder_id="empty_folder")
         assert result.success
         assert result.data["count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_list_folder_shared_drive_params(self, drive_mock):
+        from src.tools.google_drive import list_folder
+
+        drive_mock.files().list().execute.return_value = {"files": []}
+
+        await list_folder(folder_id="folder123")
+        call_args = drive_mock.files().list.call_args
+        assert call_args.kwargs.get("supportsAllDrives") is True
+        assert call_args.kwargs.get("includeItemsFromAllDrives") is True
+        assert call_args.kwargs.get("corpora") == "allDrives"
 
 
 class TestReadFile:

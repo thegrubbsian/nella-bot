@@ -125,9 +125,9 @@ Skip update_event — the create/delete cycle covers the write path.
 
 ## 6. Drive
 
-6.1. **list_recent_files** — List 3 recently modified files.
+6.1. **list_recent_files** — List 3 recently modified files. Verify results include files from shared drives (not just My Drive).
 
-6.2. **search_files** — Search for any file with query "test".
+6.2. **search_files** — Search for any file with query "test". Verify results include a `folder_path` field showing where each file lives in the hierarchy.
 
 6.3. **read_file** — If 6.1 or 6.2 returned a Google Doc or text file, read it. Otherwise pick any Doc you can find.
 
