@@ -29,9 +29,12 @@ src/
 config/
 ├── SOUL.md.EXAMPLE       # Nella's personality, tone, behavioral rules (template)
 ├── USER.md.EXAMPLE       # Owner profile — preferences, context, routines (template)
+├── TOOLS.md.EXAMPLE      # Tool usage preferences and disambiguation rules (template)
 ├── MEMORY.md.EXAMPLE     # Long-term memory notes (template)
-└── MEMORY_RULES.md.EXAMPLE  # Auto-extraction rules (template)
-# .md files are gitignored — copy .EXAMPLE to .md and customize
+├── MEMORY_RULES.md.EXAMPLE  # Auto-extraction rules (template)
+├── NOTION.md.EXAMPLE     # Notion database IDs, schemas, usage hints (template)
+└── TOOL_CONFIRMATIONS.toml.EXAMPLE  # Per-tool confirmation toggle (template)
+# .md and .toml files are gitignored — copy .EXAMPLE and customize
 
 tests/            # pytest + pytest-asyncio
 ```

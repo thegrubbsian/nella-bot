@@ -591,3 +591,110 @@ class TestDownloadEmailAttachment:
 
         # Verify file actually landed in scratch
         assert scratch.read_bytes("invoice.pdf") == file_data
+
+
+class TestCreateDraft:
+    @pytest.mark.asyncio
+    async def test_create_draft(self, gmail_mock):
+        from src.tools.google_gmail import create_draft
+
+        gmail_mock.users().drafts().create().execute.return_value = {
+            "id": "draft1",
+            "message": {"id": "msg1"},
+        }
+
+        result = await create_draft(
+            body="Hello", to="test@example.com", subject="Test Draft"
+        )
+        assert result.success
+        assert result.data["draft_id"] == "draft1"
+        assert result.data["message_id"] == "msg1"
+        assert result.data["to"] == "test@example.com"
+        assert result.data["subject"] == "Test Draft"
+
+    @pytest.mark.asyncio
+    async def test_create_draft_minimal(self, gmail_mock):
+        """Drafts can be created with just a body — no to/subject required."""
+        from src.tools.google_gmail import create_draft
+
+        gmail_mock.users().drafts().create().execute.return_value = {
+            "id": "draft2",
+            "message": {"id": "msg2"},
+        }
+
+        result = await create_draft(body="WIP notes")
+        assert result.success
+        assert result.data["draft_id"] == "draft2"
+        assert result.data["to"] is None
+        assert result.data["subject"] is None
+
+    @pytest.mark.asyncio
+    async def test_create_draft_with_attachments(self, gmail_mock, scratch):
+        from src.tools.google_gmail import create_draft
+
+        scratch.write("doc.pdf", b"%PDF-content")
+        gmail_mock.users().drafts().create().execute.return_value = {
+            "id": "draft3",
+            "message": {"id": "msg3"},
+        }
+
+        result = await create_draft(
+            body="See attached", attachments=["doc.pdf"]
+        )
+        assert result.success
+        assert result.data["draft_id"] == "draft3"
+
+
+class TestListDrafts:
+    @pytest.mark.asyncio
+    async def test_list_drafts(self, gmail_mock):
+        from src.tools.google_gmail import list_drafts
+
+        gmail_mock.users().drafts().list().execute.return_value = {
+            "drafts": [{"id": "draft1"}, {"id": "draft2"}],
+        }
+        # Mock the per-draft get call
+        gmail_mock.users().drafts().get().execute.return_value = {
+            "id": "draft1",
+            "message": {
+                "id": "msg1",
+                "payload": {
+                    "headers": [
+                        {"name": "Subject", "value": "My Draft"},
+                        {"name": "To", "value": "bob@test.com"},
+                        {"name": "Date", "value": "Mon, 1 Jan 2025"},
+                    ],
+                },
+            },
+        }
+
+        result = await list_drafts(max_results=5)
+        assert result.success
+        assert result.data["count"] == 2
+        assert result.data["drafts"][0]["draft_id"] == "draft1"
+        assert result.data["drafts"][0]["subject"] == "My Draft"
+        assert result.data["drafts"][0]["to"] == "bob@test.com"
+
+    @pytest.mark.asyncio
+    async def test_list_drafts_empty(self, gmail_mock):
+        from src.tools.google_gmail import list_drafts
+
+        gmail_mock.users().drafts().list().execute.return_value = {}
+
+        result = await list_drafts()
+        assert result.success
+        assert result.data["count"] == 0
+        assert result.data["drafts"] == []
+
+
+class TestDeleteDraft:
+    @pytest.mark.asyncio
+    async def test_delete_draft(self, gmail_mock):
+        from src.tools.google_gmail import delete_draft
+
+        gmail_mock.users().drafts().delete().execute.return_value = None
+
+        result = await delete_draft(draft_id="draft1")
+        assert result.success
+        assert result.data["deleted"] is True
+        assert result.data["draft_id"] == "draft1"
