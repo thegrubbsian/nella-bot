@@ -198,6 +198,11 @@ def _fmt_create_draft(inp: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _fmt_delete_draft(inp: dict[str, Any]) -> str:
+    draft_id = inp.get("draft_id", "?")
+    return f"Permanently delete draft\nDraft ID: {draft_id}"
+
+
 def _fmt_reply_to_email(inp: dict[str, Any]) -> str:
     lines = ["Reply to email"]
     if inp.get("body"):
@@ -517,6 +522,7 @@ def _fmt_slack_reply_to_thread(inp: dict[str, Any]) -> str:
 _TOOL_FORMATTERS: dict[str, Any] = {
     "send_email": _fmt_send_email,
     "create_draft": _fmt_create_draft,
+    "delete_draft": _fmt_delete_draft,
     "reply_to_email": _fmt_reply_to_email,
     "archive_email": _fmt_archive_email,
     "archive_emails": _fmt_archive_emails,

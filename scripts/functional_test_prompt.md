@@ -79,31 +79,35 @@ Skip scratch_wipe — we don't want to nuke any real working files.
 
 4.4. **send_email** — Send an email TO ME (the bot owner) with subject "Nella Functional Test" and body "This is an automated functional test email. Safe to delete." (Requires confirmation.)
 
-4.5. **create_draft** — Create a draft email with to=owner, subject "Nella Draft Test", body "This is a test draft. Safe to delete." (Requires confirmation.) Verify the draft_id is returned, then delete it manually or leave it for cleanup.
+4.5. **create_draft** — Create a draft email with to=owner, subject "Nella Draft Test", body "This is a test draft. Safe to delete." (Requires confirmation.) Note the draft_id from the response.
 
-4.6. **search_emails** — Search for "subject:Nella Functional Test" to find the email you just sent.
+4.6. **list_drafts** — List drafts with max_results=3. Verify the draft from 4.5 appears in the list.
 
-4.7. **archive_email** — Archive the email from 4.6. (Requires confirmation.)
+4.7. **delete_draft** — Delete the draft from 4.5 using its draft_id. (Requires confirmation.)
 
-4.8. **trash_email** — Send the archived email to the trash / delete it. (Requires confirmation.)
+4.8. **search_emails** — Search for "subject:Nella Functional Test" to find the email you just sent.
 
-4.9. **mark_as_unread** — Search for another recent email and mark it as unread.
+4.9. **archive_email** — Archive the email from 4.8. (Requires confirmation.)
 
-4.10. **mark_as_read** — Mark that same email as read again.
+4.10. **trash_email** — Send the archived email to the trash / delete it. (Requires confirmation.)
 
-4.11. **add_label** — Add the label "IMPORTANT" to that email.
+4.11. **mark_as_unread** — Search for another recent email and mark it as unread.
 
-4.12. **remove_label** — Remove the "IMPORTANT" label from that email.
+4.12. **mark_as_read** — Mark that same email as read again.
 
-4.13. **star_email** — Star that email.
+4.13. **add_label** — Add the label "IMPORTANT" to that email.
 
-4.14. **unstar_email** — Unstar that email.
+4.14. **remove_label** — Remove the "IMPORTANT" label from that email.
 
-4.15. **list_labels** — List all Gmail labels.
+4.15. **star_email** — Star that email.
 
-4.16. **create_label** — Create a label named "Nella Test Label". (Requires confirmation.)
+4.16. **unstar_email** — Unstar that email.
 
-4.17. **delete_label** — Delete the "Nella Test Label" you just created. (Requires confirmation.)
+4.17. **list_labels** — List all Gmail labels.
+
+4.18. **create_label** — Create a label named "Nella Test Label". (Requires confirmation.)
+
+4.19. **delete_label** — Delete the "Nella Test Label" you just created. (Requires confirmation.)
 
 Skip reply_to_email, archive_emails, and download_email_attachment — they're covered by the patterns above.
 

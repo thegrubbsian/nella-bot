@@ -7,12 +7,14 @@
 
 [tools]
 
-# --- Gmail (19) ---
+# --- Gmail (21) ---
 search_emails = false
 read_email = false
 read_thread = false
 send_email = true
 create_draft = true
+list_drafts = false
+delete_draft = true
 reply_to_email = true
 archive_email = true
 archive_emails = true

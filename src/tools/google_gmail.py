@@ -414,6 +414,90 @@ async def create_draft(
     })
 
 
+# -- list_drafts -------------------------------------------------------------
+
+
+class ListDraftsParams(GoogleToolParams):
+    max_results: int = Field(default=10, description="Maximum number of drafts to return")
+
+
+@registry.tool(
+    name="list_drafts",
+    description=(
+        "List draft emails. Returns draft ID, subject, to, and date "
+        "for each draft. Use delete_draft with the draft_id to remove one."
+    ),
+    category=_CATEGORY,
+    params_model=ListDraftsParams,
+)
+async def list_drafts(
+    max_results: int = 10,
+    account: str | None = None,
+) -> ToolResult:
+    service = _auth(account).gmail()
+
+    result = await asyncio.to_thread(
+        lambda: service.users()
+        .drafts()
+        .list(userId="me", maxResults=max_results)
+        .execute()
+    )
+
+    drafts = []
+    for draft_ref in result.get("drafts", []):
+        # Fetch metadata for each draft
+        draft = await asyncio.to_thread(
+            lambda did=draft_ref["id"]: service.users()
+            .drafts()
+            .get(userId="me", id=did, format="metadata")
+            .execute()
+        )
+        msg = draft.get("message", {})
+        headers = _extract_headers(msg)
+        drafts.append({
+            "draft_id": draft["id"],
+            "message_id": msg.get("id", ""),
+            "subject": headers.get("Subject", ""),
+            "to": headers.get("To", ""),
+            "date": headers.get("Date", ""),
+        })
+
+    return ToolResult(data={"drafts": drafts, "count": len(drafts)})
+
+
+# -- delete_draft ------------------------------------------------------------
+
+
+class DeleteDraftParams(GoogleToolParams):
+    draft_id: str = Field(description="Gmail draft ID (from create_draft or list_drafts)")
+
+
+@registry.tool(
+    name="delete_draft",
+    description=(
+        "Permanently delete a draft email. This is irreversible "
+        "— the draft is not moved to trash."
+    ),
+    category=_CATEGORY,
+    params_model=DeleteDraftParams,
+)
+async def delete_draft(
+    draft_id: str,
+    account: str | None = None,
+) -> ToolResult:
+    service = _auth(account).gmail()
+
+    await asyncio.to_thread(
+        lambda: service.users()
+        .drafts()
+        .delete(userId="me", id=draft_id)
+        .execute()
+    )
+
+    logger.info("Deleted draft %s", draft_id)
+    return ToolResult(data={"deleted": True, "draft_id": draft_id})
+
+
 # -- reply_to_email ----------------------------------------------------------
 
 
