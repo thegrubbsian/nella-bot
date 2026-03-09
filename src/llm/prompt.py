@@ -118,6 +118,23 @@ async def build_system_prompt(
             "Both require confirmation before executing."
         )
 
+    # Inject Slack workspace list so Claude knows what workspaces exist
+    workspaces = settings.get_slack_workspaces()
+    if workspaces:
+        from src.integrations.slack_auth import SlackAuthManager
+
+        if SlackAuthManager.any_enabled():
+            default_ws = settings.slack_default_workspace or workspaces[0]
+            lines = [
+                "# Slack Workspaces\n",
+                "When using Slack tools, specify which workspace via the `workspace` parameter. "
+                "If omitted, the default is used.\n",
+            ]
+            for name in workspaces:
+                suffix = " (default)" if name == default_ws else ""
+                lines.append(f"- {name}{suffix}")
+            sections.append("\n".join(lines))
+
     # Inject Notion config when API key is set
     if settings.notion_api_key:
         notion_config = _read_config("NOTION.md")
@@ -150,6 +167,15 @@ async def build_system_prompt(
             "- No images, photos, or file attachments\n"
             "- No rich formatting (no markdown, bold, italics) — use plain text only\n"
             "- Keep responses concise — messages are truncated at 1,600 characters\n"
+            "- Do not suggest Telegram-specific commands (/clear, /status, /model)"
+        )
+    elif source_channel == "slack":
+        channel_text = (
+            "Current Channel: Slack\n\n"
+            "You are responding via Slack DM. Keep these constraints in mind:\n"
+            "- No inline keyboards or buttons — tools requiring confirmation are auto-denied\n"
+            "- You can use basic Slack formatting (*bold*, _italic_, `code`, ```code blocks```)\n"
+            "- Messages are truncated at 4,000 characters\n"
             "- Do not suggest Telegram-specific commands (/clear, /status, /model)"
         )
 

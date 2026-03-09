@@ -52,6 +52,20 @@ class GoogleToolParams(ToolParams):
     )
 
 
+class SlackToolParams(ToolParams):
+    """Base params for all Slack tools.
+
+    Adds an optional ``workspace`` parameter so Claude can choose which
+    Slack workspace to use (e.g. 'personal', 'work'). When omitted the
+    default workspace from settings is used.
+    """
+
+    workspace: str | None = Field(
+        default=None,
+        description="Slack workspace to use (e.g. 'personal', 'work'). Uses default if omitted.",
+    )
+
+
 class BaseTool(ABC):
     """Abstract base for class-based tool implementations.
 

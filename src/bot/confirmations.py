@@ -182,6 +182,22 @@ def _fmt_send_email(inp: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _fmt_create_draft(inp: dict[str, Any]) -> str:
+    lines = ["Create draft"]
+    if inp.get("to"):
+        lines.append(f"To: {inp['to']}")
+    if inp.get("cc"):
+        lines.append(f"CC: {inp['cc']}")
+    if inp.get("subject"):
+        lines.append(f"Subject: {inp['subject']}")
+    if inp.get("body"):
+        lines.append(f"Body: {_trunc(inp['body'])}")
+    attachments = inp.get("attachments") or []
+    if attachments:
+        lines.append(f"Attachments: {len(attachments)} file(s)")
+    return "\n".join(lines)
+
+
 def _fmt_reply_to_email(inp: dict[str, Any]) -> str:
     lines = ["Reply to email"]
     if inp.get("body"):
@@ -474,8 +490,33 @@ def _fmt_notion_create_database(inp: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _fmt_slack_send_message(inp: dict[str, Any]) -> str:
+    lines = ["Send Slack message"]
+    if inp.get("target"):
+        lines.append(f"To: {inp['target']}")
+    if inp.get("workspace"):
+        lines.append(f"Workspace: {inp['workspace']}")
+    if inp.get("text"):
+        lines.append(f"Text: {_trunc(inp['text'])}")
+    return "\n".join(lines)
+
+
+def _fmt_slack_reply_to_thread(inp: dict[str, Any]) -> str:
+    lines = ["Reply in Slack thread"]
+    if inp.get("channel"):
+        lines.append(f"Channel: {inp['channel']}")
+    if inp.get("thread_ts"):
+        lines.append(f"Thread: {inp['thread_ts']}")
+    if inp.get("workspace"):
+        lines.append(f"Workspace: {inp['workspace']}")
+    if inp.get("text"):
+        lines.append(f"Text: {_trunc(inp['text'])}")
+    return "\n".join(lines)
+
+
 _TOOL_FORMATTERS: dict[str, Any] = {
     "send_email": _fmt_send_email,
+    "create_draft": _fmt_create_draft,
     "reply_to_email": _fmt_reply_to_email,
     "archive_email": _fmt_archive_email,
     "archive_emails": _fmt_archive_emails,
@@ -504,6 +545,8 @@ _TOOL_FORMATTERS: dict[str, Any] = {
     "notion_delete_block": _fmt_notion_delete_block,
     "notion_update_block": _fmt_notion_update_block,
     "notion_create_database": _fmt_notion_create_database,
+    "slack_send_message": _fmt_slack_send_message,
+    "slack_reply_to_thread": _fmt_slack_reply_to_thread,
 }
 
 

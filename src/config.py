@@ -96,6 +96,10 @@ class Settings(BaseSettings):
     telnyx_phone_number: str = Field(default="")  # E.164 format, e.g. "+15551234567"
     sms_owner_phone: str = Field(default="")  # Owner's mobile in E.164 format
 
+    # Slack
+    slack_workspaces: str = Field(default="")  # Comma-separated: "personal,work"
+    slack_default_workspace: str = Field(default="")  # Optional override; first in list otherwise
+
     # Plaud
     plaud_drive_folder_id: str = Field(default="")
 
@@ -115,6 +119,12 @@ class Settings(BaseSettings):
         if not self.google_accounts.strip():
             return []
         return [name.strip() for name in self.google_accounts.split(",") if name.strip()]
+
+    def get_slack_workspaces(self) -> list[str]:
+        """Parse SLACK_WORKSPACES into a list of workspace names."""
+        if not self.slack_workspaces.strip():
+            return []
+        return [name.strip() for name in self.slack_workspaces.split(",") if name.strip()]
 
 
 settings = Settings()

@@ -53,4 +53,10 @@ if settings.openai_api_key:
 if settings.notion_api_key:
     from src.tools import notion_tools  # noqa: F401
 
+# Conditionally load Slack tools when at least one workspace has a token file.
+from src.integrations.slack_auth import SlackAuthManager
+
+if SlackAuthManager.any_enabled():
+    from src.tools import slack_tools  # noqa: F401
+
 __all__ = ["registry"]

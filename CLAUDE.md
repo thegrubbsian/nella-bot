@@ -2,9 +2,9 @@
 
 ## Overview
 
-Nella is an always-on personal AI assistant with Telegram and SMS as chat interfaces.
+Nella is an always-on personal AI assistant with Telegram, SMS, and Slack as chat interfaces.
 She uses Claude as the reasoning engine, Mem0 for persistent memory, and integrates
-with Google APIs (Calendar, Gmail, Drive, Docs) for real-world actions.
+with Google APIs (Calendar, Gmail, Drive, Docs), Slack, and other services for real-world actions.
 
 ## Tech Stack
 
@@ -20,8 +20,9 @@ src/
 ├── bot/          # Telegram bot handlers, command routing, message lifecycle
 ├── llm/          # Claude API client, prompt assembly, tool dispatch
 ├── memory/       # Mem0 integration, SQLite conversation store, file-based memory
-├── integrations/ # Google OAuth multi-account manager
+├── integrations/ # Google OAuth multi-account manager, Slack multi-workspace auth
 ├── sms/          # Telnyx SMS client + inbound handler (alternative to Telegram)
+├── slack/        # Slack bot client + inbound DM handler (alternative to Telegram)
 ├── tools/        # Tool definitions for Claude function calling
 └── webhooks/     # Inbound webhook HTTP server + handler registry
 
@@ -60,6 +61,13 @@ tests/            # pytest + pytest-asyncio
   Named accounts are configured via `GOOGLE_ACCOUNTS` in `.env`, with token
   files at `auth_tokens/google_{account}_auth_token.json`. Claude picks the right account from
   conversational context; the system prompt lists available accounts.
+- Slack tools use `SlackToolParams` (from `src/tools/base.py`) as their param
+  base class. This adds an optional `workspace` parameter to every Slack tool.
+  Named workspaces are configured via `SLACK_WORKSPACES` in `.env`, with token
+  files at `auth_tokens/slack_{name}.json`. The `SlackAuthManager` follows the
+  same pattern as `GoogleAuthManager` (class-level instance cache, `get()`,
+  `any_enabled()`, `get_by_team_id()`). Slack uses two token types: bot token
+  (chat interface) and user token (tools acting as owner).
 - Webhook handlers go in `src/webhooks/handlers/`, one file per integration.
   Register them with `@webhook_registry.handler("source_name")`. The HTTP
   server runs alongside Telegram on `WEBHOOK_PORT` (default 8443), validates

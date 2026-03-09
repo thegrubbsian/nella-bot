@@ -79,29 +79,31 @@ Skip scratch_wipe — we don't want to nuke any real working files.
 
 4.4. **send_email** — Send an email TO ME (the bot owner) with subject "Nella Functional Test" and body "This is an automated functional test email. Safe to delete." (Requires confirmation.)
 
-4.5. **search_emails** — Search for "subject:Nella Functional Test" to find the email you just sent.
+4.5. **create_draft** — Create a draft email with to=owner, subject "Nella Draft Test", body "This is a test draft. Safe to delete." (Requires confirmation.) Verify the draft_id is returned, then delete it manually or leave it for cleanup.
 
-4.6. **archive_email** — Archive the email from 4.5. (Requires confirmation.)
+4.6. **search_emails** — Search for "subject:Nella Functional Test" to find the email you just sent.
 
-4.7. **trash_email** — Send the archived email to the trash / delete it. (Requires confirmation.)
+4.7. **archive_email** — Archive the email from 4.6. (Requires confirmation.)
 
-4.8. **mark_as_unread** — Search for another recent email and mark it as unread.
+4.8. **trash_email** — Send the archived email to the trash / delete it. (Requires confirmation.)
 
-4.9. **mark_as_read** — Mark that same email as read again.
+4.9. **mark_as_unread** — Search for another recent email and mark it as unread.
 
-4.10. **add_label** — Add the label "IMPORTANT" to that email.
+4.10. **mark_as_read** — Mark that same email as read again.
 
-4.11. **remove_label** — Remove the "IMPORTANT" label from that email.
+4.11. **add_label** — Add the label "IMPORTANT" to that email.
 
-4.12. **star_email** — Star that email.
+4.12. **remove_label** — Remove the "IMPORTANT" label from that email.
 
-4.13. **unstar_email** — Unstar that email.
+4.13. **star_email** — Star that email.
 
-4.14. **list_labels** — List all Gmail labels.
+4.14. **unstar_email** — Unstar that email.
 
-4.15. **create_label** — Create a label named "Nella Test Label". (Requires confirmation.)
+4.15. **list_labels** — List all Gmail labels.
 
-4.16. **delete_label** — Delete the "Nella Test Label" you just created. (Requires confirmation.)
+4.16. **create_label** — Create a label named "Nella Test Label". (Requires confirmation.)
+
+4.17. **delete_label** — Delete the "Nella Test Label" you just created. (Requires confirmation.)
 
 Skip reply_to_email, archive_emails, and download_email_attachment — they're covered by the patterns above.
 
@@ -253,23 +255,42 @@ Skip create_contact and update_contact — we don't want to create or modify rea
 
 15.2. **scratch_delete** — Delete the generated image file from 15.1.
 
-## 16. LinkedIn
+## 16. Slack
+
+16.1. **slack_list_channels** — List Slack channels (up to 10). Report the count and first few channel names.
+
+16.2. **slack_list_dms** — List recent DM conversations. Report the count and the names of users you have DMs with.
+
+16.3. **slack_read_messages** — If 16.2 returned results, read the most recent messages from the first DM conversation (limit 5). Confirm messages are returned with user names resolved.
+
+16.4. **slack_search_messages** — Search for "hello" in Slack. Report the count and first few matches.
+
+16.5. **slack_find_user** — Find a user by searching for "a" (should match some users). Report the count and the first match.
+
+16.6. **slack_send_message** — Send a DM to yourself (use your own Slack user ID) with text "Nella functional test message. Safe to delete." (Requires confirmation.)
+
+16.7. **slack_reply_to_thread** — If 16.3 returned messages with a thread_ts, reply to that thread with "Functional test reply. Safe to delete." Otherwise, skip this scenario. (Requires confirmation.)
+
+Note: If Slack is disabled (no SLACK_WORKSPACES set or no token files), report scenarios 16.1-16.7 as "DISABLED" and move on.
+
+## 17. LinkedIn
 
 Skip linkedin_create_post and linkedin_post_comment — these post publicly and can't be undone. Just confirm whether the LinkedIn integration is enabled or disabled, and report that.
 
-## 17. SMS Channel
+## 18. SMS Channel
 
 This section verifies SMS configuration — it can't be functionally tested from Telegram.
 
-17.1. **SMS configuration check** — Check if Telnyx SMS is configured by looking for `TELNYX_API_KEY`, `TELNYX_PHONE_NUMBER`, and `SMS_OWNER_PHONE` in your settings. Report ENABLED (with the configured phone number) or DISABLED.
+18.1. **SMS configuration check** — Check if Telnyx SMS is configured by looking for `TELNYX_API_KEY`, `TELNYX_PHONE_NUMBER`, and `SMS_OWNER_PHONE` in your settings. Report ENABLED (with the configured phone number) or DISABLED.
 
-17.2. **Channel awareness** — Confirm you are currently responding on the Telegram channel (you should NOT see any SMS constraints in your system prompt). Report PASS if you're aware you're on Telegram, FAIL if you think you're on SMS.
+18.2. **Channel awareness** — Confirm you are currently responding on the Telegram channel (you should NOT see any SMS constraints in your system prompt). Report PASS if you're aware you're on Telegram, FAIL if you think you're on SMS.
 
 Note: Full SMS functional testing requires sending a text message to Nella's Telnyx phone number separately.
 
-Note: If Notion is disabled (NOTION_API_KEY not set), report scenarios 13.1-13.15 as "DISABLED" and move on.
+Note: If Notion is disabled (NOTION_API_KEY not set), report scenarios 13.1-13.21 as "DISABLED" and move on.
 Note: If browser automation is disabled (BROWSER_ENABLED=false), report scenario 14.1 as "DISABLED" and move on.
 Note: If OpenAI image generation is disabled (OPENAI_API_KEY not set), report scenarios 15.1-15.2 as "DISABLED" and move on.
+Note: If Slack is disabled (SLACK_WORKSPACES not set or no token files), report scenarios 16.1-16.7 as "DISABLED" and move on.
 
 ---
 

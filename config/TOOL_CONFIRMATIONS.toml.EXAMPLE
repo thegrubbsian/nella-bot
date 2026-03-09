@@ -7,11 +7,12 @@
 
 [tools]
 
-# --- Gmail (18) ---
+# --- Gmail (19) ---
 search_emails = false
 read_email = false
 read_thread = false
 send_email = true
+create_draft = true
 reply_to_email = true
 archive_email = true
 archive_emails = true
@@ -122,6 +123,15 @@ analyze_image = false
 
 # --- Creative (1) ---
 generate_image = false
+
+# --- Slack (7) ---
+slack_list_channels = false
+slack_list_dms = false
+slack_read_messages = false
+slack_send_message = true
+slack_reply_to_thread = true
+slack_search_messages = false
+slack_find_user = false
 
 # --- Utility (4) ---
 get_current_datetime = false

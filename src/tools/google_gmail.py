@@ -1,4 +1,4 @@
-"""Gmail tools — search, read, send, reply, archive, trash, read/unread, star, labels, download."""
+"""Gmail tools — search, read, send, draft, reply, archive, trash, labels, download."""
 
 from __future__ import annotations
 
@@ -343,6 +343,75 @@ async def send_email(
 
     logger.info("Sent email to %s: %s", to, result["id"])
     return ToolResult(data={"id": result["id"], "to": to, "subject": subject})
+
+
+# -- create_draft ------------------------------------------------------------
+
+
+class CreateDraftParams(GoogleToolParams):
+    to: str | None = Field(default=None, description="Recipient email address")
+    subject: str | None = Field(default=None, description="Email subject line")
+    body: str = Field(description="Email body text")
+    cc: str | None = Field(default=None, description="CC recipients (comma-separated)")
+    bcc: str | None = Field(default=None, description="BCC recipients (comma-separated)")
+    attachments: list[str] | None = Field(
+        default=None,
+        description="Scratch-space file paths to attach (e.g. ['report.pdf'])",
+    )
+
+
+@registry.tool(
+    name="create_draft",
+    description=(
+        "Create a draft email. Recipients and subject are optional "
+        "— drafts can be incomplete."
+    ),
+    category=_CATEGORY,
+    params_model=CreateDraftParams,
+)
+async def create_draft(
+    body: str,
+    to: str | None = None,
+    subject: str | None = None,
+    cc: str | None = None,
+    bcc: str | None = None,
+    attachments: list[str] | None = None,
+    account: str | None = None,
+) -> ToolResult:
+    service = _auth(account).gmail()
+
+    try:
+        message = _build_message(body, attachments)
+    except (FileNotFoundError, ValueError) as exc:
+        return ToolResult(error=str(exc))
+
+    if to:
+        message["to"] = to
+    if subject:
+        message["subject"] = subject
+    if cc:
+        message["cc"] = cc
+    if bcc:
+        message["bcc"] = bcc
+
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+    result = await asyncio.to_thread(
+        lambda: service.users()
+        .drafts()
+        .create(userId="me", body={"message": {"raw": raw}})
+        .execute()
+    )
+
+    draft_id = result["id"]
+    message_id = result.get("message", {}).get("id", "")
+    logger.info("Created draft %s", draft_id)
+    return ToolResult(data={
+        "draft_id": draft_id,
+        "message_id": message_id,
+        "to": to,
+        "subject": subject,
+    })
 
 
 # -- reply_to_email ----------------------------------------------------------

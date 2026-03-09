@@ -43,6 +43,14 @@ def _init_notifications(app: Application) -> None:
         sms_channel = SMSChannel()
         router.register_channel(sms_channel)
 
+    from src.integrations.slack_auth import SlackAuthManager
+
+    if SlackAuthManager.any_enabled():
+        from src.notifications.slack_channel import SlackChannel
+
+        slack_channel = SlackChannel()
+        router.register_channel(slack_channel)
+
     router.set_default_channel(settings.default_notification_channel)
     logger.info(
         "Notifications initialized: channels=%s, default=%s",

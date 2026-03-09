@@ -1,6 +1,6 @@
 # Nella
 
-Nella is an always-on personal AI assistant that interfaces through Telegram and SMS. She uses Claude as her brain, Mem0 for persistent memory, has a task scheduling system, supports webhooks for Zapier integrations, and wires up a number of tools (Gmail, Calendar, Drive, Docs, Notion, LinkedIn, Github, image generation, etc) so she can actually do things in the real world — not just talk about them. She's single-user by design: one owner, one bot, full context.
+Nella is an always-on personal AI assistant that interfaces through Telegram, SMS, and Slack. She uses Claude as her brain, Mem0 for persistent memory, has a task scheduling system, supports webhooks for Zapier integrations, and wires up a number of tools (Gmail, Calendar, Drive, Docs, Notion, Slack, LinkedIn, Github, image generation, etc) so she can actually do things in the real world — not just talk about them. She's single-user by design: one owner, one bot, full context.
 
 She also has access to her own logs and source code so she can help fix issues when things go awry. All you need is a VPS :)
 
@@ -24,12 +24,16 @@ She also has access to her own logs and source code so she can help fix issues w
 ┌──────────┐   messages   │                                   │
 │   SMS    ├─────────────►│                                   │
 │ (Telnyx) │◄─────────────┤                                   │
+└──────────┘  full reply  │                                   │
+┌──────────┐   messages   │                                   │
+│  Slack   ├─────────────►│                                   │
+│  (DMs)   │◄─────────────┤                                   │
 └──────────┘  full reply  └────────┬──────────────┬───────────┘
                                    │              │
                     ┌──────────────┴──┐    ┌──────┴──────────────┐
                     │  System Prompt  │    │   Tool Registry     │
                     │                 │    │                     │
-                    │  SOUL.md        │    │  Google Gmail (18)  │
+                    │  SOUL.md        │    │  Google Gmail (19)  │
                     │  USER.md        │    │  Google Calendar (7)│
                     │  + current time │    │  Google Drive (7)   │
                     │  + Mem0 recall  │    │  Google Docs (4)    │
@@ -42,6 +46,7 @@ She also has access to her own logs and source code so she can help fix issues w
                     │                 │    │  Observability (1)  │
                     │                 │    │  GitHub (8)         │
                     │                 │    │  LinkedIn (2)       │
+                                           │  Slack (7)          │
                                            │  Notion (14)        │
                                            │  Creative (1)       │
                     │                 │    └─────────────────────┘
@@ -49,7 +54,8 @@ She also has access to her own logs and source code so she can help fix issues w
                     │  Auto-extract   │    │ Notification Router  │
                     └─────────────────┘    │                     │
                                            │  TelegramChannel    │
-                    ┌─────────────────┐    │  SMSChannel (Telnyx)│
+                                           │  SMSChannel (Telnyx)│
+                    ┌─────────────────┐    │  SlackChannel       │
                     │    Scheduler    │    └─────────────────────┘
                     │                 │
                     │  APScheduler    │    ┌─────────────────────┐
@@ -58,6 +64,7 @@ She also has access to her own logs and source code so she can help fix issues w
                                            │  aiohttp on :8443   │
                                            │  /webhooks/{source} │
                                            │  /sms/inbound       │
+                                           │  /slack/events       │
                     ┌─────────────────┐    └─────────────────────┘
                     │  External       │               │
                     │  Services       ├───────────────┘
@@ -74,12 +81,13 @@ She also has access to her own logs and source code so she can help fix issues w
 | `src/llm/` | Claude API client, system prompt assembly, model switching | You want to change how Claude is called, what it sees, or the tool-calling loop |
 | `src/memory/` | Mem0 integration, automatic memory extraction, data models | You want to change how Nella remembers things |
 | `src/browser/` | Playwright browser automation — persistent profile, stealth evasions, headless Chromium agent for JS-heavy sites | You want to change how interactive browsing works |
-| `src/tools/` | Tool registry, all 90 tool implementations, base classes | You want to add a new tool or modify an existing one |
-| `src/integrations/` | Google OAuth multi-account manager, LinkedIn OAuth | You want to add a new Google API, add an account, or fix auth issues |
+| `src/tools/` | Tool registry, all 98 tool implementations, base classes | You want to add a new tool or modify an existing one |
+| `src/integrations/` | Google OAuth multi-account manager, LinkedIn OAuth, Slack multi-workspace auth | You want to add a new Google API, add an account, or fix auth issues |
 | `src/sms/` | Telnyx SMS client, inbound SMS handler | You want to change how SMS messaging works |
-| `src/notifications/` | Channel protocol, message routing, Telegram + SMS channels | You want to add a new delivery channel or modify routing |
+| `src/slack/` | Slack message client, inbound DM handler | You want to change how Slack messaging works |
+| `src/notifications/` | Channel protocol, message routing, Telegram + SMS + Slack channels | You want to add a new delivery channel or modify routing |
 | `src/scheduler/` | APScheduler engine, task store, executor, data models, event listeners for observability | You want to change how scheduled/recurring tasks work |
-| `src/webhooks/` | Inbound HTTP server, handler registry, per-integration handlers, SMS inbound route | You want to receive webhooks from external services or modify SMS routing |
+| `src/webhooks/` | Inbound HTTP server, handler registry, per-integration handlers, SMS inbound route, Slack events route | You want to receive webhooks from external services or modify SMS/Slack routing |
 | `config/` | Markdown files that define personality, user profile, memory rules. `.md.EXAMPLE` files are templates checked into git; actual `.md` files are gitignored. | You want to change how Nella behaves or what she knows about you |
 
 ### How a Message Flows
@@ -100,7 +108,7 @@ Here's what happens when you send "What's on my calendar today?" in Telegram:
 
 7. **`generate_response()` is called** in `src/llm/client.py`. This is where the real work happens:
    - **System prompt assembly** (`src/llm/prompt.py`): reads `SOUL.md` and `USER.md`, injects the current time and timezone, then searches Mem0 for memories related to your message. These are combined into a system prompt with caching so the static parts aren't re-processed on every tool-calling round.
-   - **Claude API call**: sends your conversation history + system prompt + all 90 tool schemas to Claude via streaming.
+   - **Claude API call**: sends your conversation history + system prompt + all 98 tool schemas to Claude via streaming.
    - **Streaming**: as text chunks arrive, the `on_text_delta` callback edits the placeholder message in Telegram (throttled to every 0.5 seconds to stay under rate limits).
 
 8. **If Claude calls a tool** (in this case, probably `get_todays_schedule`):
@@ -117,6 +125,8 @@ Here's what happens when you send "What's on my calendar today?" in Telegram:
 11. **Background memory extraction**: `extract_and_save()` fires as an async task (non-blocking). It sends the exchange to Claude Haiku with the rules from `MEMORY_RULES.md`, extracts facts/preferences/action items, and saves the important ones to Mem0.
 
 **SMS variant:** When a message arrives via SMS instead of Telegram, the flow is similar but with key differences: no streaming (full response sent as a single SMS), no tool confirmations (auto-denied since SMS can't show inline keyboards), and responses are truncated at 1,600 characters. The system prompt also includes channel-specific constraints so Claude adapts its response style. See [How SMS Works](#how-sms-works) for the full flow.
+
+**Slack variant:** Slack DMs follow the same pattern as SMS — no streaming, no tool confirmations, truncated at 4,000 characters. Slack uses its own signing secret for request verification (HMAC-SHA256) instead of the webhook secret. See [How Slack Works](#how-slack-works) for the full flow.
 
 ### How the Memory System Works
 
@@ -170,7 +180,7 @@ Nella runs a lightweight HTTP server (aiohttp) alongside the Telegram polling bo
 
 **Key details:**
 - **Port**: configurable via `WEBHOOK_PORT` (default 8443). The VPS firewall must allow inbound traffic on this port (`sudo ufw allow 8443/tcp`).
-- **Disabled by default**: if `WEBHOOK_SECRET` is empty and SMS is not configured, the server doesn't start. No open ports, no attack surface. The server also starts when `TELNYX_API_KEY` is set (for SMS), even without `WEBHOOK_SECRET`.
+- **Disabled by default**: if `WEBHOOK_SECRET` is empty, SMS is not configured, and Slack is not configured, the server doesn't start. No open ports, no attack surface. The server also starts when `TELNYX_API_KEY` is set (for SMS) or Slack workspaces have token files, even without `WEBHOOK_SECRET`.
 - **Health check**: `GET /health` returns `{"status": "ok"}` — useful for uptime monitoring.
 - **Lifecycle**: starts in `_post_init` (after the Telegram app is ready), stops in `_post_shutdown` (graceful cleanup).
 
@@ -217,6 +227,60 @@ Nella supports conversational SMS via Telnyx as an alternative to Telegram. SMS 
 5. Set `TELNYX_API_KEY`, `TELNYX_PHONE_NUMBER`, `SMS_OWNER_PHONE` in `.env`.
 6. Restart Nella.
 
+### How Slack Works
+
+Nella supports Slack as a full bidirectional channel — chat with her via DMs, and she can read/search/send Slack messages on your behalf via tools. Slack supports multiple workspaces (like Google multi-account).
+
+**Chat interface (DMs to the bot):**
+1. You send a DM to the Nella bot in Slack.
+2. Slack's Events API POSTs to `/slack/events` on the webhook server.
+3. The handler verifies the HMAC-SHA256 signature using the workspace's signing secret.
+4. The `team_id` is looked up via `SlackAuthManager.get_by_team_id()` to route to the correct workspace.
+5. Only DMs (`channel_type == "im"`) are processed — channel messages, subtypes (edits, joins), and bot self-messages are ignored.
+6. A session is created/retrieved (keyed by `slack:{workspace}:{user_id}`).
+7. `generate_response()` is called — no streaming, no tool confirmations (same as SMS).
+8. The response is sent back via `chat_postMessage` using the bot token.
+9. Background memory extraction fires (same as Telegram).
+
+**Tools (7 tools, act as the owner via user token):**
+- `slack_list_channels` — list public/private channels
+- `slack_list_dms` — list DM conversations with user names
+- `slack_read_messages` — read messages from a channel/DM (with thread support)
+- `slack_send_message` — send a message to a user or channel (requires confirmation)
+- `slack_reply_to_thread` — reply in a thread (requires confirmation)
+- `slack_search_messages` — full-text search using Slack search syntax
+- `slack_find_user` — look up user by name or email
+
+All tools accept an optional `workspace` parameter. Claude picks the right workspace from conversational context (the system prompt lists available workspaces).
+
+**Key details:**
+- **Two token types**: Bot token (chat interface — Nella's identity) and User token (tools — acts as the owner).
+- **No confirmations**: Slack can't do inline keyboards, so tools that require confirmation are auto-denied.
+- **No streaming**: the full response is sent as one message.
+- **Message truncation**: capped at 4,000 chars (Slack's message limit).
+- **SlackChannel**: registered in the notification router so tools that send via `msg_context.source_channel` work correctly.
+- **Text cleaning**: `_clean_slack_text()` strips `<@U123>` mentions, `<url|label>` links, and HTML entities from inbound messages.
+
+**Setup:**
+1. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps).
+2. Add Bot Token Scopes: `chat:write`, `files:write`, `im:history`, `im:read`, `im:write`.
+3. Add User Token Scopes: `channels:read`, `channels:history`, `groups:read`, `groups:history`, `im:read`, `im:history`, `mpim:read`, `chat:write`, `search:read`, `users:read`, `users:read.email`.
+4. Enable Event Subscriptions with request URL: `https://{NGROK_DOMAIN}/slack/events`.
+5. Subscribe to bot events: `message.im`.
+6. Install the app to your workspace. Save the bot token, user token, signing secret, team ID, and bot user ID.
+7. Create `auth_tokens/slack_{name}.json`:
+   ```json
+   {
+     "bot_token": "xoxb-...",
+     "user_token": "xoxp-...",
+     "signing_secret": "abc123...",
+     "team_id": "T12345ABC",
+     "bot_user_id": "U12345BOT"
+   }
+   ```
+8. Set `SLACK_WORKSPACES=personal` (or comma-separated for multiple) in `.env`.
+9. Restart Nella.
+
 ### How Plaud Transcript Processing Works
 
 Nella's first webhook integration processes meeting transcripts from Plaud (a meeting recorder). The flow is: Plaud records a meeting → transcript lands in Google Drive → Zapier detects the new file and POSTs to `/webhooks/plaud` → Nella processes it.
@@ -238,7 +302,7 @@ If the transcript isn't found after all retries, the owner gets a notification e
 
 ### How Tool Calling Works
 
-Claude has access to 90 tools organized into categories. When Claude decides it needs to call a tool:
+Claude has access to 98 tools organized into categories. When Claude decides it needs to call a tool:
 
 1. Claude returns a `tool_use` content block with the tool name and arguments.
 2. The registry validates the arguments against a Pydantic model (if one is defined).
@@ -294,7 +358,8 @@ nellabot/
 │   │   └── models.py                # MemoryEntry, ConversationMessage pydantic models
 │   ├── integrations/
 │   │   ├── google_auth.py           # GoogleAuthManager multi-account registry (OAuth + service builders)
-│   │   └── linkedin_auth.py         # LinkedInAuth single-account manager (OAuth + token refresh)
+│   │   ├── linkedin_auth.py         # LinkedInAuth single-account manager (OAuth + token refresh)
+│   │   └── slack_auth.py            # SlackAuthManager multi-workspace registry (bot + user tokens)
 │   ├── people/
 │   │   ├── __init__.py              # Package init
 │   │   └── store.py                 # PeopleStore — libsql CRUD for people_notes
@@ -306,14 +371,18 @@ nellabot/
 │   │   ├── __init__.py              # Package init
 │   │   ├── client.py                # Telnyx SMS API client (aiohttp, send_sms)
 │   │   └── handler.py               # Inbound SMS processing pipeline
+│   ├── slack/
+│   │   ├── __init__.py              # Package init
+│   │   ├── client.py                # Slack bot message client (slack-sdk AsyncWebClient)
+│   │   └── handler.py               # Inbound Slack DM processing pipeline
 │   ├── watchdog.py                      # Systemd watchdog integration (sd_notify, READY, WATCHDOG pings)
 │   ├── db.py                            # Async wrapper over libsql (local SQLite or remote Turso)
 │   ├── scratch.py                       # ScratchSpace — sandboxed local filesystem for temp files
 │   ├── tools/
 │   │   ├── __init__.py              # Imports all tool modules (conditional Google loading)
 │   │   ├── registry.py              # ToolRegistry — decorator & class-based registration
-│   │   ├── base.py                  # ToolResult, ToolParams, GoogleToolParams, BaseTool
-│   │   ├── google_gmail.py          # 18 tools: search, read, read_thread, send, reply, archive, archive_emails, trash, mark_as_read, mark_as_unread, star, unstar, add_label, remove_label, create_label, delete_label, list_labels, download_attachment
+│   │   ├── base.py                  # ToolResult, ToolParams, GoogleToolParams, SlackToolParams, BaseTool
+│   │   ├── google_gmail.py          # 19 tools: search, read, read_thread, send, create_draft, reply, archive, archive_emails, trash, mark_as_read, mark_as_unread, star, unstar, add_label, remove_label, create_label, delete_label, list_labels, download_attachment
 │   │   ├── google_calendar.py       # 7 tools: list, today, date_range, create, update, delete, availability
 │   │   ├── google_drive.py          # 7 tools: search, list recent, list folder, read, delete, download, upload
 │   │   ├── google_docs.py           # 4 tools: read, create, update, append
@@ -325,6 +394,7 @@ nellabot/
 │   │   ├── scratch_tools.py         # 6 tools: scratch_write, scratch_read (auto-extracts PDF/DOCX/XLSX), scratch_list, scratch_delete, scratch_wipe, scratch_download
 │   │   ├── github_tools.py          # 8 tools: get_repo, list_directory, read_file, search_code, list_commits, get_commit, list_issues, get_issue
 │   │   ├── linkedin_tools.py        # 2 tools: create_post, post_comment
+│   │   ├── slack_tools.py           # 7 tools: list_channels, list_dms, read_messages, send_message, reply_to_thread, search_messages, find_user
 │   │   ├── notion_tools.py          # 14 tools: search, list_databases, get_database, query_database, get_page, read_page_content, create_page, update_page, archive_page, append_content, list_blocks, delete_block, update_block, create_database
 │   │   ├── openai_image_tools.py    # 1 tool: generate_image (OpenAI GPT-Image-1)
 │   │   ├── log_tools.py             # 1 tool: query production logs (SolarWinds/Papertrail)
@@ -337,7 +407,9 @@ nellabot/
 │   │   ├── context.py               # MessageContext dataclass
 │   │   ├── router.py                # NotificationRouter singleton
 │   │   ├── telegram_channel.py      # Telegram implementation
-│   │   └── sms_channel.py           # SMS implementation (Telnyx)
+│   │   ├── sms_channel.py           # SMS implementation (Telnyx)
+│   │   ├── slack_channel.py         # Slack implementation (slack-sdk)
+│   │   └── chunking.py              # Smart message splitting for length-limited channels
 │   ├── scheduler/
 │   │   ├── __init__.py              # Package exports
 │   │   ├── models.py                # ScheduledTask dataclass, make_task_id()
@@ -364,11 +436,12 @@ nellabot/
 │   └── TOOL_CONFIRMATIONS.toml.EXAMPLE  # Per-tool confirmation toggle (template)
 │   # Copy .EXAMPLE → .md/.toml and customize. Actual .md/.toml files are gitignored.
 │
-├── tests/                           # 960+ tests
+├── tests/                           # 1050+ tests
 │   ├── test_google_*.py             # Google auth + integrations (6 files)
 │   ├── test_linkedin_*.py           # LinkedIn tools
 │   ├── test_github_*.py             # GitHub tools
 │   ├── test_sms_*.py                # SMS channel (4 files: client, handler, channel, webhook)
+│   ├── test_slack_*.py              # Slack integration (6 files: auth, client, handler, channel, webhook, tools)
 │   ├── test_people_store.py         # PeopleStore CRUD
 │   ├── test_notification_*.py       # Notification system (3 files)
 │   ├── test_memory_*.py             # Memory system (2 files)
@@ -496,6 +569,8 @@ Then edit `.env` with your actual values:
 | `BROWSER_TIMEOUT_MS` | No | Page navigation timeout in milliseconds. Default: `30000` |
 | `BROWSER_MAX_STEPS` | No | Max navigation steps per browse_web call. Default: `15` |
 | `BROWSER_PROFILE_DIR` | No | Persistent browser profile directory (cookies/state survive across calls). Default: `data/browser_profile` |
+| `SLACK_WORKSPACES` | No | Comma-separated Slack workspace names (e.g. `personal,work`). Token files: `auth_tokens/slack_{name}.json`. Slack tools and chat are disabled when empty. |
+| `SLACK_DEFAULT_WORKSPACE` | No | Workspace used when a tool call omits `workspace`. Defaults to the first entry in `SLACK_WORKSPACES`. |
 | `TELNYX_API_KEY` | No | Telnyx API key. Enables the SMS channel. Create at [telnyx.com](https://telnyx.com). |
 | `TELNYX_PHONE_NUMBER` | No | Your Telnyx phone number in E.164 format (e.g. `+15551234567`). Required for SMS. |
 | `SMS_OWNER_PHONE` | No | Owner's mobile phone number in E.164 format. Only messages from this number are processed. |
@@ -557,7 +632,7 @@ Tests use `pytest-asyncio` with `asyncio_mode = "auto"`, which means async test 
 
 After major code changes (especially tool changes), you can run a live functional test by sending Nella the prompt in `scripts/functional_test_prompt.md`. Copy everything below the `---` line and paste it into Telegram.
 
-The prompt exercises all 90 tools one at a time, cleaning up after itself (deleting test notes, events, files, etc.). Tools that require confirmation will pop up Approve/Deny buttons — approve them all. If a tool is disabled (missing API key or token), Nella reports "DISABLED" and moves on. At the end she produces a summary table with PASS/FAIL/DISABLED for each scenario.
+The prompt exercises all 98 tools one at a time, cleaning up after itself (deleting test notes, events, files, etc.). Tools that require confirmation will pop up Approve/Deny buttons — approve them all. If a tool is disabled (missing API key or token), Nella reports "DISABLED" and moves on. At the end she produces a summary table with PASS/FAIL/DISABLED for each scenario.
 
 LinkedIn tools are skipped (posts are public and can't be undone). `scratch_wipe` is also skipped to avoid deleting real working files.
 
